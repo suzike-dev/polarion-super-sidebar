@@ -1,0 +1,12 @@
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+const root = path.resolve(import.meta.dirname, '..');
+const target = process.argv[2] === 'launcher' ? path.join(root, 'dist/native/PolarionSidebarHost.exe') : process.execPath;
+const args = process.argv[2] === 'launcher' ? ['chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/'] : [path.join(root, 'dist/host/native-bridge.mjs')];
+const child = spawn(target, args, { cwd: root, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+const request = Buffer.from(JSON.stringify({ protocol: 1, id: crypto.randomUUID(), command: { method: 'health' } })); const header = Buffer.alloc(4); header.writeUInt32LE(request.length);
+let data = Buffer.alloc(0); const timeout = setTimeout(() => { child.kill(); console.log('TRANSPORT_TIMEOUT'); process.exitCode = 1; }, 8000);
+child.stdout.on('data', chunk => { data = Buffer.concat([data, chunk]); if (data.length >= 4 && data.length >= data.readUInt32LE(0) + 4) { clearTimeout(timeout); console.log(data.subarray(4).toString('utf8')); child.stdin.end(); } });
+child.stderr.on('data', data => console.error(data.toString('utf8').slice(0, 500)));
+child.once('exit', code => { clearTimeout(timeout); console.log(JSON.stringify({ exit: code })); });
+child.stdin.write(Buffer.concat([header, request]));

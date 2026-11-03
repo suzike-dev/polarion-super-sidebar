@@ -1,0 +1,12 @@
+import {spawn} from 'node:child_process';
+import readline from 'node:readline';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+const cwd=path.resolve(import.meta.dirname,'..');
+const child=spawn('C:/Users/Lenovo/AppData/Local/OpenAI/CodexCLI/0.142.5/codex.exe',['exec','--ephemeral','--skip-git-repo-check','--sandbox','read-only','--json','-'],{cwd,windowsHide:true,stdio:['pipe','pipe','pipe']});
+const result={at:new Date().toISOString(),scope:'native CLI comparison; default model unchanged; no tool actions requested',events:[]};
+const lines=readline.createInterface({input:child.stdout});
+lines.on('line',line=>{let e;try{e=JSON.parse(line);}catch{return;}if(e.type==='error'||e.type==='turn.failed')result.events.push(e);else if(e.type==='item.completed'&&e.item?.type==='agent_message')result.events.push({type:e.type,text:e.item.text});else if(e.type==='thread.started')result.session_created=true;});
+child.stderr.resume();child.stdin.end('Integration test only. Do not use tools, read files, or edit anything. Reply S1_NATIVE_READY only.\n');
+const timer=setTimeout(()=>{result.timeout=true;spawn('taskkill',['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});child.stdout.destroy();child.stderr.destroy();},150000);
+child.once('exit',async code=>{clearTimeout(timer);result.exit_code=code;await fs.writeFile(path.join(cwd,'.research/s1/codex-native.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));lines.close();child.stdout.destroy();child.stderr.destroy();});

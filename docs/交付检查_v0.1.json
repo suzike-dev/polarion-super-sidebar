@@ -1,0 +1,385 @@
+{
+  "status": "PASS",
+  "scope": "文档结构、追溯覆盖、资源链接、DOCX XML 和 PDF 完整性检查；不代表产品验收",
+  "requirements": 28,
+  "decisions": 17,
+  "acceptance_cases": 40,
+  "product_tests_status": "未执行",
+  "pdf_pages": 25,
+  "local_links": [
+    {
+      "target": "assets/workspace-layout.png",
+      "exists": true
+    },
+    {
+      "target": "assets/save-flow.png",
+      "exists": true
+    },
+    {
+      "target": "assets/architecture.png",
+      "exists": true
+    },
+    {
+      "target": "../.research/真实页面调研_20261102.md",
+      "exists": true
+    },
+    {
+      "target": "../.research/evidence/01-document-outline.png",
+      "exists": true
+    },
+    {
+      "target": "../.research/evidence/06-narrow-1366.png",
+      "exists": true
+    },
+    {
+      "target": "../.research/需求澄清记录.md",
+      "exists": true
+    },
+    {
+      "target": "../.research/调研记录_20261102.md",
+      "exists": true
+    },
+    {
+      "target": "C:/Users/Lenovo/Documents/Codex/2026-08-26/https-polarion-pufafen-com-polarion-project/outputs/polarion-mcp-server/README.md",
+      "exists": true
+    },
+    {
+      "target": "E:/Agentic_Engineering/Claude_Desktop/Polarion-SideAgent/polarion-sideagent/README.md",
+      "exists": true
+    },
+    {
+      "target": "../.research/技术方案核验_20261102.md",
+      "exists": true
+    }
+  ],
+  "docx_local_links": [
+    {
+      "target": "E:/Agentic_Engineering/Codex/Polarion%20超级侧边栏工具开发/.research/真实页面调研_20261102.md",
+      "exists": true
+    },
+    {
+      "target": "E:/Agentic_Engineering/Codex/Polarion%20超级侧边栏工具开发/.research/需求澄清记录.md",
+      "exists": true
+    },
+    {
+      "target": "E:/Agentic_Engineering/Codex/Polarion%20超级侧边栏工具开发/.research/技术方案核验_20261102.md",
+      "exists": true
+    },
+    {
+      "target": "E:/Agentic_Engineering/Claude_Desktop/Polarion-SideAgent/polarion-sideagent/README.md",
+      "exists": true
+    },
+    {
+      "target": "E:/Agentic_Engineering/Codex/Polarion%20超级侧边栏工具开发/.research/调研记录_20261102.md",
+      "exists": true
+    },
+    {
+      "target": "C:/Users/Lenovo/Documents/Codex/2026-08-26/https-polarion-pufafen-com-polarion-project/outputs/polarion-mcp-server/README.md",
+      "exists": true
+    }
+  ],
+  "page_metadata": [
+    {
+      "page": 1,
+      "characters": 364,
+      "first_lines": [
+        "待审阅  ·  v0.1    |    1 ",
+        "产品规格  /  2026.11.02 ",
+        "Polarion ",
+        "超级侧边栏助手 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 2,
+      "characters": 3610,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    2 ",
+        "目录 ",
+        "阅读顺序..................................................................................................................................... 4 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 3,
+      "characters": 3379,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    3 ",
+        "8. 本地 Agent 与会话 ....................................................................................................................... 14 ",
+        "FR-17 项目内持久会话 ............................................................................................................. 14 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 4,
+      "characters": 1079,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    4 ",
+        "阅读顺序 ",
+        "先阅读第 1—4 节的范围与交互，再阅读第 5—10 节的编辑、会话和保存规则；第 11—15 节说明技"
+      ],
+      "overflow": []
+    },
+    {
+      "page": 5,
+      "characters": 1076,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    5 ",
+        "首版必须交付 ",
+        "统一侧栏、预览卡、单工作项浮窗、自动选区、固定引用、双引擎接入、持久会话、内容及结构草"
+      ],
+      "overflow": []
+    },
+    {
+      "page": 6,
+      "characters": 75,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    6 ",
+        "工作流语义另外定义。[E4][E5] "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 7,
+      "characters": 1159,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    7 ",
+        "3. 工作区与视觉交互 ",
+        "FR-01 运行载体与入口 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 8,
+      "characters": 664,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    8 ",
+        "建议宽度 760—1100 px、高度不超过可用视口；在 1366 px 窗口中采用“左侧编辑工作区＋右侧 AI”的",
+        "布局，允许最大化到正文区域。实际尺寸受可用空间约束，窄屏和高缩放时可低于建议宽度，表格使"
+      ],
+      "overflow": []
+    },
+    {
+      "page": 9,
+      "characters": 1104,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    9 ",
+        "4. 选区与上下文 ",
+        "FR-05 自动捕获局部选区 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 10,
+      "characters": 1051,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    10 ",
+        "建议草稿在本地短延迟自动持久化，界面显示“草稿已保存到本机”与“已保存到 Polarion”两个不同状",
+        "态。草稿恢复不意味着业务服务器已更新。 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 11,
+      "characters": 1126,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    11 ",
+        "FR-10 图片、附件与评论 ",
+        "附件列表显示名称、所属对象、类型、大小、可获取状态及版本信息。支持在草稿插入本地图片、查"
+      ],
+      "overflow": []
+    },
+    {
+      "page": 12,
+      "characters": 492,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    12 ",
+        "接。 ",
+        "支持查询目标、添加/移除关系并预览受影响的关联。跨项目目标可以引用，但本次操作仅修改已授权"
+      ],
+      "overflow": []
+    },
+    {
+      "page": 13,
+      "characters": 839,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    13 ",
+        "7. 保存、冲突与恢复 ",
+        "FR-15 保存状态与服务端结果 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 14,
+      "characters": 1137,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    14 ",
+        "发布修改的恢复。 ",
+        "本地保存会话、上下文清单、草稿版本和操作日志。浏览器崩溃、扩展重载、Host 重启后恢复可确认"
+      ],
+      "overflow": []
+    },
+    {
+      "page": 15,
+      "characters": 1095,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    15 ",
+        "FR-19 需求工程助手能力 ",
+        "首版预置任务：解释选区、按关联来源补全条件、检查歧义/可验证性、检查单位和枚举、比较上下游"
+      ],
+      "overflow": []
+    },
+    {
+      "page": 16,
+      "characters": 1134,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    16 ",
+        "默认在用户打开绑定资料、发起比对或明确刷新时读取当前来源，不启动全盘或全租户扫描。后续后",
+        "台刷新属于可配置增强项，不影响首版核心闭环。 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 17,
+      "characters": 654,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    17 ",
+        "板、术语/表格规则及外部来源绑定。配置变更有可查看的差异，不重写引擎或 MCP 的全局配置。 ",
+        "默认参数为本版建议，可随交互验证调整：预览停留 400 ms、侧栏 400 px、单活动编辑浮窗、本地"
+      ],
+      "overflow": []
+    },
+    {
+      "page": 18,
+      "characters": 1260,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    18 ",
+        "层 ",
+        "推荐技术 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 19,
+      "characters": 941,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    19 ",
+        "11.3 数据对象与接口契约 ",
+        "对象 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 20,
+      "characters": 1064,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    20 ",
+        "指标 ",
+        "首版目标 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 21,
+      "characters": 1109,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    21 ",
+        "13. 开发前验证项与处置 ",
+        "编号 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 22,
+      "characters": 1008,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    22 ",
+        "用例组 ",
+        "需求覆盖 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 23,
+      "characters": 238,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    23 ",
+        " ",
+        "技术栈为推荐决策，具体依赖版本在开发开始时锁定。先验证接口与保真，再完善视觉；视觉与交互"
+      ],
+      "overflow": []
+    },
+    {
+      "page": 24,
+      "characters": 759,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    24 ",
+        " ",
+        "1366 像素窗口下的原生布局 "
+      ],
+      "overflow": []
+    },
+    {
+      "page": 25,
+      "characters": 390,
+      "first_lines": [
+        "POLARION  /  超级侧边栏助手  /  功能规格 ",
+        "待审阅  ·  v0.1    |    25 ",
+        "• T6 Claude Agent SDK 与 配置/CLI 能力：Agent、会话与配置适配。 ",
+        "• T7 Microsoft Graph 文件内容读取：在线工作簿只读获取依据。 "
+      ],
+      "overflow": []
+    }
+  ],
+  "manifest": [
+    {
+      "name": "Polarion超级侧边栏_功能规格_v0.1.docx",
+      "bytes": 1018113,
+      "sha256": "43e7308b88996179fb057d3a58fefa4da628d4d7a2610885ce9177a57cc42db3"
+    },
+    {
+      "name": "Polarion超级侧边栏_功能规格_v0.1.md",
+      "bytes": 48043,
+      "sha256": "731f9fdf5fa9400b07b42a81c65389b5e7d1ae2700b492f79e80f453371c96a5"
+    },
+    {
+      "name": "Polarion超级侧边栏_功能规格_v0.1.pdf",
+      "bytes": 1343972,
+      "sha256": "f4630508b7e3ce9ca37d2a9b4b18a22ce31812e35df5d2d3ed57b84cacc3c453"
+    },
+    {
+      "name": "验收用例_v0.1.csv",
+      "bytes": 11494,
+      "sha256": "1fc35bc11e4a0e05ec06ae38dd39ff10885c7f547b90aa08dfda458d884f99d6"
+    },
+    {
+      "name": "验收用例_v0.1.json",
+      "bytes": 17620,
+      "sha256": "fb1c4d8dbf5e08686b567d1555db2e33c7223af1269e5d799b1934be0a4486e2"
+    }
+  ],
+  "errors": []
+}

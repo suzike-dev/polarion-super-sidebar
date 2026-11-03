@@ -1,0 +1,57 @@
+{
+  "name": "polarion-super-sidebar",
+  "version": "0.2.5",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.22.2 <25"
+  },
+  "scripts": {
+    "test": "node --test packages/core/*.test.ts apps/host/*.test.ts apps/extension/lib/*.test.ts",
+    "check:host": "tsc --noEmit",
+    "check:extension": "tsc --noEmit -p apps/extension/tsconfig.json",
+    "build:host": "node scripts/build-host.mjs",
+    "build:extension": "wxt build apps/extension",
+    "probe:richtext": "node scripts/probe-richtext.mjs",
+    "probe:polarion": "node scripts/probe-polarion.mjs",
+    "probe:engines": "node scripts/probe-engines.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.316",
+    "@excalidraw/excalidraw": "0.18.1",
+    "@radix-ui/react-dropdown-menu": "2.2.1",
+    "@radix-ui/react-tabs": "1.2.1",
+    "@radix-ui/react-tooltip": "1.4.1",
+    "@tanstack/react-query": "5.105.2",
+    "@tanstack/react-virtual": "3.14.25",
+    "@tiptap/extension-subscript": "3.32.2",
+    "@tiptap/extension-superscript": "3.32.2",
+    "@tiptap/extension-table": "3.32.2",
+    "@tiptap/extension-text-align": "3.32.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@wxt-dev/module-react": "1.2.2",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "fast-xml-parser": "5.11.0",
+    "fflate": "0.8.2",
+    "lucide-react": "1.66.0",
+    "parse5": "8.1.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
+    "wxt": "0.21.5",
+    "zod": "4.6.7",
+    "zustand": "5.0.16"
+  },
+  "devDependencies": {
+    "@tiptap/core": "3.32.2",
+    "@tiptap/starter-kit": "3.32.2",
+    "@types/jsdom": "30.0.0",
+    "@types/node": "24.10.1",
+    "esbuild": "0.28.2",
+    "jsdom": "30.1.3",
+    "typescript": "5.9.3"
+  }
+}

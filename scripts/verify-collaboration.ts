@@ -1,0 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {Store} from '../apps/host/store.ts';
+import {DATA,ROOT} from '../apps/host/paths.ts';
+import type {Draft,Run} from '../packages/protocol/index.ts';
+const store=new Store(path.join(DATA,'state.sqlite'));
+try{const draft=store.list<Draft>('draft').find(d=>d.workItemId==='TEST-729'&&d.target.projectId==='test01')!,run=store.list<Run>('run').findLast(r=>r.prompt.startsWith('这是悬浮富文本工作台的人机协同实测'))!;if(!draft||!run)throw Error('MISSING_EVIDENCE');const rows=store.db.prepare('SELECT kind,data FROM events WHERE run_id=? ORDER BY seq').all(run.id),events=rows.map(r=>({kind:String(r.kind),data:JSON.parse(String(r.data))}));const report={at:new Date().toISOString(),runId:run.id,status:run.status,contexts:run.contexts.map(c=>({source:c.source,workItemId:c.workItemId,text:c.text})),tools:events.filter(e=>e.kind==='tool').map(e=>e.data.name),draftEvents:events.filter(e=>e.kind==='draft').map(e=>e.data),currentRevision:draft.revision,state:draft.state,manualRetained:draft.html.includes('人工复核保留。'),aiReplacementPresent:draft.html.includes('协同验收记录'),oldPhraseAbsent:!draft.html.includes('隔离验收记录'),boardReferencePresent:/workitemimg:[^"']*sidebar-board-/.test(draft.html),serverMatchesLocal:draft.html===draft.baseHtml};fs.writeFileSync(path.join(ROOT,'.research/s3/editor-ai-roundtrip.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));}finally{store.close();}

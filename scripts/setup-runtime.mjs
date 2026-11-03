@@ -1,0 +1,17 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+const version='v24.22.2';
+const destination=path.resolve(import.meta.dirname,`../.runtime/node-${version}-win-x64`);
+await fs.mkdir(destination,{recursive:true});
+const base=`https://nodejs.org/dist/${version}/`;
+const checks=await(await fetch(base+'SHASUMS256.txt')).text();
+const expected=checks.split('\n').find(s=>s.endsWith('win-x64/node.exe'))?.split(/\s+/)[0];
+if(!expected)throw Error('Official checksum missing');
+const bytes=Buffer.from(await(await fetch(base+'win-x64/node.exe')).arrayBuffer());
+const actual=createHash('sha256').update(bytes).digest('hex');
+if(expected!==actual)throw Error('Node checksum mismatch');
+await fs.writeFile(path.join(destination,'node.exe'),bytes);
+await fs.mkdir(path.resolve(import.meta.dirname,'../.research/s1'),{recursive:true});
+await fs.writeFile(path.resolve(import.meta.dirname,'../.research/s1/runtime.json'),JSON.stringify({version,architecture:'win-x64',source:base,sha256:actual,verified:true,global_path_changed:false},null,2));
+console.log(JSON.stringify({version,path:destination,sha256_verified:true}));

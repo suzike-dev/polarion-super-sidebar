@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Polarion Sidebar S1 Probe",
+  "version": "0.1.0",
+  "description": "Isolated capability probe for the approved Polarion sidebar project",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAn9kN+Io5/haiZm88WPWs7iY0VCGJHnMjuTmV7Mujrs7ixk0Ai+mmthPZPYszqfBrMTKGAazjxtSziEg6iB5oToaKNmA5xW1yBnyGbvyS8bEoKmwnBDf5Da9nP+qFjsHOm32Kx1N/1AL3SwiKy2Gyo8ABY4WyzQXqtdAmRgSjy6C0x/40lMM2D9PGEvsLPx/wldAKY29j3CeY87Q9LJWNJCh1l1sMm1DxTdazTf6lq/lu2NL5VF3XbZ+PYRHCbrhDaon7Xg6cCYNy1Hth08eULzk77Mdw3nt7T4XN8fSjxImUcEkiFNk22h+pHpJgaI474x94nyNFVDlZX33hSviXIwIDAQAB",
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "https://polarion.pufafen.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "probe.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://polarion.pufafen.com/polarion/*"
+      ],
+      "js": [
+        "context.js"
+      ],
+      "all_frames": true,
+      "match_about_blank": true,
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { Store } from './store.ts';
+import type { Context } from '../../packages/protocol/index.ts';
+const target = { origin: 'https://polarion.pufafen.com' as const, projectId: 'test01', document: 'Requirements/Fixture' };
+test('session engine affinity, immutable context and idempotent turn submission', () => {
+  const store = new Store(':memory:');
+  const session = store.createSession(target, 'test');
+  store.put('settings', 'global', { defaultEngine: 'codex', claudeModel: '', codexModel: 'gpt-6.1-sol' });
+  assert.equal(store.require<any>('session', session.id).engine, 'claude');
+  assert.equal(store.createSession(target, 'next').engine, 'codex');
+  const contexts: Context[] = [{ id: crypto.randomUUID(), target, text: 'initial', source: 'selection', capturedAt: 1, prefix: '', suffix: '', pinned: false }];
+  const request = crypto.randomUUID();
+  const { run } = store.startRun(session.id, request, 'edit', contexts);
+  assert.equal(store.startRun(session.id, request, 'edit', contexts).created, false);
+  contexts[0].text = 'changed after sending';
+  assert.equal(store.require<any>('run', run.id).contexts[0].text, 'initial');
+  assert.throws(() => store.startRun(session.id, request, 'different', contexts), /REQUEST_ID_REUSED/);
+  assert.throws(() => store.startRun(session.id, crypto.randomUUID(), 'second', []), /SESSION_BUSY/);
+  store.close();
+});
+test('cross-document context rejected and interrupted turns never silently rerun', () => {
+  const store = new Store(':memory:'); const session = store.createSession(target, 'test');
+  assert.throws(() => store.startRun(session.id, crypto.randomUUID(), 'x', [{ id: crypto.randomUUID(), target: { ...target, projectId: 'production' }, text: 'x', source: 'selection', capturedAt: 1, prefix: '', suffix: '', pinned: false }]), /CONTEXT_TARGET_MISMATCH/);
+  const { run } = store.startRun(session.id, crypto.randomUUID(), 'x', []);
+  store.recoverInterruptedRuns();
+  assert.equal(store.require<any>('run', run.id).status, 'interrupted');
+  assert.equal(store.events(session.id, 0).length, 2);
+  assert.equal(store.events(session.id, 1)[0].kind, 'status'); store.close();
+});
+test('project session spans documents but each turn target stays frozen', () => {
+  const store = new Store(':memory:'); const session = store.createSession(target, 'project session');
+  const nextTarget = { ...target, document: 'Requirements/Next' };
+  const { run } = store.startRun(session.id, crypto.randomUUID(), 'next document', [], nextTarget);
+  nextTarget.document = 'Requirements/Unexpected';
+  assert.equal(run.target.document, 'Requirements/Next');
+  assert.equal(store.require<any>('session', session.id).target.document, 'Requirements/Next');
+  assert.throws(() => store.startRun(session.id, crypto.randomUUID(), 'other project', [], { ...target, projectId: 'other' }), /SESSION_PROJECT_MISMATCH/);
+  store.close();
+});
