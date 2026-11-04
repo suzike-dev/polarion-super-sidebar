@@ -4,22 +4,29 @@ import { Engines, safeError } from './engine.ts';
 import { Capabilities } from './capabilities.ts';
 import { Assets } from './assets.ts';
 import {Boards} from './boards.ts';
+import {Credentials} from './credentials.ts';
 import { RequestSchema, PROTOCOL, type Reply, type Run, type Session } from '../../packages/protocol/index.ts';
 export class Service {
   store: Store; drafts: Drafts; engines: Engines;
   capabilities: Capabilities;
   assets: Assets;
+  credentials?: Credentials;
   constructor(store: Store, drafts?: Drafts) { this.store = store; this.assets = new Assets(store); this.drafts = drafts ?? new Drafts(store, new Polarion(this.assets)); this.engines = new Engines(store, this.drafts, this.assets); this.capabilities = new Capabilities(store); }
   async request(input: unknown): Promise<Reply> {
     let id = '';
     try {
       const request = RequestSchema.parse(input); id = request.id; const c = request.command; let value: unknown;
       switch (c.method) {
-        case 'health': value = { protocol: PROTOCOL, version: '0.3.1', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
+        case 'health': value = { protocol: PROTOCOL, version: '0.4.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
         case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;const capabilities=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);value={...capabilities,connected:!!runtime};break;}
         case 'engine.manage': value=await this.engines.manage(c.sessionId,c.action,c.server);break;
         case 'engine.context': this.store.require<Session>('session',c.sessionId);value=await this.engines.contextUsage.read(c.sessionId,c.refresh);break;
         case 'settings.read': value = this.store.settings(); break;
+        case 'polarion.credentials.status': case 'polarion.credentials.check': case 'polarion.credentials.save': {
+          if (!(this.drafts.remote instanceof Polarion)) throw Error('POLARION_UNAVAILABLE');
+          const credentials=this.credentials??=new Credentials(this.drafts.remote);
+          value=c.method==='polarion.credentials.status'?await credentials.status():c.method==='polarion.credentials.check'?await credentials.check():await credentials.save(c.username,c.password);break;
+        }
         case 'settings.write': this.store.put('settings', 'global', c.settings); value = c.settings; break;
         case 'sessions.list': value = this.store.list<Session>('session').filter(s => s.target.projectId === c.projectId).sort((a, b) => b.updatedAt - a.updatedAt); break;
         case 'sessions.create': value = this.store.createSession(c.target, c.title); break;

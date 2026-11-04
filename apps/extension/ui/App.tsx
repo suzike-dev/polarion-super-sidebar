@@ -15,6 +15,8 @@ import type {BoardGenerationRequest} from '../../host/boards';
 import type { SourceNode } from '../../../packages/core/lossless-html';
 import { rpc } from '../lib/client';
 import {consumeSave} from '../lib/save-continuation';
+import {polarionFeedback} from '../lib/polarion-feedback';
+import {PolarionAccount} from './PolarionAccount';
 
 import { DraftEditor } from './DraftEditor';
 import { CapabilitiesPanel } from './CapabilitiesPanel';
@@ -26,7 +28,7 @@ type DraftView = Draft & { nodes: SourceNode[]; version: string };
 type AssistantSettings = ReturnType<typeof SettingsSchema.parse>;
 const DEFAULT_ASSISTANT_FONT_SIZE = SettingsSchema.shape.assistantFontSize.parse(undefined);
 const errors: Record<string, string> = { NATIVE_EDITOR_DIRTY: '原生文档存在输入，请先在原生界面保存或撤销并刷新，再保存草稿。', NATIVE_EDITOR_UNKNOWN: '尚不能确认原生编辑状态。请先保存或放弃原生修改并刷新文档。', REMOTE_CONFLICT: '服务端内容已变化，草稿保留；需要合并后再保存。', STALE_DRAFT: '草稿已被另一处修改，已保留当前版本，请刷新草稿后继续。', DEVELOPMENT_WRITE_SCOPE: '本地服务仍是旧版，请重新加载扩展后再保存。', READBACK_MISMATCH: '保存回读与草稿不一致，请核对服务端内容；不要重复保存。' };
-const errorText = (e: unknown) => errors[(e as Error).message] ?? (e as Error).message;
+const errorText = (e: unknown) => polarionFeedback((e as Error).message) ?? errors[(e as Error).message] ?? (e as Error).message;
 const statusText: Record<string, string> = { running: '正在处理', waiting: '等待工具确认', completed: '已完成', failed: '执行失败', cancelled: '已停止', interrupted: 'Host 重启，任务已中断' };
 export function App() {
   const [target, setTarget] = useState<Target | null>(() => routeFromUrl(location.href));
@@ -218,12 +220,13 @@ export function App() {
       <div className="document-path"><span>{target.projectId}</span><ChevronRight size={12}/><strong title={target.document}>{target.document.split('/').at(-1)}</strong></div>
       <nav className="tabs" aria-label="工作区模式">{[['outline','大纲',ListTree],['ai','AI 助手',MessageSquare],['properties','属性',SlidersHorizontal]].map(([key,label,Icon]: any) => <button key={key} className={tab === key ? 'selected' : ''} onClick={() => setTab(key)}><Icon size={15}/>{label}</button>)}</nav>
       {geometry.overlay && <div className="compact-note">窄屏浮层模式 · 收起助手可查看完整正文</div>}
-      {error && <div className="error" role="alert"><span>{error}</span><button className="icon" title="关闭提示" onClick={() => setError('')}><X size={14}/></button></div>}
+      {error && <div className="error" role="alert"><span>{error}{error.includes('凭据')&&!settings&&<button className="secondary" onClick={e=>void toggleSettings(e.currentTarget)}>配置 Polarion 账号</button>}</span><button className="icon" title="关闭提示" onClick={() => setError('')}><X size={14}/></button></div>}
       {saveNotice&&<div className="save-notice" role="status"><Check size={15}/><span>{saveNotice}</span><button className="icon" title="关闭保存结果" onClick={()=>setSaveNotice('')}><X size={14}/></button></div>}
       {settings && <section className="settings" aria-label="助手设置" aria-busy={settingsLoading||settingsSaving} onKeyDown={e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeSettings();}}}>
         <header className="settings-heading"><h3>助手设置</h3><button className="icon" title="关闭设置，放弃未保存的调整" aria-label="关闭设置，放弃未保存的调整" disabled={settingsSaving} autoFocus onClick={closeSettings}><X size={15}/></button></header>
         {settingsLoading&&<p className="muted" role="status">正在读取设置…</p>}
         {config&&<>
+          <PolarionAccount onBusy={busy=>{settingsSaveBusy.current=busy;setSettingsSaving(busy);}} onConnected={()=>setError('')}/>
           <div className="answer-font-control"><label>AI 回答字号<select value={config.assistantFontSize} disabled={settingsSaving} aria-describedby="answer-font-hint" onChange={e=>setConfig({...config,assistantFontSize:Number(e.target.value)})}>{[12,13,14,15,16,17,18].map(size=><option key={size} value={size}>{size} px{size===DEFAULT_ASSISTANT_FONT_SIZE?' · 默认':''}</option>)}</select></label><button className="secondary" disabled={settingsSaving||config.assistantFontSize===DEFAULT_ASSISTANT_FONT_SIZE} onClick={()=>setConfig({...config,assistantFontSize:DEFAULT_ASSISTANT_FONT_SIZE})}>恢复默认字号</button></div>
           <p className="muted" id="answer-font-hint">调整后即时预览，保存后用于全部 AI 回答。关闭会放弃未保存的调整。</p>
           <div className="answer-font-preview" aria-label="AI 回答字号预览"><AssistantMarkdown text={'### 回答预览\n需求分析保留清晰的层级，参数 `setpoint` 与正文一起调整。'}/></div>
