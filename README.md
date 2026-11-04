@@ -1,6 +1,6 @@
 # Polarion 超级侧边栏
 
-[![Version 0.3.0](https://img.shields.io/badge/Version-v0.3.0-0F766E?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.3.0)
+[![Version 0.3.1](https://img.shields.io/badge/Version-v0.3.1-0F766E?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.3.1)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-087EA4?style=for-the-badge&logo=react&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -13,7 +13,7 @@
 
 [安装与更新](#安装与更新) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
-**[0.3.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.3.0)。** 保留独立编辑窗与 AI 侧栏，加入单行分类工具、紧凑可编辑配图、自动批准和可调回答字号。已完成本轮多 Agent 审查及真实 Polarion 页面验收，具体覆盖范围和保留边界见下文。
+**[0.3.1 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.3.1)。** 保留独立编辑窗与 AI 侧栏，提供单行分类工具、紧凑可编辑配图、自动批准和可调回答字号。本版修复大纲滚轮与交互问题、减少重复渲染，默认进入专注编辑，并内置常用工程绘图素材；验收范围与保留边界见下文。
 
 [![功能示意：独立富文本窗口与 AI 侧栏，文字和段落工具保持单行，使用虚构内容](docs/assets/readme-workbench.svg)](docs/assets/readme-workbench.svg)
 
@@ -22,6 +22,8 @@
 ## 从当前工作项开始
 
 选中正文、打开工作项或选中画板对象，将具体内容带入对话。AI 修改进入本地草稿，与人工编辑使用同一份内容；阅读预览、修改对照和服务端保存都有独立入口。
+
+悬浮编辑台打开工作项时默认进入专注编辑，点击右上角“退出专注编辑”可切回普通窗口；关闭后重新打开或切换工作项，仍从专注编辑开始。
 
 | 工作 | 当前提供的能力 |
 |---|---|
@@ -35,11 +37,17 @@
 
 AI 助手默认选择“自动批准”：读取、文档草稿操作和项目工作区内的文件编辑自动执行，命令及外部操作仍按权限策略确认。可手动切换“请求批准”或“完全访问”；任务开始时固定本轮权限，Polarion 服务端写回仍通过明确保存完成。
 
+助手内置[编辑能力与操作路径](resources/agent-guide.md)：小范围改字、颜色/粗体、复杂排版和画图分别走对应工具；需要细节时按需读取实际富文本 schema 与写回边界。已知不支持的功能直接说明限制和可用替代，避免重复无效请求或绕到脚本改正文。参数错误与版本冲突有不同恢复路径，未修改的工程数值、单位和受保护对象必须保留。
+
 回答默认正文 13px，标题、表格和代码采用更紧凑的层级。打开助手设置可调整为 12–18px，即时预览后保存；取消恢复已保存值。字号设置只影响 AI 回答，不改变需求正文。
 
 [![功能示意：AI 回答字号设置、即时预览与明确保存，使用虚构示例](docs/assets/readme-settings.svg)](docs/assets/readme-settings.svg)
 
 在画板里描述整张图，或在编写需求的对话中直接请求配图，两条入口都读取随产品提供的 [Diagram Design 规范](resources/diagram-design/README.md)。生成草案后先预览、再应用到可编辑画板；默认按内容选择紧凑的横向或竖向画幅，也可明确指定演示或文档尺寸。不能容纳时会返回布局提示，需拆成概览和详图，保留正常字号与工程关系。
+
+画板右侧原生素材库随扩展内置 **36 个原创工程素材**，按流程、系统与接口、控制逻辑、热管理依次编排。插入后可继续编辑文字、形状、颜色与连线。个人素材和对内置项的修改会保留；删除的内置项不会在下次打开时重新出现，需要时可使用“补齐内置工程素材”恢复缺失项。素材加载不需要访问外部素材站点。
+
+[![内置工程素材：四类共36项，精选8个真实矢量素材的自绘示意，非产品截图](docs/assets/readme-library.svg)](docs/assets/readme-library.svg)
 
 ## 把空间留给正文与表格
 
@@ -122,12 +130,12 @@ docs/                   规格、验证报告与自绘功能示意图
 
 ### 首次安装
 
-获取有访问权限的私有仓库。以下命令针对 `v0.3.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
+获取有访问权限的私有仓库。以下命令针对 `v0.3.1` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
 
 ```powershell
 git clone https://github.com/suzike-dev/polarion-super-sidebar.git
 cd polarion-super-sidebar
-git switch --detach v0.3.0
+git switch --detach v0.3.1
 node scripts/setup-runtime.mjs
 $node = '.\.runtime\node-v24.22.2-win-x64\node.exe'
 $npmCli = Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -217,7 +225,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-dev-host
 
 | 验证范围 | 已有结果 | 证据 |
 |---|---|---|
-| 自动检查 | 167/167 自动测试；Host/Extension 类型检查、构建和 GitHub Windows CI 通过 | [最终验收汇总](docs/0.3.0最终验收汇总_20261104.md) |
+| 自动检查 | 199/199 本机自动测试；Host/Extension 类型检查与构建通过；发布提交另经 Windows CI | [0.3.1 验收与边界](docs/0.3.1交互与性能验收_20261104.md) |
+| 滚轮、菜单与窗口 | 194标题真实文档大纲滚轮；短上下文滚动、菜单回焦、390×480底部命令可达；默认专注及正常工作项切换通过 | [0.3.1 真实回归](docs/0.3.1交互与性能验收_20261104.md) |
+| 本轮性能 | 同组真实输入/拖宽/滚轮采样，Long Task 10→1；ScriptDuration约606→282ms；不替代长期压力测试 | [采样与局限](docs/0.3.1交互与性能验收_20261104.md#性能采样) |
+| 内置素材库 | 36 项结构检查、四类实际插入/修改；个人库持久化、删除与补齐；源文件/PNG 服务端回读及再编辑通过 | [素材验收与边界](docs/0.3.1交互与性能验收_20261104.md#默认专注编辑与素材库) |
+| Agent 能力契约 | 真实排版仅 4 次工具调用、0 错误/审批；不支持请求 0 工具调用且未改草稿；原生行距限制明确告知 | [模型行为与保存回读](docs/0.3.1交互与性能验收_20261104.md#agent-编辑能力契约) |
 | 单行布局与交互 | 5 个视口 × 3 组工具栏；具名容器、键盘、表格、查找、内容块等实测 | [同轮验收记录](docs/单行工具栏与原生排版验收_20261104.md) |
 | 原生排版 | 新增正文、标题、整数 pt 字号及默认行高已核对；作者显式样式保留 | [排版结果与限制](docs/单行工具栏与原生排版验收_20261104.md) |
 | 保存与连续编辑 | 隔离工作项真实保存、独立回读、原生显示；免重载、滚动保留、与原生交替保存通过 | [整体精修与保存验收](docs/整体精修与富文本验收_20261104.md) |

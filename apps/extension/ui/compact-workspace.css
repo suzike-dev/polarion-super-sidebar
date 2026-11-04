@@ -37,8 +37,10 @@
 :host .workspace .workflow-note { margin-top: 20px; gap: 7px; flex-wrap: wrap; }
 
 /* Outline and properties can use the full panel without crowding the composer. */
-:host .workspace .outline-panel { min-height: 0; flex: 1; padding: 3px 5px 12px; overscroll-behavior: contain; }
-:host .workspace .outline-panel > .section-title { padding: 9px 10px; }
+:host .workspace .outline-panel { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: 3px 5px 12px; overflow: hidden; }
+:host .workspace .outline-panel > .section-title { flex-shrink: 0; padding: 9px 10px; }
+/* Only the bounded chapter list scrolls; an unbounded inner scroller traps wheel chaining. */
+:host .workspace .outline-panel > .outline-list { flex: 1; }
 :host .workspace .outline-list { min-height: 0; overscroll-behavior: contain; }
 :host .workspace .outline-list button { min-height: 36px; padding-top: 7px; padding-bottom: 7px; padding-right: 12px; overflow-wrap: anywhere; }
 :host .workspace .heading-index { flex-shrink: 0; min-width: 17px; }
@@ -69,7 +71,7 @@
 :host .workspace .context-card strong { flex-shrink: 0; max-width: 48%; overflow: hidden; text-overflow: ellipsis; }
 :host .workspace .context-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :host .workspace .context-preview { padding: 9px; }
-:host .workspace .context-text { max-height: 100px; overscroll-behavior: contain; }
+:host .workspace .context-text { max-height: 100px; overscroll-behavior: auto; }
 :host .workspace .context-preview footer { margin-top: 6px; padding-top: 6px; gap: 8px; }
 :host .workspace .context-preview footer button { min-height: 26px; padding: 3px 5px; }
 :host .workspace .attachment-cards { max-height: min(112px, 16vh); gap: 5px; margin-bottom: 8px; overscroll-behavior: contain; }
@@ -182,6 +184,8 @@
 :host .rich-layer .property-color-presets button { height: 26px; min-width: 26px; }
 :host .rich-layer .property-actions { position: sticky; bottom: -14px; background: #fff; margin-top: 18px; padding: 12px 0 8px; }
 :host .rich-layer .property-actions button { min-height: 34px; }
+:host .rich-layer .document-tool-menu > :is(header, input, footer) { flex-shrink: 0; }
+:host .rich-layer .document-tool-menu > :is(.block-actions, .editor-outline-list) { min-height: 0; overflow: auto; overscroll-behavior: contain; }
 :host .rich-layer .inline-fields { gap: 9px; margin: 10px 0; }
 :host .rich-layer .inline-fields label { flex-wrap: wrap; }
 :host .rich-layer .inline-fields :is(input, select) { min-height: 33px; max-width: 100%; padding: 5px 8px; }

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="700" viewBox="0 0 1120 700" role="img" aria-labelledby="readme-library-title readme-library-desc">
+<title id="readme-library-title">内置工程素材库：36 项可编辑矢量素材</title>
+<desc id="readme-library-desc">四类素材各选两个实际定义示例：流程 8 项，系统与接口 8 项，控制逻辑 8 项，热管理 12 项；本图是素材目录示意，不是产品截图。</desc>
+<defs><marker id="library-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#687176" stroke-width="1.5" stroke-linejoin="round"/></marker></defs>
+<rect width="1120" height="700" fill="#ffffff"/>
+<g font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, Arial, sans-serif">
+<text x="32" y="56" font-size="32" font-weight="600" fill="#292f32">内置工程素材</text>
+<text x="32" y="88" font-size="17" fill="#687176">常用图形，随扩展本地可用；插入后继续编辑文字、形状与连线。</text>
+<text x="1088" y="56" font-size="32" font-weight="600" fill="#356c7c" text-anchor="end">36 项</text>
+<path d="M 32 112 H 1088" stroke="#c8d2ce"/>
+<text x="32" y="151" fill="#292f32" font-size="20" font-weight="600">流程</text><text x="278" y="151" fill="#687176" font-size="16" text-anchor="end">8 项</text>
+<g id="example-process" data-source-id="pss-builtin-v1-process" transform="translate(67 240.8) scale(1.1)"><rect x="0" y="0" width="160" height="64" rx="8" stroke="#687176" fill="#ffffff" stroke-width="2"/><text x="80" y="37.67" fill="#292f32" font-size="18" text-anchor="middle">处理步骤</text></g>
+<path d="M 64 386 H 246" stroke="#eef0ee"/>
+<g id="example-decision" data-source-id="pss-builtin-v1-decision" transform="translate(40 422.39) scale(1.03)"><polygon points="112,0 224,60 112,120 0,60" stroke="#687176" fill="#ffffff" stroke-width="2"/><text x="112" y="65.67" fill="#292f32" font-size="18" text-anchor="middle">条件成立？</text></g>
+<path d="M 290 132 V 604" stroke="#e3e7e4"/>
+<text x="302" y="151" fill="#292f32" font-size="20" font-weight="600">系统与接口</text><text x="548" y="151" fill="#687176" font-size="16" text-anchor="end">8 项</text>
+<g id="example-component" data-source-id="pss-builtin-v1-component" transform="translate(319.4 223.2) scale(1.1)"><rect x="0" y="0" width="192" height="96" rx="8" stroke="#687176" fill="#ffffff" stroke-width="2"/><text x="96" y="53.67" fill="#292f32" font-size="18" text-anchor="middle">软件组件</text><rect x="164" y="12" width="16" height="12" rx="8" stroke="#687176" fill="#ffffff" stroke-width="2"/><rect x="164" y="32" width="16" height="12" rx="8" stroke="#687176" fill="#ffffff" stroke-width="2"/></g>
+<path d="M 334 386 H 516" stroke="#eef0ee"/>
+<g id="example-input-port" data-source-id="pss-builtin-v1-input-port" transform="translate(310 452.06) scale(0.8)"><polyline points="88,40 152,40" stroke="#687176" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#library-arrow)"/><rect x="0" y="16" width="80" height="48" rx="8" stroke="#687176" fill="#ffffff" stroke-width="2"/><text x="40" y="45.67" fill="#292f32" font-size="18" text-anchor="middle">输入</text><rect x="160" y="0" width="128" height="80" rx="8" stroke="#687176" fill="#ffffff" stroke-width="2"/><text x="224" y="45.67" fill="#292f32" font-size="18" text-anchor="middle">组件</text></g>
+<path d="M 560 132 V 604" stroke="#e3e7e4"/>
+<text x="572" y="151" fill="#292f32" font-size="20" font-weight="600">控制逻辑</text><text x="818" y="151" fill="#687176" font-size="16" text-anchor="end">8 项</text>
+<g id="example-pi" data-source-id="pss-builtin-v1-pi" transform="translate(598.2 221) scale(1.1)"><rect x="0" y="0" width="176" height="64" rx="8" stroke="#356c7c" fill="#e9f0f1" stroke-width="2"/><text x="88" y="37.67" fill="#292f32" font-size="18" text-anchor="middle">PI 控制器</text><text x="88" y="95.04" fill="#292f32" font-size="16" text-anchor="middle">Kp + Ki / s</text></g>
+<path d="M 604 386 H 786" stroke="#eef0ee"/>
+<g id="example-hysteresis" data-source-id="pss-builtin-v1-hysteresis" transform="translate(589.4 429) scale(1.1)"><rect x="0" y="0" width="176" height="64" rx="8" stroke="#687176" fill="#ffffff" stroke-width="2"/><text x="88" y="37.67" fill="#292f32" font-size="18" text-anchor="middle">滞回开关</text><text x="96" y="95.04" fill="#292f32" font-size="16" text-anchor="middle">开启阈值 / 关闭阈值</text></g>
+<path d="M 830 132 V 604" stroke="#e3e7e4"/>
+<text x="842" y="151" fill="#292f32" font-size="20" font-weight="600">热管理</text><text x="1088" y="151" fill="#687176" font-size="16" text-anchor="end">12 项</text>
+<g id="example-pump" data-source-id="pss-builtin-v1-pump" transform="translate(877 204.22) scale(1.1)"><ellipse cx="80" cy="48" rx="40" ry="40" stroke="#687176" fill="#ffffff" stroke-width="2"/><polyline points="60,48 104,48" stroke="#356c7c" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#library-arrow)"/><polyline points="0,48 40,48" stroke="#687176" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><polyline points="120,48 160,48" stroke="#687176" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><text x="80" y="116.92" fill="#292f32" font-size="18" text-anchor="middle">循环水泵</text></g>
+<path d="M 874 386 H 1056" stroke="#eef0ee"/>
+<g id="example-heat-exchanger" data-source-id="pss-builtin-v1-heat-exchanger" transform="translate(877 412.23) scale(1.1)"><rect x="24" y="8" width="112" height="80" rx="8" stroke="#687176" fill="#ffffff" stroke-width="2"/><polyline points="0,28 48,28 48,68 112,68 112,28 160,28" stroke="#687176" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><polyline points="0,68 32,68 32,44 128,44 128,68 160,68" stroke="#687176" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><text x="80" y="116.92" fill="#292f32" font-size="18" text-anchor="middle">换热器</text></g>
+<path d="M 32 632 H 1088" stroke="#c8d2ce"/>
+<text x="32" y="664" font-size="16" fill="#687176">素材示意 · 非产品截图</text>
+<text x="1088" y="664" font-size="16" fill="#687176" text-anchor="end">每类选取 2 例 · 中文命名 · 原生可编辑</text>
+</g></svg>
