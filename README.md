@@ -1,5 +1,12 @@
 # Polarion 超级侧边栏
 
+[![Version 0.3.0](https://img.shields.io/badge/Version-v0.3.0-0F766E?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.3.0)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-087EA4?style=for-the-badge&logo=react&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![Claude Code](https://img.shields.io/badge/Claude_Code-D97757?style=for-the-badge&logo=claude&logoColor=white)
+![Model Context Protocol](https://img.shields.io/badge/Model_Context_Protocol-7C3AED?style=for-the-badge&logo=modelcontextprotocol&logoColor=white)
+
 **在需求旁边使用本地 AI，在同一份草稿里编辑，审阅后保存回 Polarion。**
 
 面向工程需求编写与评审的 Windows 浏览器扩展。独立富文本窗口与 AI 侧栏并排工作，正文、工程表格和画板保留各自的编辑方式；Claude Code 使用本机已有配置、Skills 与 MCP。
