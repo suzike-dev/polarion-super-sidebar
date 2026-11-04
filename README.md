@@ -6,8 +6,7 @@
 
 [安装与更新](#安装与更新) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
-<!-- RELEASE_STATUS: 发布前由主 Agent 核对版本、Release 和最终验收统计。 -->
-**0.3.0 候选 · Windows 开发版。** 本地 Host 与扩展已更新到 `0.3.0`，正在真实环境验收；当前已发布源码基线为 [`v0.2.5` Pre-release](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.2.5)。候选版本尚未发布。
+**[0.3.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.3.0)。** 保留独立编辑窗与 AI 侧栏，加入单行分类工具、紧凑可编辑配图、自动批准和可调回答字号。已完成本轮多 Agent 审查及真实 Polarion 页面验收，具体覆盖范围和保留边界见下文。
 
 [![功能示意：独立富文本窗口与 AI 侧栏，文字和段落工具保持单行，使用虚构内容](docs/assets/readme-workbench.svg)](docs/assets/readme-workbench.svg)
 
@@ -116,11 +115,12 @@ docs/                   规格、验证报告与自绘功能示意图
 
 ### 首次安装
 
-获取有访问权限的私有仓库。以下命令针对当前候选源码。复现已发布版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
+获取有访问权限的私有仓库。以下命令针对 `v0.3.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
 
 ```powershell
 git clone https://github.com/suzike-dev/polarion-super-sidebar.git
 cd polarion-super-sidebar
+git switch --detach v0.3.0
 node scripts/setup-runtime.mjs
 $node = '.\.runtime\node-v24.22.2-win-x64\node.exe'
 $npmCli = Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -208,22 +208,23 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-dev-host
 
 以下为有记录的实测范围，不代表所有规划功能均已完成。最新记录优先于历史报告中的旧布局、旧计数和旧缺口描述。README 中的配图均为功能示意；真实页面截图仅保留在本地验收材料中，不作为公开配图。
 
-<!-- ACCEPTANCE_STATUS: 本表为 2026-11-04 已有记录；发布前以最终真实验收结果更新。 -->
 | 验证范围 | 已有结果 | 证据 |
 |---|---|---|
-| 自动检查 | 当前候选 167/167 自动测试；Host/Extension 类型检查与构建通过，最终真实复测待完成 | [候选验收记录](docs/发布前Agent验收_20261104.md) |
+| 自动检查 | 167/167 自动测试；Host/Extension 类型检查、构建和 GitHub Windows CI 通过 | [最终验收汇总](docs/0.3.0最终验收汇总_20261104.md) |
 | 单行布局与交互 | 5 个视口 × 3 组工具栏；具名容器、键盘、表格、查找、内容块等实测 | [同轮验收记录](docs/单行工具栏与原生排版验收_20261104.md) |
 | 原生排版 | 新增正文、标题、整数 pt 字号及默认行高已核对；作者显式样式保留 | [排版结果与限制](docs/单行工具栏与原生排版验收_20261104.md) |
-| 保存与连续编辑 | TEST-729 真实保存、独立回读、原生显示；免重载、滚动保留、与原生交替保存通过 | [整体精修与保存验收](docs/整体精修与富文本验收_20261104.md) |
+| 保存与连续编辑 | 隔离工作项真实保存、独立回读、原生显示；免重载、滚动保留、与原生交替保存通过 | [整体精修与保存验收](docs/整体精修与富文本验收_20261104.md) |
 | Agent 与画板历史闭环 | Claude 修改草稿、人工确认写回；画板源文件与 PNG 回读及再编辑 | [S3 分阶段验证记录](docs/S3运行验证_20261103.md) |
 | 跨目录首次安装 | 隔离 HOME/AppData、空缓存、C 盘中文空格目录，实际下载、构建、Native Messaging 启动与健康通信通过；未冒充第二台设备验收 | [安装证据与边界](docs/跨电脑安装验收_20261104.md) |
 | Agent 复杂图 | 真实 Skill 调用、九节点分支回路、紧凑画幅、放大预览、人工修改、明确保存、源/PNG 独立回读与重开通过；四项实测缺陷已关闭 | [图形验收](docs/Agent绘图与规范验收_20261104.md) |
 | 回答密度与权限偏好 | 默认自动批准；字号 12–18px、取消回滚、保存重开和默认 13px 已在真实页面验证 | [Agent 与界面验收](docs/发布前Agent验收_20261104.md) |
+| 原生交互与 MCP 表单 | 原生右键菜单带入正确选区；弹窗焦点及 Esc、Tab 循环通过；真实 MCP 必填校验、0/false 回传和取消通过 | [最终验收汇总](docs/0.3.0最终验收汇总_20261104.md) |
 
 **仍为 partial 或未验证：**
 
 - **HTML 与 Office 兼容：** 任意旧 HTML、特殊宏、复杂 Office 粘贴和自定义段间距的像素一致性；服务端 HTML 保留不等于原生画面完全一致。
 - **Codex：** 适配尚未接入，不属于本次可用能力；已有模型配置与会话保留。
+- **外部 Agent 能力：** MCP URL 登录表单尚未接入；本机 Skills、MCP 和终端命令仅对逐项实际执行的路径给出通过结论，不能据目录发现推断全部可用。
 - **完整能力对标：** 电子表格工作簿、公式、筛选、冻结行列、多视图、多人实时协作，以及完整飞书文档/画板功能。
 - **环境与规模：** 其他 Polarion 构建、三浏览器完整矩阵、大文档和复杂画板的完整性能目标。
 - **工程系统覆盖：** 完整文档编排、全部 V 模型操作、字段、追踪与工作流等规划能力。当前属性入口仍使用 Polarion 原生界面。

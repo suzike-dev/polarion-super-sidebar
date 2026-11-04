@@ -6,7 +6,7 @@
 
 暂无新的版本条目。
 
-## [0.3.0] - 候选，2026-11-04
+## [0.3.0] - 2026-11-04
 
 - 保留原版独立编辑窗与 AI 侧栏，按 taste-skill 精修字体、图标、配色、间距、菜单与会话界面。
 - 三组工具栏保持一条功能行，添加内容、内容块和大纲共用该行；优先用满宽度，再按功能收起必要的分组。
@@ -20,7 +20,9 @@
 - 将尚未接入的 Codex 适配准确标注为不可用，保留已有配置和历史。
 - 全面重构 README，使用虚构内容自绘功能示意图、保存流程图和架构图说明操作、安装与验收范围；真实页面截图仅在本地保留。
 - 安装流程支持应用专用加密凭据、CLI 自动发现、路径参数与安装诊断；在独立中文/空格目录验证从零安装及 Native Messaging 启动，移除当前运行链对个人项目路径的依赖。
-- 本地自动检查 167/167、类型检查和构建通过；本次发布前真实环境验收仍在进行，候选版本尚未发布。
+- 修复历史、能力目录与上下文面板的 Esc 关闭和焦点恢复；附件预览支持初始焦点、Tab 循环及关闭后回到触发按钮。
+- 修复 MCP 表单将空值误认为 0/false 的必填校验，以及拒绝工具后的执行结果状态；真实 MCP 表单接受 0/false 与取消路径均通过。
+- 167/167 自动测试、类型检查、构建和 GitHub Windows CI 通过；多 Agent 的真实编辑器、保存、Agent、复杂绘图及安装验收完成本轮覆盖范围，见 [最终验收汇总](docs/0.3.0最终验收汇总_20261104.md)。本版本仍为 Windows 开发版，不表示完整飞书对标、Codex 适配或三浏览器全矩阵已完成。
 
 ### 本版本包含的前期增量
 
@@ -89,6 +91,6 @@
 - 画板几何修改仅支持受限对象；复杂折线、旋转、编组等会明确拒绝。
 - 当前为 Windows 开发安装方式，尚未提供正式安装及自动升级包。
 
-[Unreleased]: https://github.com/suzike-dev/polarion-super-sidebar/compare/v0.2.5...HEAD
-[0.3.0]: https://github.com/suzike-dev/polarion-super-sidebar/compare/v0.2.5...codex/release-0.3.0
+[Unreleased]: https://github.com/suzike-dev/polarion-super-sidebar/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/suzike-dev/polarion-super-sidebar/compare/v0.2.5...v0.3.0
 [0.2.5]: https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.2.5
