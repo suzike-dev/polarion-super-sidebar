@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { contentFingerprint, Layout, NativeState } from './layout.ts';
+import { contentFingerprint, Layout, NativeState, outline, navigateHeading } from './layout.ts';
 test('image helper attribute reordering and CSS serialization are clean; real formatting changes remain dirty',()=>{
  const doc=new JSDOM('<body><img title="diagram" src="/a.png" style="width:760px;max-width:100%;margin-left:auto;"></body>').window.document,before=contentFingerprint(doc.body),img=doc.querySelector('img')!;
  img.removeAttribute('title');img.setAttribute('style','width: 760px; max-width: 100%; margin-left: auto;');img.setAttribute('class','');img.setAttribute('title','diagram');
@@ -15,6 +15,31 @@ test('unchanged layout polling performs no DOM writes and closing restores nativ
   const observer=new dom.window.MutationObserver(()=>{});observer.observe(split,{attributes:true,subtree:true});const layout=new Layout();
   layout.apply(true,410);assert(observer.takeRecords().length>0);layout.apply(true,410);assert.equal(observer.takeRecords().length,0);
   layout.apply(false,410);assert.equal(split.firstElementChild!.getAttribute('style'),'right:240px');assert.equal(split.lastElementChild!.getAttribute('style'),'visibility:visible');observer.disconnect();
+ }finally{globalThis.document=previous;dom.window.close();}
+});
+
+test('resizing changes only the content edge and overlay transitions retain the original native styles',()=>{
+ const dom=new JSDOM('<div class="polarion-dle-SplitPanel"><div style="right:240px;color:red"><iframe id="gwt-debug-polarion-DLE-area-debug-id"></iframe></div><div class="polarion-dle-SidebarContainer" style="visibility:visible"></div></div>');
+ const previous=globalThis.document;globalThis.document=dom.window.document;
+ try{
+  const split=document.querySelector<HTMLElement>('.polarion-dle-SplitPanel')!,content=split.firstElementChild as HTMLElement;let available=1600;
+  split.getBoundingClientRect=()=>({width:available,top:46} as DOMRect);const layout=new Layout();layout.apply(true,410);
+  const observer=new dom.window.MutationObserver(()=>{});observer.observe(split,{attributes:true,subtree:true});
+  for(let width=411;width<=430;width++)layout.apply(true,width);
+  const mutations=observer.takeRecords();assert.equal(mutations.length,20);assert(mutations.every(m=>m.target===content));
+  available=1000;assert.equal(layout.apply(true,430).overlay,true);assert.equal(content.getAttribute('style'),'right:240px;color:red');
+  available=1600;assert.equal(layout.apply(true,430).overlay,false);assert.equal(content.style.right,'430px');
+  layout.reset();assert.equal(content.getAttribute('style'),'right:240px;color:red');assert.equal(split.lastElementChild!.getAttribute('style'),'visibility:visible');observer.disconnect();
+ }finally{globalThis.document=previous;dom.window.close();}
+});
+
+test('empty headings retain their DOM navigation indices and each heading text is read once',()=>{
+ const dom=new JSDOM('<iframe id="gwt-debug-polarion-DLE-area-debug-id"></iframe>');const previous=globalThis.document;globalThis.document=dom.window.document;
+ try{
+  const doc=document.querySelector('iframe')!.contentDocument!;doc.body.innerHTML='<h1></h1><h2>First</h2><h3> </h3><h2>Second</h2>';let reads=0,navigated=-1;
+  doc.querySelectorAll<HTMLElement>('h1,h2,h3').forEach((heading,index)=>{Object.defineProperty(heading,'innerText',{get(){reads++;return heading.textContent}});heading.scrollIntoView=()=>{navigated=index};});
+  const headings=outline();assert.deepEqual(headings.map(h=>({index:h.index,text:h.text})),[{index:1,text:'First'},{index:3,text:'Second'}]);assert.equal(reads,4);
+  navigateHeading(headings[1]!.index);assert.equal(navigated,3);
  }finally{globalThis.document=previous;dom.window.close();}
 });
 test('native hover decorations do not masquerade as edits; content and formatting still do', () => {

@@ -15,7 +15,7 @@ export class Service {
     try {
       const request = RequestSchema.parse(input); id = request.id; const c = request.command; let value: unknown;
       switch (c.method) {
-        case 'health': value = { protocol: PROTOCOL, version: '0.3.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
+        case 'health': value = { protocol: PROTOCOL, version: '0.3.1', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
         case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;const capabilities=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);value={...capabilities,connected:!!runtime};break;}
         case 'engine.manage': value=await this.engines.manage(c.sessionId,c.action,c.server);break;
         case 'engine.context': this.store.require<Session>('session',c.sessionId);value=await this.engines.contextUsage.read(c.sessionId,c.refresh);break;

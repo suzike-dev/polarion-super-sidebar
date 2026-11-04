@@ -2,6 +2,7 @@ import {canonicalStyle} from '../../../packages/core/html-equivalence.ts';
 /** Only touch the two observed split-pane styles, and restore exactly what was there. */
 export class Layout {
   private restore?: () => void;
+  private restoreContent?: () => void;
   private current?: { content: HTMLElement; sidebar: HTMLElement | null; width: number; overlay: boolean };
   apply(open: boolean, width: number) {
     if (!open) { this.reset(); return { top: 46, overlay: false }; }
@@ -18,18 +19,23 @@ export class Layout {
     if(prior?.content===content&&prior.sidebar===sidebar&&prior.width===width&&prior.overlay===overlay&&
       (overlay||content.style.getPropertyValue('right')===width+'px')&&(!sidebar||sidebar.style.visibility==='hidden'))
       return {top:Math.max(0,bounds.top),overlay};
-    this.reset();this.current={content,sidebar,width,overlay};
-    const oldContent = content.getAttribute('style'); const oldSidebar = sidebar?.getAttribute('style');
-    if (!overlay) content.style.setProperty('right', width + 'px', 'important');
-    if (sidebar) sidebar.style.setProperty('visibility', 'hidden', 'important');
-    this.restore = () => { oldContent === null ? content.removeAttribute('style') : content.setAttribute('style', oldContent); if (sidebar) oldSidebar == null ? sidebar.removeAttribute('style') : sidebar.setAttribute('style', oldSidebar); };
+    if(prior?.content!==content||prior.sidebar!==sidebar){
+      this.reset();
+      const oldContent=content.getAttribute('style'),oldSidebar=sidebar?.getAttribute('style');
+      const restoreContent=()=>{oldContent===null?content.removeAttribute('style'):content.setAttribute('style',oldContent);};
+      this.restoreContent=restoreContent;
+      this.restore=()=>{restoreContent();if(sidebar)oldSidebar==null?sidebar.removeAttribute('style'):sidebar.setAttribute('style',oldSidebar);};
+    }else if(overlay&&!prior.overlay)this.restoreContent?.();
+    this.current={content,sidebar,width,overlay};
+    if(!overlay&&content.style.getPropertyValue('right')!==width+'px')content.style.setProperty('right',width+'px','important');
+    if(sidebar&&sidebar.style.visibility!=='hidden')sidebar.style.setProperty('visibility','hidden','important');
     return { top: Math.max(0, bounds.top), overlay };
   }
-  reset() { this.restore?.(); this.restore = undefined; this.current=undefined; }
+  reset() { this.restore?.(); this.restore = undefined; this.restoreContent=undefined; this.current=undefined; }
 }
 export function documentFrame() { return document.querySelector<HTMLIFrameElement>('#gwt-debug-polarion-DLE-area-debug-id'); }
 export function outline() {
-  try { return Array.from(documentFrame()?.contentDocument?.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6') ?? []).filter(n => n.innerText.trim()).map((n, index) => ({ index, text: n.innerText.trim().slice(0, 160), level: Number(n.tagName[1]) })); } catch { return []; }
+  try { return Array.from(documentFrame()?.contentDocument?.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6') ?? []).map((n,index)=>({index,text:n.innerText.trim().slice(0,160),level:Number(n.tagName[1])})).filter(h=>h.text); } catch { return []; }
 }
 export function navigateHeading(index: number) { try { documentFrame()?.contentDocument?.querySelectorAll('h1,h2,h3,h4,h5,h6')[index]?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {} }
 export function contentFingerprint(body: HTMLElement) {

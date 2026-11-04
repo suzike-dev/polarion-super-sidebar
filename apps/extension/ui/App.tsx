@@ -39,7 +39,7 @@ export function App() {
   useEffect(()=>{if(!saveNotice)return;const timer=setTimeout(()=>setSaveNotice(''),10000);return()=>clearTimeout(timer);},[saveNotice]);
   useEffect(()=>{if(!target)return;let disposed=false;const key='save-receipt:'+JSON.stringify(target);void browser.storage.local.get(key).then(async value=>{const receipt=value[key] as {workItemId:string;at:number}|undefined;if(!disposed&&receipt&&Date.now()-receipt.at<120000)setSaveNotice(receipt.workItemId+' 已保存到 Polarion，服务端回读一致。');if(receipt)await browser.storage.local.remove(key);});return()=>{disposed=true;};},[target]);
   const [contexts, setContexts] = useState<Context[]>([]); const [pinnedOutline, setPinnedOutline] = useState(false);
-  const [headings, setHeadings] = useState(outline); const [sessions, setSessions] = useState<Session[]>([]);
+  const [headings, setHeadings] = useState<ReturnType<typeof outline>>([]); const [sessions, setSessions] = useState<Session[]>([]);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [session, setSession] = useState<Session | null>(null); const [eventHistory, setEventHistory] = useState(emptyEventHistory); const {events, byRun} = eventHistory; const [loadingHistory, setLoadingHistory] = useState(false); const [runs, setRuns] = useState<Run[]>([]);
   const [history, setHistory] = useState(false); const [settings, setSettings] = useState(false); const [config, setConfig] = useState<AssistantSettings | null>(null);
@@ -61,6 +61,8 @@ export function App() {
   const [attachments, setAttachments] = useState<Asset[]>([]); const [uploadProgress, setUploadProgress] = useState(''); const [previewAsset, setPreviewAsset] = useState<Asset | null>(null); const [dragOver, setDragOver] = useState(false);
   const uploadCount = useRef(0); const attachmentFiles = useRef<HTMLInputElement>(null); const loadedAttachmentProject = useRef<string | null>(null); const attachmentRef = useRef(attachments); attachmentRef.current = attachments;
   const [draft, setDraft] = useState<DraftView | null>(null); const [hover, setHover] = useState<{ workItemId: string; text: string } | null>(null);
+  const draftRef=useRef(draft);draftRef.current=draft;
+  const draftOpenRequest=useRef(0);
   useEffect(()=>{if(draft?.state==='dirty')setSaveNotice('');},[draft?.state,draft?.revision]);
   const [editorAI,setEditorAI]=useState(true);const prepareAI=useRef<(()=>Promise<void>)|null>(null);const priorTab=useRef('ai');
   useEffect(()=>{if(!(draft?editorAI:open))closeSettings();},[draft?.id,editorAI,open,closeSettings]);
@@ -70,16 +72,21 @@ export function App() {
     return()=>{disposed=true;};
   },[health]);
   const layout = useRef(new Layout()); const native = useRef(new NativeState()); const cursor = useRef(0); const scrolling = useRef<HTMLDivElement>(null); const followOutput=useRef(true);
+  const layoutSettings=useRef({open,width,target});layoutSettings.current={open,width,target};
+  const syncLayout=useCallback(()=>{if(document.hidden)return;const {open,width,target}=layoutSettings.current;const geometry=layout.current.apply(open&&!!target,width);setGeometry(old=>old.top===geometry.top&&old.overlay===geometry.overlay?old:geometry);},[]);
+  const outlineVisible=(draft?editorAI:open)&&(tab==='outline'||pinnedOutline);
   const targetRef = useRef(target); targetRef.current = target;
+  const routeEpoch=useRef(0);
+  const updateCurrentDraft=useCallback((updated:DraftView)=>{const page=routeFromUrl(location.href);setDraft(current=>current?.id===updated.id&&updated.revision>=current.revision&&sameTarget(current.target,updated.target)&&!!page&&sameTarget(updated.target,page)&&!!targetRef.current&&sameTarget(updated.target,targetRef.current)?updated:current);},[]);
   const sessionRef = useRef(session); sessionRef.current = session;
   useEffect(() => { let disposed=false;loadedAttachmentProject.current=null;if(!target)return;void browser.storage.local.get('composer-attachments:'+target.projectId).then(value=>{if(!disposed){setAttachments((value['composer-attachments:'+target.projectId] as Asset[])??[]);loadedAttachmentProject.current=target.projectId;}});return()=>{disposed=true;};},[target?.projectId]);
   useEffect(() => { if(target&&loadedAttachmentProject.current===target.projectId)void browser.storage.local.set({['composer-attachments:'+target.projectId]:attachments}); },[attachments,target?.projectId]);
   useEffect(() => { void browser.storage.local.get('workspace-preferences').then(value => { const p = value['workspace-preferences'] as any; if (p) { if (typeof p.open === 'boolean') setOpen(p.open); if (typeof p.pinnedOutline === 'boolean') setPinnedOutline(p.pinnedOutline); if (typeof p.width === 'number') setWidth(Math.max(340, Math.min(560, p.width))); } }).finally(() => setPreferencesLoaded(true)); }, []);
-  useEffect(() => { if (preferencesLoaded) void browser.storage.local.set({ 'workspace-preferences': { open, width, pinnedOutline } }); }, [open, width, pinnedOutline, preferencesLoaded]);
+  useEffect(() => { if (!preferencesLoaded)return;const timer=setTimeout(()=>void browser.storage.local.set({ 'workspace-preferences': { open, width, pinnedOutline } }),150);return()=>clearTimeout(timer); }, [open, width, pinnedOutline, preferencesLoaded]);
   useEffect(() => { if (session) void browser.storage.local.set({ ['active-project-session:' + session.target.projectId]: session.id }); }, [session?.id]);
   useEffect(() => { if (!target) return; let disposed = false; const key = 'composer:' + JSON.stringify(target); void browser.storage.local.get(key).then(saved => { if (!disposed && typeof saved[key] === 'string') setInput(saved[key]); }); return () => { disposed = true; }; }, [target]);
   useEffect(() => {
-    const update = () => { const next = routeFromUrl(location.href); if (JSON.stringify(next) !== JSON.stringify(targetRef.current)) { const sameProject = next && next.projectId === targetRef.current?.projectId; setTarget(next); setContexts(list => sameProject ? list.filter(c => c.pinned) : []); if (!sameProject) { setSession(null); setEventHistory(emptyEventHistory()); } setDraft(null); setHover(null); } };
+    const update = () => { const next = routeFromUrl(location.href); if (JSON.stringify(next) !== JSON.stringify(targetRef.current)) { routeEpoch.current++;draftOpenRequest.current++;const sameProject = next && next.projectId === targetRef.current?.projectId; setTarget(next); setContexts(list => sameProject ? list.filter(c => c.pinned) : []); if (!sameProject) { setSession(null); setEventHistory(emptyEventHistory()); } setDraft(null); setHover(null); } };
     window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update);
   }, []);
   useEffect(() => {
@@ -92,12 +99,14 @@ export function App() {
     };
     browser.runtime.onMessage.addListener(listener); return () => browser.runtime.onMessage.removeListener(listener);
   }, []);
+  // Resizing changes pane geometry only; document scans must not run for every pointer move.
+  useEffect(()=>{syncLayout();},[open,width,target,syncLayout]);
   useEffect(() => {
-    const apply = () => { if(document.hidden)return;setPageReady(!!documentFrame()); const geometry=layout.current.apply(open && !!target,width);setGeometry(old=>old.top===geometry.top&&old.overlay===geometry.overlay?old:geometry); native.current.bind(); const headings=outline();setHeadings(old=>JSON.stringify(old)===JSON.stringify(headings)?old:headings); };
-    apply(); const timer = setInterval(apply, 2000); window.addEventListener('resize', apply);
-    return () => { clearInterval(timer); window.removeEventListener('resize', apply); layout.current.reset(); };
-  }, [open, width, target]);
-  useEffect(() => () => native.current.close(), []);
+    const updateDocument = () => { if(document.hidden)return;setPageReady(!!documentFrame());syncLayout();native.current.bind();if(outlineVisible){const headings=outline();setHeadings(old=>JSON.stringify(old)===JSON.stringify(headings)?old:headings);} };
+    updateDocument();const timer=setInterval(updateDocument,2000);window.addEventListener('resize',syncLayout);document.addEventListener('visibilitychange',updateDocument);
+    return()=>{clearInterval(timer);window.removeEventListener('resize',syncLayout);document.removeEventListener('visibilitychange',updateDocument);};
+  },[target,outlineVisible,syncLayout]);
+  useEffect(() => () => {native.current.close();layout.current.reset();}, []);
   useEffect(()=>{
     if(!target||!pageReady)return;
     let saved;try{saved=consumeSave(sessionStorage,target);}catch{return;}if(!saved)return;
@@ -177,22 +186,27 @@ export function App() {
     for(const file of files){try{setUploadProgress('正在加入 '+file.name);const a=await uploadAsset(file,uploadTarget,n=>setUploadProgress(`${file.name} · ${n}%`));if(targetRef.current?.projectId===uploadTarget.projectId)setAttachments(list=>[...list,a]);else{const key='composer-attachments:'+uploadTarget.projectId;const saved=await browser.storage.local.get(key);await browser.storage.local.set({[key]:[...((saved[key] as Asset[])??[]),a]});}}catch(e){setError(file.name+'：'+errorText(e));}finally{uploadCount.current--;}}
     if(!uploadCount.current)setUploadProgress('');
   }
-  async function newSession() { if (!target) return null; const s = await rpc<Session>({ method: 'sessions.create', target, title: '新工程会话' }); setSessions(list => [s, ...list]); setSession(s); setHistory(false); return s; }
+  async function newSession() { if (!target) return null;const epoch=routeEpoch.current;const s = await rpc<Session>({ method: 'sessions.create', target, title: '新工程会话' });if(epoch!==routeEpoch.current||!targetRef.current||!sameTarget(target,targetRef.current))return null;setSessions(list => [s, ...list]); setSession(s); setHistory(false); return s; }
   async function send() {
     if ((!input.trim() && !attachments.length) || !target || active || sending || uploadCount.current) return;
+    const epoch=routeEpoch.current;const stillCurrent=()=>epoch===routeEpoch.current&&!!targetRef.current&&sameTarget(target,targetRef.current);
     followOutput.current=true; setAwayFromLatest(false); setSending(true); setError('');
-    try { await prepareAI.current?.();const current = session ?? await newSession(); if (!current) return; if (current.target.projectId !== target.projectId) throw Error('当前会话属于另一项目，请切换到当前项目的会话。');
+    try { await prepareAI.current?.();if(!stillCurrent())return;const current = session ?? await newSession(); if (!current||!stillCurrent()) return; if (current.target.projectId !== target.projectId) throw Error('当前会话属于另一项目，请切换到当前项目的会话。');
       const prompt=input.trim()||'请分析所附文件。';
-      if (current.title === '新工程会话') { const renamed = await rpc<Session>({ method: 'sessions.rename', sessionId: current.id, title: prompt.slice(0, 35) }); setSession(renamed); }
-      await rpc({ method: 'runs.start', permissionMode, sessionId: current.id, requestId: crypto.randomUUID(), target, prompt, contexts: structuredClone(contexts), attachments:attachments.map(a=>a.id) }); setInput('');setAttachments([]);window.dispatchEvent(new Event('polarion-sidebar-run-started'));
-    } catch (e) { setError(errorText(e)); } finally { setSending(false); }
+      if (current.title === '新工程会话') { const renamed = await rpc<Session>({ method: 'sessions.rename', sessionId: current.id, title: prompt.slice(0, 35) });if(!stillCurrent())return;setSession(renamed); }
+      const sentAttachments=new Set(attachments.map(a=>a.id));
+      if(!stillCurrent())return;
+      await rpc({ method: 'runs.start', permissionMode, sessionId: current.id, requestId: crypto.randomUUID(), target, prompt, contexts: structuredClone(contexts), attachments:[...sentAttachments] });if(stillCurrent()){setInput(current=>current===input?'':current);setAttachments(current=>current.filter(a=>!sentAttachments.has(a.id)));}window.dispatchEvent(new Event('polarion-sidebar-run-started'));
+    } catch (e) { if(stillCurrent())setError(errorText(e)); } finally { setSending(false); }
   }
-  const openDraft = useCallback(async (workItemId: string) => { if (!target) return; try {await prepareAI.current?.();const next=await rpc<DraftView>({ method: 'drafts.open', target, workItemId });if(!draft)priorTab.current=tab;setDraft(next);setEditorAI(true);setTab('ai');setContexts(list=>list.some(c=>c.workItemId===workItemId&&!c.pinned)?list:[...list.filter(c=>c.pinned),{id:crypto.randomUUID(),target:next.target,workItemId,text:next.title+'\n'+next.nodes.filter(n=>n.text).map(n=>n.text).join('\n').slice(0,30000),prefix:'',suffix:'',source:'work-item',capturedAt:Date.now(),pinned:false}]); setHover(null); } catch (e) { setError(errorText(e)); } }, [target, draft, tab]);
-  const openDiagram=async(draftId:string,requestId:string)=>{try{await prepareAI.current?.();const value=await rpc<{draft:DraftView;request:BoardGenerationRequest}>({method:'boards.generation.open',draftId,requestId});if(!target||!sameTarget(value.draft.target,target))throw Error('此草案属于另一个文档，请先回到来源文档。');if(!draft)priorTab.current=tab;setDraft(value.draft);setRequestedBoard(value.request);setEditorAI(true);setTab('ai');}catch(e){setError(errorText(e));}};
+  const openDraft = useCallback(async (workItemId: string) => { if (!target) return;const ticket=++draftOpenRequest.current;try {await prepareAI.current?.();if(ticket!==draftOpenRequest.current)return;const next=await rpc<DraftView>({ method: 'drafts.open', target, workItemId });if(ticket!==draftOpenRequest.current||!targetRef.current||!sameTarget(target,targetRef.current))return;if(!draft)priorTab.current=tab;setDraft(next);setEditorAI(true);setTab('ai');setContexts(list=>list.some(c=>c.workItemId===workItemId&&!c.pinned)?list:[...list.filter(c=>c.pinned),{id:crypto.randomUUID(),target:next.target,workItemId,text:next.title+'\n'+next.nodes.filter(n=>n.text).map(n=>n.text).join('\n').slice(0,30000),prefix:'',suffix:'',source:'work-item',capturedAt:Date.now(),pinned:false}]); setHover(null); } catch (e) { if(ticket===draftOpenRequest.current)setError(errorText(e)); } }, [target, draft, tab]);
+  const openDiagram=useCallback(async(draftId:string,requestId:string)=>{const ticket=++draftOpenRequest.current;try{await prepareAI.current?.();if(ticket!==draftOpenRequest.current)return;const value=await rpc<{draft:DraftView;request:BoardGenerationRequest}>({method:'boards.generation.open',draftId,requestId});if(ticket!==draftOpenRequest.current)return;if(!targetRef.current||!sameTarget(value.draft.target,targetRef.current))throw Error('此草案属于另一个文档，请先回到来源文档。');if(!draft)priorTab.current=tab;setDraft(value.draft);setRequestedBoard(value.request);setEditorAI(true);setTab('ai');}catch(e){if(ticket===draftOpenRequest.current)setError(errorText(e));}},[draft,tab]);
   const answerPermission = useCallback(async (runId: string, id: string, allow: boolean) => { try { await rpc({ method: 'permissions.answer', runId, permissionId: id, allow }); } catch (e) { setError(errorText(e)); } }, []);
   const visibleRuns = useMemo(() => runs.filter(run => byRun.has(run.id)), [runs, byRun]);
   const transcript=useMemo(()=>conversationSections(visibleRuns,events),[visibleRuns,events]);
-  const outlineView = <div className="outline-list">{headings.length ? headings.map(h => <button key={h.index} style={{ paddingLeft: 14 + (h.level - 1) * 12 }} onClick={() => navigateHeading(h.index)}><span className="heading-index">{String(h.index + 1).padStart(2, '0')}</span>{h.text}</button>) : <p className="muted">文档加载后显示章节导航。</p>}</div>;
+  const outlineView = useMemo(()=><div className="outline-list">{headings.length ? headings.map((h,index) => <button key={h.index} style={{ paddingLeft: 14 + (h.level - 1) * 12 }} onClick={() => navigateHeading(h.index)}><span className="heading-index">{String(index + 1).padStart(2, '0')}</span>{h.text}</button>) : <p className="muted">文档加载后显示章节导航。</p>}</div>,[headings]);
+  const editorRequest=draftOpenRequest.current,editorRoute=routeEpoch.current;
+  const editorStillCurrent=()=>{const page=routeFromUrl(location.href);return !!draft&&draftRef.current?.id===draft.id&&editorRequest===draftOpenRequest.current&&editorRoute===routeEpoch.current&&!!page&&sameTarget(page,draft.target)&&!!targetRef.current&&sameTarget(targetRef.current,draft.target);};
   if (!target || !pageReady) return null;
 
   return <div className="workspace-root" style={{'--assistant-width':width+'px','--assistant-font-size':(settings&&config?config.assistantFontSize:assistantFontSize)+'px'} as React.CSSProperties}>
@@ -247,9 +261,13 @@ export function App() {
     </aside>}
     {hover && !draft && <div className="hover-card" style={{ right: open ? width + 16 : 60 }}><div><span className="eyebrow">工作项预览</span><button className="icon" title="关闭预览" onClick={() => setHover(null)}><X size={14}/></button></div><strong>{hover.workItemId}</strong><p>{hover.text.slice(0, 240)}</p><button className="secondary" onClick={() => void openDraft(hover.workItemId)}>打开编辑工作台<ChevronRight size={14}/></button></div>}
     {previewAsset && <AttachmentPreview asset={previewAsset} onClose={()=>setPreviewAsset(null)}/>}
-    {draft && <DraftEditor draft={draft} requestedBoard={requestedBoard} onBoardOpened={()=>setRequestedBoard(null)} initialScrollTop={restoredEditorScroll} onUpdate={setDraft} onClose={() => {setContexts(list=>list.filter(c=>!c.text.startsWith('BOARD_GENERATION_CONTEXT\n')&&!c.text.startsWith('画板对象协作上下文')));setDraft(null);setRestoredEditorScroll(undefined);prepareAI.current=null;setTab(priorTab.current);}} aiOpen={editorAI} onToggleAI={()=>{setEditorAI(v=>!v);setTab('ai');}} onShowAI={()=>{setEditorAI(true);setTab('ai');}} onClearBoardContext={()=>setContexts(list=>list.filter(c=>!(c.workItemId===draft.workItemId&&(c.text.startsWith('BOARD_GENERATION_CONTEXT\n')||c.text.startsWith('画板对象协作上下文')))))} onPrepareAI={handler=>{prepareAI.current=handler;}} remoteRevision={drafts.find(d=>d.id===draft.id)?.revision} onError={e => setError(errorText(e))} prepareNativeSave={async()=>{const snapshot=native.current.captureVerification();const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:draft.workItemId,phase:'check'});if(!result?.ok)throw Error(result?.error??'NATIVE_REFRESH_UNSUPPORTED');native.current.acceptVerifiedClean(snapshot);return native.current.state();}} onSaved={async saved => {
+    {draft && <DraftEditor key={draft.id} draft={draft} requestedBoard={requestedBoard} onBoardOpened={()=>setRequestedBoard(null)} initialScrollTop={restoredEditorScroll} onUpdate={updateCurrentDraft} onClose={() => {draftOpenRequest.current++;setContexts(list=>list.filter(c=>!c.text.startsWith('BOARD_GENERATION_CONTEXT\n')&&!c.text.startsWith('画板对象协作上下文')));setDraft(null);setRestoredEditorScroll(undefined);prepareAI.current=null;setTab(priorTab.current);}} aiOpen={editorAI} onToggleAI={()=>{setEditorAI(v=>!v);setTab('ai');}} onShowAI={()=>{setEditorAI(true);setTab('ai');}} onClearBoardContext={()=>setContexts(list=>list.filter(c=>!(c.workItemId===draft.workItemId&&(c.text.startsWith('BOARD_GENERATION_CONTEXT\n')||c.text.startsWith('画板对象协作上下文')))))} onPrepareAI={handler=>{prepareAI.current=handler;}} remoteRevision={drafts.find(d=>d.id===draft.id)?.revision} onError={e => setError(errorText(e))} prepareNativeSave={async()=>{if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');const snapshot=native.current.captureVerification();const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:draft.workItemId,phase:'check'});if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');if(!result?.ok)throw Error(result?.error??'NATIVE_REFRESH_UNSUPPORTED');native.current.acceptVerifiedClean(snapshot);return native.current.state();}} onSaved={async saved => {
+      // The remote save has already been verified. A stale view must not refresh
+      // another document or turn that verified success into a write failure.
+      if(!editorStillCurrent()||saved.id!==draft.id||!sameTarget(saved.target,draft.target))return;
       if(native.current.state()!=='clean')throw Error('原生页面在保存期间发生变化，请先处理原生输入。');
       const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:draft.workItemId,phase:'refresh',expectedHtml:saved.html});
+      if(!editorStillCurrent())return;
       if(!result?.ok)throw Error(result?.error??'NATIVE_REFRESH_FAILED');
       native.current.acceptDocumentRefresh();
       setSaveNotice(draft.workItemId+' 已保存并同步到原生正文。');
