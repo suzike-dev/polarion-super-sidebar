@@ -1,0 +1,349 @@
+{
+  "recordedAt": "2026-11-04T01:05:38.891Z",
+  "scope": "Runtime provisioning and original-document read APIs; not real Agent diagram acceptance",
+  "node": "v24.22.2",
+  "upstream": {
+    "commit": "f24d98b05e2d7a5e68c2dedfe46e5b7173f50118",
+    "version": "2.6",
+    "files": 290,
+    "skillSha256": "83fd5aa46965ce2b14bd42ade80c065a4e17a9f83d2a9f4f275b47cd45d72666",
+    "manifestSha256": "4e83a608f5100b8e711da78779c72b446c29d19c04cf15e90faf4048a2b9e679"
+  },
+  "existingGlobalInstallation": {
+    "path": "C:/Users/Lenovo/.codex/skills/diagram-design",
+    "filesVerified": 290,
+    "modified": false
+  },
+  "tests": {
+    "command": ".runtime/node-v24.22.2-win-x64/node.exe --test apps/host/diagram-design.test.ts",
+    "passed": 10,
+    "failed": 0,
+    "durationMs": 11076.7416
+  },
+  "typecheck": {
+    "command": "npm run check:host",
+    "exitCode": 0
+  },
+  "packets": [
+    {
+      "type": "architecture",
+      "characterBudget": 80000,
+      "characterCount": 77486,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "architecture-delta",
+      "characterBudget": 80000,
+      "characterCount": 81895,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "it-state",
+      "characterBudget": 80000,
+      "characterCount": 97287,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "flowchart",
+      "characterBudget": 80000,
+      "characterCount": 67956,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "sequence",
+      "characterBudget": 80000,
+      "characterCount": 73876,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "state",
+      "characterBudget": 80000,
+      "characterCount": 68827,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "er",
+      "characterBudget": 80000,
+      "characterCount": 68401,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "timeline",
+      "characterBudget": 80000,
+      "characterCount": 67980,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "swimlane",
+      "characterBudget": 80000,
+      "characterCount": 68080,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "quadrant",
+      "characterBudget": 80000,
+      "characterCount": 73155,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "radar",
+      "characterBudget": 80000,
+      "characterCount": 72522,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "polar",
+      "characterBudget": 80000,
+      "characterCount": 74988,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "loop",
+      "characterBudget": 80000,
+      "characterCount": 79686,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "nested",
+      "characterBudget": 80000,
+      "characterCount": 68222,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "tree",
+      "characterBudget": 80000,
+      "characterCount": 68385,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "org-chart",
+      "characterBudget": 80000,
+      "characterCount": 70005,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "layers",
+      "characterBudget": 80000,
+      "characterCount": 68431,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "exploded",
+      "characterBudget": 80000,
+      "characterCount": 78164,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "axonometric-plan",
+      "characterBudget": 80000,
+      "characterCount": 74178,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "venn",
+      "characterBudget": 80000,
+      "characterCount": 68532,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "pyramid",
+      "characterBudget": 80000,
+      "characterCount": 68678,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "bar",
+      "characterBudget": 80000,
+      "characterCount": 81236,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "waterfall",
+      "characterBudget": 80000,
+      "characterCount": 75968,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "treemap",
+      "characterBudget": 80000,
+      "characterCount": 85738,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "heatmap",
+      "characterBudget": 80000,
+      "characterCount": 74681,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "line",
+      "characterBudget": 80000,
+      "characterCount": 110753,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "gantt",
+      "characterBudget": 80000,
+      "characterCount": 69384,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "scatter",
+      "characterBudget": 80000,
+      "characterCount": 95351,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "high-level",
+      "characterBudget": 80000,
+      "characterCount": 95842,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "process",
+      "characterBudget": 80000,
+      "characterCount": 96013,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "medallion",
+      "characterBudget": 80000,
+      "characterCount": 89646,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "data-flow",
+      "characterBudget": 80000,
+      "characterCount": 88380,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "dp-integration",
+      "characterBudget": 80000,
+      "characterCount": 89783,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "dp-security-matrix",
+      "characterBudget": 80000,
+      "characterCount": 86661,
+      "exceedsBudget": true,
+      "truncated": false
+    },
+    {
+      "type": "sankey",
+      "characterBudget": 80000,
+      "characterCount": 76282,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "fishbone",
+      "characterBudget": 80000,
+      "characterCount": 72695,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "wardley",
+      "characterBudget": 80000,
+      "characterCount": 72638,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "kanban",
+      "characterBudget": 80000,
+      "characterCount": 71395,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "journey",
+      "characterBudget": 80000,
+      "characterCount": 72256,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "service-blueprint",
+      "characterBudget": 80000,
+      "characterCount": 74791,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "deployment",
+      "characterBudget": 80000,
+      "characterCount": 71182,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "dependency",
+      "characterBudget": 80000,
+      "characterCount": 71182,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "uml-class",
+      "characterBudget": 80000,
+      "characterCount": 71788,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "story-map",
+      "characterBudget": 80000,
+      "characterCount": 71771,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    {
+      "type": "db-schema",
+      "characterBudget": 80000,
+      "characterCount": 71830,
+      "exceedsBudget": false,
+      "truncated": false
+    }
+  ],
+  "unverified": [
+    "Live Agent skill discovery/invocation after integration",
+    "Real native editable board generation and independent Polarion save acceptance",
+    "Transport strategy for 12 complex types exceeding 80000 characters"
+  ]
+}

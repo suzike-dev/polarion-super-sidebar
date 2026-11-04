@@ -39,13 +39,16 @@
 .rich-paper{min-height:100%;max-width:880px;margin:auto;background:#fff;box-shadow:0 2px 12px #22375408;border:1px solid #dfe6ef;border-radius:3px;padding:24px 32px 44px;min-width:0}
 .rich-paper[hidden]{display:none}
 .paper-meta{display:flex;justify-content:space-between;padding-bottom:17px;border-bottom:1px solid #edf0f4;margin-bottom:20px;font-size:9px;letter-spacing:.08em;color:#b1bbca}
-.tiptap-mount .tiptap{outline:none;min-height:200px;color:#24364b;font-size:14px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere;caret-color:#2563eb}
-.tiptap p{margin:0 0 12px}
-.tiptap h1,.tiptap h2,.tiptap h3,.tiptap h4{font-weight:600;line-height:1.5;color:inherit;margin:22px 0 12px;letter-spacing:.01em}
-.tiptap h1{font-size:26px}
-.tiptap h2{font-size:21px}
-.tiptap h3{font-size:17px}
-.tiptap h4{font-size:15px}
+.tiptap-mount .tiptap{outline:none;min-height:200px;color:#000;font-family:'Segoe UI',Selawik,'Open Sans',Arial,sans-serif;font-size:10pt;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;caret-color:#356c7c}
+.tiptap p{margin:0}
+.tiptap :is(h1,h2,h3,h4,h5,h6){font-weight:600;line-height:1.5;color:inherit;margin:0;letter-spacing:normal}
+.tiptap :is(h1,h2,h3){line-height:1.2}
+.tiptap h1{font-size:20pt}
+.tiptap h2{font-size:18pt}
+.tiptap h3{font-size:16pt}
+.tiptap h4{font-size:14pt}
+.tiptap h5{font-size:12pt}
+.tiptap h6{font-size:11pt}
 .tiptap ul,.tiptap ol{padding-left:26px;margin:10px 0}
 .tiptap li>p{margin:3px 0}
 .tiptap blockquote{border-left:3px solid #87a9d4;background:#f6f9fd;padding:12px 17px;margin:16px 0;color:inherit}
@@ -165,3 +168,15 @@
 @media(max-width:600px){.rich-workbench .rich-header{padding:8px 10px}.rich-doc-icon{display:none}.rich-workbench .rich-tabs{padding:0 6px}.rich-workbench .rich-tabs>span{display:none}.rich-statusbar{padding:0 10px}.rich-workbench footer{gap:6px;padding:8px 10px}.rich-workbench footer button{padding:7px 8px}.review-panes{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}}
 
 .tiptap [data-source-text]{white-space:normal}.tiptap [data-source-block]{display:block}.tiptap pre [data-source-text]{white-space:pre-wrap}
+
+/* Keep the original two-window layout; refine controls without restyling source content. */
+.table-quick-menu{position:fixed;z-index:100030;width:236px;max-height:calc(100vh - 16px);overflow:auto;background:#fff;border:1px solid #cbd5df;border-radius:9px;padding:5px;box-shadow:0 8px 32px #24364b26;color:#344b60;font-size:13px;line-height:1.5}
+.table-menu-group{padding:3px 0;border-bottom:1px solid #e7ecf1}.table-menu-group:last-child{border-bottom:0}
+.table-quick-menu button{display:block;width:100%;text-align:left;padding:6px 10px;border-radius:5px;line-height:1.5}
+.table-quick-menu button:hover:not(:disabled),.table-quick-menu button:focus-visible{background:#edf3f8;color:#254e6c;outline:0}
+.table-quick-menu button:disabled{color:#8a97a3;opacity:1}
+.rich-layer .rich-popover input:focus-visible,.rich-layer .rich-popover select:focus-visible{outline:2px solid #477c9e;outline-offset:2px}
+.rich-layer .rt-button:active:not(:disabled),.rich-layer .secondary:active:not(:disabled){background:#dce7f0}
+:host .rich-layer .rich-header .rich-heading h2{font-size:17px;line-height:1.45}
+@media(max-width:1100px){:host .rich-layer .rich-header .rich-heading h2{font-size:15px}}
+.rich-layer .rich-popover .inline-fields input{font-size:12px}

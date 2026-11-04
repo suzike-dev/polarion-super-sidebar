@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {appendSessionEvents, emptyEventHistory, readSessionBatch, reconcileRuns} from './session-events.ts';
+import {appendSessionEvents, conversationSections, emptyEventHistory, readSessionBatch, reconcileRuns, turnResponseText} from './session-events.ts';
 import type {Run, RunEvent} from '../../../packages/protocol/index.ts';
 
 const event = (seq:number, runId='first'):RunEvent => ({seq,runId,sessionId:'s',kind:'delta',data:{text:'x'},at:seq});
@@ -37,4 +37,18 @@ test('run metadata reconciliation isolates status updates from settled turns',()
   assert.equal(reconcileRuns(original,structuredClone(original)),original);
   const next=reconcileRuns(original,[run('first'),run('second')]);
   assert.equal(next[0],original[0]);assert.notEqual(next[1],original[1]);
+});
+test('conversation resets retain old turns for review and place the reset turn at the new boundary',()=>{
+ const runs=[run('old'),run('clear1'),run('middle'),run('clear2'),run('new')];
+ const events=[event(1,'old'),{...event(2,'clear1'),kind:'conversation-reset'},event(3,'middle'),{...event(4,'clear2'),kind:'conversation-reset'},event(5,'new')];
+ const sections=conversationSections(runs,events);assert.deepEqual(sections.archived.map(r=>r.id),['old','clear1','middle']);assert.deepEqual(sections.current.map(r=>r.id),['clear2','new']);assert.equal(sections.boundary?.seq,4);assert.equal(runs.length,5);assert.equal(events.length,5);
+ const restored=appendSessionEvents(emptyEventHistory(),structuredClone(events));assert.deepEqual(conversationSections(runs,restored.events),sections);
+});
+test('local command outputs and assistant-only command replies remain visible without a result body',()=>{
+ const local={...event(1),kind:'local-command-output',data:{text:'usage: 10%'}},empty={...event(2),kind:'result',data:{text:''}},block={...event(3),kind:'assistant-block',data:{text:'native command reply'}};
+ assert.equal(turnResponseText([local,empty]),'usage: 10%');assert.equal(turnResponseText([block,empty]),'native command reply');assert.equal(turnResponseText([local,{...empty,data:{text:'usage: 10%'}}]),'usage: 10%');assert.equal(turnResponseText([local,{...empty,data:{text:'next explanation'}}]),'usage: 10%\n\nnext explanation');
+});
+test('history reads return updated native conversation identity and reset title',async()=>{
+ const session={id:'s',nativeId:'fresh-native',title:'新工程会话'} as any;
+ const page=await readSessionBatch(async()=>({session,events:[],runs:[]}),0);assert.equal(page.session,session);
 });

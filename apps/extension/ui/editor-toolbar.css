@@ -1,0 +1,76 @@
+:host .rich-layer .single-line-toolbar{position:relative;flex-wrap:nowrap;gap:0;min-height:46px;height:46px;max-height:46px;overflow:visible;padding:7px 8px;background:#fff;border-bottom:1px solid #e6e8e7;z-index:7}
+:host .rich-layer .ribbon-tabs{background:#f6f7f5;border-color:#e7e9e5}
+:host .rich-layer .ribbon-tabs>button{color:#687176;font-weight:400}
+:host .rich-layer .ribbon-tabs>button.active{background:#fff;color:#356c7c;font-weight:600;box-shadow:0 1px 3px #283d2d08}
+:host .rich-layer .document-tools{background:#fbfcfa;border-color:#e7e9e5;color:#687176}
+:host .rich-layer .single-line-toolbar .toolbar-section{display:flex;flex:0 0 auto;flex-wrap:nowrap;gap:2px;padding:0 7px;border-right:1px solid #e7e9e8;max-width:none}
+:host .rich-layer .single-line-toolbar .toolbar-section>small{display:none}
+:host .rich-layer .single-line-toolbar .rt-button{height:30px;min-height:30px;min-width:30px;padding:0 7px;border:0;border-radius:5px;color:#535b60;background:transparent;box-shadow:none;font-size:12px;gap:5px;white-space:nowrap}
+:host .rich-layer .single-line-toolbar .rt-button:hover:not(:disabled){background:#f0f2f1;color:#292d30}
+:host .rich-layer .single-line-toolbar .rt-button.active{background:#e7eff0;color:#285868;box-shadow:inset 0 0 0 1px #d6e4e7}
+:host .rich-layer .single-line-toolbar .rt-button:disabled{background:transparent;opacity:.36}
+:host .rich-layer .single-line-toolbar svg{flex-shrink:0;stroke-width:1.7}
+:host .rich-layer .single-line-toolbar select{appearance:auto;height:30px;min-height:30px;max-width:none;padding:0 5px;border:1px solid transparent;border-radius:5px;background:transparent;color:#41494e;font-size:12px;box-shadow:none}
+:host .rich-layer .single-line-toolbar select:hover{background:#f4f5f4;border-color:#e3e6e4}
+:host .rich-layer .single-line-toolbar select[aria-label="段落样式"]{width:81px}
+:host .rich-layer .single-line-toolbar select[aria-label="字号"]{width:69px}
+:host .rich-layer .single-line-toolbar select[aria-label="字体"]{width:95px}
+:host .rich-layer .single-line-toolbar :is(button,select):focus-visible{outline:2px solid #61909e;outline-offset:2px}
+:host .rich-layer .toolbar-dropdown{position:relative;display:flex;flex-shrink:0}
+:host .rich-layer .toolbar-menu-panel{display:grid;gap:1px;min-width:215px}
+:host .rich-layer .toolbar-menu-panel{z-index:20;padding:6px;background:#fff;border:1px solid var(--ui-line);border-radius:8px;box-shadow:var(--ui-popover-shadow);overflow:auto;overscroll-behavior:contain}
+:host .rich-layer .toolbar-menu-panel[data-open=false]{display:none}
+:host .rich-layer .toolbar-menu-panel .rt-button{justify-content:flex-start;min-height:32px;width:100%;padding:0 10px}
+:host .rich-layer .toolbar-menu-panel .rt-button[aria-label]:not(:has(span))::after{content:attr(aria-label)}
+:host .rich-layer .toolbar-menu-panel label{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 10px;color:#626b70;font-size:12px}
+:host .rich-layer .toolbar-menu-panel hr{height:1px;border:0;background:#edf0ed;margin:4px 6px}
+:host .rich-layer .toolbar-measure{position:absolute!important;visibility:hidden!important;inset:auto!important;left:0!important;width:max-content!important;max-width:none!important;pointer-events:none!important}
+:host .rich-layer .toolbar-measure .toolbar-dropdown{display:flex!important;flex-basis:auto!important}
+:host .rich-layer .toolbar-measure .toolbar-menu-trigger{display:flex!important}
+:host .rich-layer .toolbar-measure .toolbar-menu-panel{display:none!important}
+
+/* taste-skill / app screens: restrained chrome, readable meta, one control pitch. */
+:host .rich-layer .single-line-toolbar{height:48px;min-height:48px;max-height:48px}
+:host .rich-layer .single-line-toolbar :is(.rt-button,select){height:32px;min-height:32px;font-size:13px;border-radius:6px}
+:host .rich-layer .single-line-toolbar .rt-button{min-width:32px}
+:host .rich-layer .single-line-toolbar .rt-button:disabled{opacity:1;color:#747c80}
+:host .rich-layer .single-line-toolbar .rt-button.active{background:#ecefed;color:var(--ui-ink);box-shadow:none}
+:host .rich-layer .ribbon-tabs>button.active{box-shadow:none;color:var(--ui-ink)}
+:host .rich-layer .toolbar-menu-panel .rt-button{min-height:34px}
+:host .rich-layer .toolbar-menu-panel label{font-size:13px}
+:host .rich-layer .rich-heading .eyebrow{font:11px/1.4 var(--ui-font);letter-spacing:0;text-transform:none;color:var(--ui-muted)}
+:host .rich-layer .editor-ai-toggle{display:inline-flex;align-items:center;gap:6px;color:var(--ui-secondary);font-size:12px}
+:host .rich-layer .rich-doc-icon{background:transparent;border:0;color:var(--ui-muted)}
+:host .workspace .brand small{font-size:11px;letter-spacing:0}
+:host .workspace .brand-mark{color:var(--ui-accent);background:transparent;box-shadow:none}
+:host .workspace .brand-mark span{color:var(--ui-accent)}
+:host .workspace .mini-mark{font-size:11px}
+:host .rich-layer .document-tools button{font-size:12px}
+:host .rich-layer :is(.rich-tabs>span,.rich-statusbar,.document-shortcuts){font-size:11px}
+:host .rich-layer .single-line-toolbar .document-tools-inline{display:flex;align-items:center;gap:2px;flex-wrap:nowrap;min-height:32px;height:32px;padding:0;border:0;background:transparent;position:static}
+:host .rich-layer .single-line-toolbar .document-tools-inline>button{height:32px;min-height:32px;padding:0 7px;gap:5px;font-size:13px;color:var(--ui-secondary);white-space:nowrap;border-radius:6px}
+:host .rich-layer .single-line-toolbar .document-tools-inline>button:hover{background:#f0f2f1;color:var(--ui-ink)}
+:host .rich-layer .single-line-toolbar .document-tools-inline>button>small{font-size:11px;background:transparent;padding:0;margin-left:1px}
+:host .rich-layer .single-line-toolbar .document-tools-inline .document-tool-menu:not(.slash-insert-menu){left:auto;right:8px;top:calc(100% + 7px);max-height:min(430px,calc(100vh - 290px))}
+:host .rich-layer .single-line-toolbar .toolbar-group-trigger{display:none}
+:host .rich-layer .single-line-toolbar .toolbar-group-content{display:flex;align-items:center;gap:2px}
+:host .rich-layer .single-line-toolbar [data-collapsed=true]{padding:0 4px}
+:host .rich-layer .single-line-toolbar [data-collapsed=true]>.toolbar-group-trigger{display:flex;gap:4px;padding:0 5px}
+:host .rich-layer .single-line-toolbar [data-collapsed=true]>.toolbar-group-content{display:flex;flex-wrap:wrap;align-items:stretch;gap:3px;z-index:20;padding:8px;background:#fff;border:1px solid var(--ui-line);border-radius:8px;box-shadow:var(--ui-popover-shadow);overflow:auto;overscroll-behavior:contain}
+:host .rich-layer .single-line-toolbar [data-collapsed=true]>.toolbar-group-content[data-open=false]{display:none}
+:host .rich-layer .single-line-toolbar [data-collapsed=true] .toolbar-dropdown{display:contents}
+:host .rich-layer .single-line-toolbar [data-collapsed=true] .toolbar-menu-trigger{display:none!important}
+:host .rich-layer .single-line-toolbar [data-collapsed=true] .toolbar-menu-panel{display:grid;position:static;flex-basis:100%;max-height:none;min-width:0;border:0;box-shadow:none;padding:3px 0;overflow:visible}
+:host .rich-layer .single-line-toolbar [data-collapsed=true]>.toolbar-group-content>.rt-button{justify-content:flex-start;flex-basis:100%;padding:0 10px}
+:host .rich-layer .single-line-toolbar [data-collapsed=true]>.toolbar-group-content>.rt-button:not(:has(span))::after{content:attr(aria-label)}
+:host .rich-layer .single-line-toolbar [data-collapsed=true] .document-tools-inline{flex-wrap:wrap;height:auto}
+:host .rich-layer .single-line-toolbar [data-collapsed=true] .document-tools-inline>button{justify-content:flex-start}
+:host .rich-layer .single-line-toolbar [data-collapsed=true] .document-tools-inline>button[aria-label="当前内容块操作"]::after{content:'内容块'}
+:host .rich-layer .toolbar-measure [data-collapsed=false]>.toolbar-group-content{display:flex!important}
+:host .rich-layer .toolbar-measure [data-collapsed=true]>.toolbar-group-content{display:none!important}
+:host .rich-layer .document-tool-menu{z-index:100}
+:host .rich-layer>.document-tool-menu{pointer-events:auto}
+:host .rich-layer .search-case-toggle{display:inline-flex;align-items:center;gap:7px;min-height:30px;padding:0 3px;border:0;background:transparent;color:var(--ui-secondary);font:inherit;cursor:pointer}
+:host .rich-layer .search-case-toggle>span{display:grid;place-items:center;width:14px;height:14px;border:1px solid #929b9f;border-radius:3px;background:#fff}
+:host .rich-layer .search-case-toggle[aria-checked=true]>span{color:#fff;background:var(--ui-accent);border-color:var(--ui-accent)}
+:host .rich-layer .search-case-toggle:focus-visible{outline:2px solid #61909e;outline-offset:2px}

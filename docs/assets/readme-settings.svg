@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="readme-settings-title readme-settings-desc">
+<title id="readme-settings-title">回答字号可调，阅读层级保持清晰 · 功能示意</title><desc id="readme-settings-desc">纯矢量手绘功能示意；全部示例内容虚构，非产品截图、非测试结果。默认 13 px，支持 12–18 px；先预览，明确保存后保留设置。</desc>
+<defs><marker id="readme-settings-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L8 3 L0 6 Z" fill="#626966"/></marker><marker id="readme-settings-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L8 3 L0 6 Z" fill="#0f5f5b"/></marker><marker id="readme-settings-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L8 3 L0 6 Z" fill="#0f5f5b"/></marker></defs>
+<rect x="0" y="0" width="1200" height="700" rx="0" fill="#f5f6f5"/>
+<text x="28" y="43" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="25" font-weight="600" fill="#303633" text-anchor="start">回答字号可调，阅读层级保持清晰</text>
+<text x="1172" y="40" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="end">功能示意 · 虚构内容</text>
+<text x="28" y="70" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="start">默认 13 px，支持 12–18 px；先预览，明确保存后保留设置。</text>
+<text x="28" y="108" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="15" font-weight="600" fill="#303633" text-anchor="start">助手设置 · 局部示意</text>
+<text x="632" y="108" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="15" font-weight="600" fill="#303633" text-anchor="start">AI 回答 · 排版示意</text>
+<rect x="24" y="124" width="568" height="526" rx="10" fill="white" stroke="#dce1de" stroke-width="1"/>
+<rect x="616" y="124" width="560" height="526" rx="10" fill="white" stroke="#dce1de" stroke-width="1"/>
+<text x="48" y="156" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="18" font-weight="600" fill="#303633" text-anchor="start">助手设置</text>
+<g transform="translate(550 139) scale(1.0)">
+<path d="M4 4 L14 14 M14 4 L4 14" fill="none" stroke="#626966" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="48" y="194" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="start">AI 回答字号</text>
+<rect x="48" y="207" width="310" height="32" rx="5" fill="white" stroke="#dce1de" stroke-width="1"/>
+<text x="60" y="229" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#303633" text-anchor="start">13 px · 默认</text>
+<g transform="translate(334 214) scale(0.8888888888888888)">
+<path d="M4 7 L9 12 L14 7" fill="none" stroke="#626966" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<rect x="370" y="207" width="198" height="32" rx="5" fill="#f5f6f5" stroke="#dce1de" stroke-width="1"/>
+<text x="382" y="229" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="start">恢复默认字号</text>
+<text x="48" y="269" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="start">调整后即时预览，保存后用于全部 AI 回答。</text>
+<text x="48" y="293" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="start">关闭会放弃未保存的调整。</text>
+<rect x="48" y="312" width="520" height="94" rx="6" fill="#f5f6f5" stroke="#dce1de" stroke-width="1"/>
+<text x="64" y="341" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="16" font-weight="600" fill="#303633" text-anchor="start">回答预览</text>
+<text x="64" y="368" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#303633" text-anchor="start">需求分析保留清晰的层级，</text>
+<text x="64" y="391" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#303633" text-anchor="start">参数与正文一起调整。</text>
+<text x="48" y="435" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="start">新会话默认引擎</text>
+<rect x="48" y="446" width="520" height="32" rx="5" fill="white" stroke="#dce1de" stroke-width="1"/>
+<text x="60" y="468" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#303633" text-anchor="start">Claude Code</text>
+<g transform="translate(544 453) scale(0.8888888888888888)">
+<path d="M4 7 L9 12 L14 7" fill="none" stroke="#626966" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="48" y="508" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="start">Claude 模型</text>
+<rect x="48" y="520" width="520" height="32" rx="5" fill="white" stroke="#dce1de" stroke-width="1"/>
+<text x="60" y="542" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="start">跟随本地 Claude Code 配置</text>
+<text x="48" y="578" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="13" font-weight="400" fill="#626966" text-anchor="start">当前可用引擎为 Claude Code。</text>
+<rect x="364" y="602" width="88" height="32" rx="5" fill="white" stroke="#dce1de" stroke-width="1"/>
+<text x="376" y="624" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#303633" text-anchor="start">取消</text>
+<rect x="464" y="602" width="104" height="32" rx="5" fill="#0f5f5b"/>
+<text x="476" y="624" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="white" text-anchor="start">保存设置</text>
+<text x="640" y="156" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="13" font-weight="600" fill="#626966" text-anchor="start">Claude</text>
+<text x="640" y="194" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="22" font-weight="600" fill="#303633" text-anchor="start">草稿审阅建议</text>
+<text x="640" y="228" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="16" font-weight="400" fill="#303633" text-anchor="start">先明确输入、输出与需要确认的边界。</text>
+<text x="640" y="256" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="16" font-weight="400" fill="#303633" text-anchor="start">以下仅为虚构内容，用于说明回答排版。</text>
+<text x="640" y="299" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="18" font-weight="600" fill="#303633" text-anchor="start">需要确认的事项</text>
+<text x="640" y="329" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="16" font-weight="400" fill="#303633" text-anchor="start">1. 示例场景是否描述完整。</text>
+<text x="640" y="358" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="16" font-weight="400" fill="#303633" text-anchor="start">2. 修改建议是否经过审阅。</text>
+<rect x="640" y="382" width="512" height="91" rx="5" fill="white" stroke="#dce1de" stroke-width="1"/>
+<rect x="641" y="383" width="510" height="34" rx="0" fill="#f5f6f5"/>
+<path d="M640 417 L1152 417" fill="none" stroke="#dce1de" stroke-width="1"/>
+<path d="M815 382 L815 473" fill="none" stroke="#dce1de" stroke-width="1"/>
+<text x="656" y="407" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="600" fill="#626966" text-anchor="start">内容</text>
+<text x="831" y="407" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="600" fill="#626966" text-anchor="start">说明</text>
+<text x="656" y="451" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#303633" text-anchor="start">示例草稿</text>
+<text x="831" y="451" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#303633" text-anchor="start">待人工审阅</text>
+<rect x="640" y="495" width="512" height="90" rx="6" fill="#f5f6f5" stroke="#dce1de" stroke-width="1"/>
+<g transform="translate(653 507) scale(0.7777777777777778)">
+<path d="M4 7 L9 12 L14 7" fill="none" stroke="#626966" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="676" y="521" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="start">代码详情</text>
+<path d="M640 535 L1152 535" fill="none" stroke="#dce1de" stroke-width="1"/>
+<text x="656" y="563" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#303633" text-anchor="start">review_status = &quot;draft&quot;</text>
+<text x="640" y="617" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="14" font-weight="400" fill="#626966" text-anchor="start">正文、标题、表格与代码随设置协调变化。</text>
+<text x="28" y="682" font-family="Microsoft YaHei UI, Microsoft YaHei, Segoe UI, sans-serif" font-size="13" font-weight="400" fill="#626966" text-anchor="start">功能示意，非产品截图。两个局部并列展示；字号按阅读比例呈现，非浏览器像素测量。</text>
+</svg>

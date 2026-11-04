@@ -1,0 +1,145 @@
+{
+  "date": "2026-11-04",
+  "scope": "Single-row toolbar and native typography increment; superseded by release acceptance for later changes",
+  "environment": {
+    "browser": "ego-browser",
+    "taskSpace": 5,
+    "project": "test01",
+    "workItem": "TEST-729",
+    "version": "0.2.6 development"
+  },
+  "layout": [
+    {
+      "viewport": 1440,
+      "mode": "文字与段落",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 1440,
+      "mode": "表格 ",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 1440,
+      "mode": "插入与查找",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 1366,
+      "mode": "文字与段落",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 1366,
+      "mode": "表格 ",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 1366,
+      "mode": "插入与查找",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 1024,
+      "mode": "文字与段落",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 1024,
+      "mode": "表格 ",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 1024,
+      "mode": "插入与查找",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 768,
+      "mode": "文字与段落",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 768,
+      "mode": "表格 ",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 768,
+      "mode": "插入与查找",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 390,
+      "mode": "文字与段落",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 390,
+      "mode": "表格 ",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    },
+    {
+      "viewport": 390,
+      "mode": "插入与查找",
+      "height": 48,
+      "overflow": false,
+      "oneRow": true
+    }
+  ],
+  "runtimeErrors": [],
+  "automatedTests": 113,
+  "deployment": {
+    "files": 437,
+    "mismatches": []
+  },
+  "restoration": {
+    "originalExact": false,
+    "originalDomEquivalent": true,
+    "localRemoteEqual": true,
+    "state": "clean",
+    "temporaryTextAbsent": true,
+    "htmlLength": 3050
+  },
+  "evidence": [
+    ".research/toolbar-typography-20261104/final-container-interactions.json",
+    ".research/toolbar-typography-20261104/insert-block-narrow-table.json",
+    ".research/toolbar-typography-20261104/typography-ui-evidence.json",
+    ".research/toolbar-typography-20261104/default-typography-evidence.json",
+    ".research/toolbar-typography-20261104/clear-format-regression.json",
+    ".research/toolbar-typography-20261104/final-restoration-readback.json",
+    ".research/toolbar-typography-20261104/tests-final.log"
+  ],
+  "remaining": [
+    "Arbitrary legacy HTML margin/padding/line-height equivalence in native Polarion remains partial",
+    "This increment did not verify full Agent execution; see release-agent-20261104.json"
+  ]
+}

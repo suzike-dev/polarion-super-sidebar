@@ -1,5 +1,6 @@
 import type { SourceNode } from '../../../packages/core/lossless-html';
 import type { Target } from '../../../packages/protocol/index';
+import {headingSizes} from '../../../packages/core/document-presentation.ts';
 const tags = new Set('a b blockquote br caption code col colgroup div em font h1 h2 h3 h4 h5 h6 hr i img li ol p pre s span strong sub sup table tbody td tfoot th thead tr u ul'.split(' '));
 const cssProperties = new Set('color background-color font-family font-size font-weight font-style text-decoration text-align vertical-align white-space width min-width max-width height min-height max-height border border-top border-right border-bottom border-left border-width border-style border-color border-collapse border-spacing padding padding-left padding-right padding-top padding-bottom margin margin-left margin-right margin-top margin-bottom line-height list-style-type'.split(' '));
 const attrs = new Set(['colspan', 'rowspan', 'span', 'width', 'height', 'align', 'valign', 'start', 'reversed', 'type', 'alt', 'title', 'color', 'face', 'size', 'data-source-node', 'data-protected', 'data-review-change']);
@@ -41,18 +42,21 @@ export function richPreview(source: string, nodes: readonly SourceNode[], target
   }
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https://polarion.pufafen.com data: blob:; style-src 'unsafe-inline'"><style>
 html{min-height:100%;background:#fff}
-body{font:14px/1.75 'Microsoft YaHei UI','Segoe UI',sans-serif;color:#24364b;margin:0;padding:24px 28px;box-sizing:border-box;min-width:0;overflow-wrap:anywhere}
-h1,h2,h3,h4,h5,h6{line-height:1.5;margin:22px 0 12px}
+body{font:10pt/1.5 'Segoe UI',Selawik,'Open Sans',Arial,sans-serif;color:#000000;margin:0;padding:24px 28px;box-sizing:border-box;min-width:0;overflow-wrap:anywhere}
+h1,h2,h3,h4,h5,h6{line-height:1.5;margin:0}h1,h2,h3{line-height:1.2}
+${headingSizes.map((size,i)=>`h${i+1}{font-size:${size}pt;font-weight:600}`).join('')}
 body> :first-child{margin-top:0}
 table{border-collapse:collapse;max-width:100%}
 .preview-table{max-width:100%;overflow:auto;margin:12px 0;scrollbar-width:thin;scrollbar-color:#b9c7d8 transparent}
-td,th{border:1px solid #cbd6e5;padding:9px;min-width:48px;vertical-align:top}
-th{background:#eef3f9}
+td,th{border:1px solid #cbd6e5;padding:9px 11px;min-width:48px;vertical-align:top;font-size:13px}
+th{background:#edf3fb;font-weight:600;text-align:left}
 img{max-width:100%;height:auto}
-p{margin:10px 0}
+p{margin:0}
 ul,ol{padding-left:26px;margin:10px 0}
 li>p{margin:3px 0}
 a{color:#2c67b4;text-decoration:underline;text-underline-offset:3px}
+blockquote{border-left:3px solid #87a9d4;background:#f6f9fd;padding:12px 17px;margin:16px 0}
+code{background:#eef2f7;padding:2px 5px;color:#af4e66;font-size:.92em;font-family:Consolas,monospace}
 [data-source-node]{cursor:text;border-radius:2px}
 [data-source-node]:hover{background:#eaf2fd;outline:1px dashed #9dbce5}
 [data-protected]{display:inline-block;padding:8px 12px;border:1px dashed #c6d2e3;border-radius:5px;background:#f4f6f9;color:#5b6e85;font-size:12px}

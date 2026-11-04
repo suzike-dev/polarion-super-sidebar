@@ -1,16 +1,26 @@
 import { parseFragment, type DefaultTreeAdapterTypes } from 'parse5';
 import type { JSONContent } from '@tiptap/core';
 import { richSchema, safeStyle,calloutTones } from './rich-schema.ts';
-import {mergeSourceStyle} from './rich-style.ts';
+import {mergeSourceStyle,safeColor} from './rich-style.ts';
+import {documentNodeStyle, headingSizes} from './document-presentation.ts';
 
 type H = DefaultTreeAdapterTypes.Node;
 type J = JSONContent;
 type M = NonNullable<J['marks']>[number];
-type RecordNode = { id: string; tag: string; start: number; end: number; open: string; close: string; raw: string; attrs: Record<string, string>; original: J; children: string[]; synthetic?: boolean; tableSection?: { open: string; close: string } };
+type TableSection = { before:string; open:string; close:string; rows:string[] };
+type RecordNode = { id: string; tag: string; start: number; end: number; open: string; close: string; raw: string; attrs: Record<string, string>; original: J; children: string[]; synthetic?: boolean; tableLayout?: { sections:TableSection[]; tail:string } };
 const tags: Record<string, string> = { p: 'paragraph', pre:'codeBlock', div: 'sourceContainer', ul: 'bulletList', ol: 'orderedList', li: 'listItem', blockquote: 'blockquote', table: 'table', tr: 'tableRow', td: 'tableCell', th: 'tableHeader', hr: 'horizontalRule', br: 'hardBreak' };
 const marks: Record<string, string> = { strong: 'bold', b: 'bold', em: 'italic', i: 'italic', u: 'underline', s: 'strike', del: 'strike', strike: 'strike', code: 'code', a: 'link', sub: 'subscript', sup: 'superscript', span: 'sourceSpan' };
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const identity = (j: J) => j.attrs?.sid as string | undefined;
+const macroName = (attrs:Record<string,string>) => attrs.id?.match(/^polarion_wiki\s+macro\s+name=([^;]+)(?:;|$)/)?.[1];
+const hasMacro = (attrs:Record<string,string>) => /^polarion_wiki\s+macro\s+name=/.test(attrs.id??'');
+const containsTable = (n:H):boolean => n.nodeName==='table'||'childNodes'in n&&n.childNodes.some(containsTable);
+const isTableWrapper = (n:H) => 'attrs' in n && macroName(Object.fromEntries(n.attrs.map(a=>[a.name,a.value])))==='table' && ['span','div'].includes(n.nodeName)&&containsTable(n);
+const containsBlockContent = (n:H):boolean => ['table','ol','ul'].includes(n.nodeName)||'childNodes'in n&&n.childNodes.some(containsBlockContent);
+// Polarion often emits list/table blocks inside ordinary formatting spans.
+// Promote the wrapper, rather than treating its block descendants as inline atoms.
+const isBlockWrapper = (n:H) => n.nodeName==='span'&&'attrs'in n&&!hasMacro(Object.fromEntries(n.attrs.map(a=>[a.name,a.value])))&&containsBlockContent(n);
 export function escapeText(value: string) {
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)) throw Error('INVALID_XML_TEXT');
   return Array.from(value, c => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c.codePointAt(0)! > 0xffff ? `&#x${c.codePointAt(0)!.toString(16).toUpperCase()};` : c).join('');
@@ -73,7 +83,7 @@ export class RichDocument {
       run = [];
     };
     for (const n of nodes) {
-      if (n.nodeName === '#text' || marks[n.nodeName] || ['br', 'img'].includes(n.nodeName)) run.push(n);
+      if (!isTableWrapper(n)&&!isBlockWrapper(n)&&(n.nodeName === '#text' || marks[n.nodeName] || ['br', 'img'].includes(n.nodeName))) run.push(n);
       else { flush(); out.push(this.block(n)); }
     }
     flush(); return out;
@@ -88,7 +98,8 @@ export class RichDocument {
     const attrs = 'attrs' in n ? Object.fromEntries(n.attrs.map(a => [a.name, a.value])) : {};
     if(n.nodeName==='img'){
       const local=attrs.src?.match(/^polarion-asset:([0-9a-f-]{36})$/i)?.[1];
-      const j:J={type:'image',attrs:{src:attrs.src??'',assetId:local??null,alt:attrs.alt??'',title:attrs.title??null,width:attrs.width?Number(attrs.width):null,height:attrs.height?Number(attrs.height):null,sourceStyle:safeStyle(attrs.style)||null},marks:parentMarks};this.record(n,j);return[j];
+      const style=attrs.style??'',align=/margin-left\s*:\s*auto/i.test(style)?(/margin-right\s*:\s*auto/i.test(style)?'center':'right'):'left';
+      const j:J={type:'image',attrs:{src:attrs.src??'',assetId:local??null,alt:attrs.alt??'',title:attrs.title??null,width:attrs.width?Number(attrs.width):null,height:attrs.height?Number(attrs.height):null,align,sourceStyle:safeStyle(style)||null},marks:parentMarks};this.record(n,j);return[j];
     }
     // Native Polarion can nest a div inside a span. Preserve its wrapper as an
     // inline source mark, exposing its text instead of hiding an editable clause.
@@ -106,6 +117,13 @@ export class RichDocument {
   }
   private block(n: H): J {
     const attrs = 'attrs' in n ? Object.fromEntries(n.attrs.map(a => [a.name, a.value])) : {};
+    if((n.nodeName==='ul'&&attrs['data-sidebar-tasks']==='true')||(n.nodeName==='li'&&attrs['data-sidebar-task']==='true')){
+      const task=n.nodeName==='li',all='childNodes'in n?n.childNodes:[],container=task?all.find(c=>'attrs'in c&&c.attrs.some(a=>a.name==='data-task-content')):n;
+      if(!container)return this.opaque(n,false);
+      const content=this.blocks('childNodes'in container?container.childNodes:[]);
+      if(task&&content[0]?.type!=='paragraph')content.unshift({type:'paragraph'});
+      const j:J={type:task?'taskItem':'taskList',attrs:task?{checked:attrs['data-checked']==='true'}:{},content};const r=this.record(n,j);r.children=content.map(identity).filter(Boolean) as string[];return j;
+    }
     if(n.nodeName==='table'&&attrs['data-sidebar-callout']&&calloutTones[attrs['data-sidebar-callout']]){
       const kids=(node:H)=>'childNodes' in node?node.childNodes.filter(c=>c.nodeName!=='#text'||('value'in c&&c.value.trim())):[];
       const section=kids(n),rows=section.length===1&&['tbody','thead'].includes(section[0]!.nodeName)?kids(section[0]!):section;
@@ -115,16 +133,22 @@ export class RichDocument {
       }
       return this.opaque(n,false);
     }
-    if (attrs.id?.startsWith('polarion_wiki macro name=') && !attrs.id.startsWith('polarion_wiki macro name=table;')) return this.opaque(n, false);
-    const type = /^h[1-6]$/.test(n.nodeName) ? 'heading' : tags[n.nodeName];
+    if (hasMacro(attrs)&&(macroName(attrs)!=='table'||n.nodeName!=='table'&&!isTableWrapper(n))) return this.opaque(n, false);
+    const type = isTableWrapper(n)||isBlockWrapper(n)?'sourceContainer':/^h[1-6]$/.test(n.nodeName) ? 'heading' : tags[n.nodeName];
     if (!type || type === 'hardBreak') return this.opaque(n, false);
     let children = 'childNodes' in n ? n.childNodes : [];
-    let section: H | undefined;
+    let sections:H[]=[];
     if (type === 'table') {
-      const groups = children.filter(c => ['tbody', 'thead', 'tfoot'].includes(c.nodeName));
-      // Multiple row groups/colgroups/captions need their own mapping before edits are safe.
-      if (groups.length > 1 || children.some(c => !['#text', 'tbody', 'thead', 'tfoot', 'tr'].includes(c.nodeName))) return this.opaque(n, false);
-      section = groups[0]; if (section && 'childNodes' in section) children = section.childNodes;
+      // Row groups are flattened only in the editing model. Source wrappers,
+      // captions and column definitions stay mapped around the editable rows.
+      const allowed=new Set(['#text','#comment','tbody','thead','tfoot','tr','colgroup','caption']);
+      if(children.some(c=>!allowed.has(c.nodeName)))return this.opaque(n,false);
+      sections=children.filter(c=>['tbody','thead','tfoot','tr'].includes(c.nodeName));
+      const unknownMacro=(node:H):boolean=>('attrs'in node&&hasMacro(Object.fromEntries(node.attrs.map(a=>[a.name,a.value]))))||('childNodes'in node&&node.childNodes.some(unknownMacro));
+      if(children.filter(c=>['colgroup','caption'].includes(c.nodeName)).some(unknownMacro))return this.opaque(n,false);
+      if(sections.some(section=>'attrs'in section&&hasMacro(Object.fromEntries(section.attrs.map(a=>[a.name,a.value])))||section.nodeName!=='tr'&&'childNodes'in section&&section.childNodes.some(c=>!['#text','#comment','tr'].includes(c.nodeName))))return this.opaque(n,false);
+      children=sections.flatMap(section=>section.nodeName==='tr'?[section]:'childNodes'in section?section.childNodes.filter(c=>c.nodeName==='tr'):[]);
+      if(!children.length||children.some(c=>!c.sourceCodeLocation||'attrs'in c&&hasMacro(Object.fromEntries(c.attrs.map(a=>[a.name,a.value])))))return this.opaque(n,false);
     }
     const j: J = { type, attrs: { sourceStyle: safeStyle(attrs.style) || null } };
     if (type === 'heading') j.attrs!.level = Number(n.nodeName[1]);
@@ -141,14 +165,21 @@ export class RichDocument {
       const content=this.blocks([c]);if(content[0]?.type!=='paragraph')content.unshift(this.emptySourceParagraph(c));
       const item:J={type:'listItem',attrs:{sourceVirtual:true},content};const itemRecord=this.record({nodeName:'#synthetic',sourceCodeLocation:c.sourceCodeLocation} as H,item,true);itemRecord.children=content.map(identity).filter(Boolean) as string[];return item;
     });
-    else if (['table', 'tableRow'].includes(type)) j.content = children.filter(c => c.nodeName !== '#text').map(c => this.block(c));
+    else if (['table', 'tableRow'].includes(type)) j.content = children.filter(c => !['#text','#comment'].includes(c.nodeName)).map(c => this.block(c));
     else if (type !== 'horizontalRule') { j.content = this.blocks(children); if (!j.content.length) j.content = [{ type: 'paragraph' }]; }
     if(type==='listItem'&&j.content?.[0]?.type!=='paragraph')j.content?.unshift(this.emptySourceParagraph(n));
     r.children = (j.content ?? []).map(identity).filter(Boolean) as string[];
-    if (section?.sourceCodeLocation && 'startTag' in section.sourceCodeLocation) {
-      const s = section.sourceCodeLocation;
-      const first = this.records.get(r.children[0]!), last = this.records.get(r.children.at(-1)!);
-      r.tableSection = { open: this.source.slice(r.start + r.open.length, first?.start ?? s.startTag?.endOffset ?? s.startOffset), close: this.source.slice(last?.end ?? s.endTag?.startOffset ?? s.endOffset, r.end - r.close.length) };
+    if(type==='table'){
+      let cursor=r.start+r.open.length;const layout:TableSection[]=[];
+      for(const section of sections){
+        const rows=section.nodeName==='tr'?[section]:'childNodes'in section?section.childNodes.filter(c=>c.nodeName==='tr'):[];
+        if(!rows.length)continue;
+        const first=rows[0]!.sourceCodeLocation!,last=rows.at(-1)!.sourceCodeLocation!;
+        const start=section.sourceCodeLocation?.startOffset??first.startOffset,end=section.sourceCodeLocation?.endOffset??last.endOffset;
+        const ids=r.children.filter(id=>{const row=this.records.get(id)!;return row.start>=first.startOffset&&row.end<=last.endOffset;});
+        layout.push({before:this.source.slice(cursor,start),open:this.source.slice(start,first.startOffset),close:this.source.slice(last.endOffset,end),rows:ids});cursor=end;
+      }
+      r.tableLayout={sections:layout,tail:this.source.slice(cursor,r.end-r.close.length)};
     }
     return j;
   }
@@ -175,6 +206,8 @@ export class RichDocument {
     const wrapper = (j: J, mark = false): [string, string] => {
       const r = this.records.get(identity(j)!); const a = j.attrs ?? {};
       if(j.type==='callout'){const tone=calloutTones[a.tone];if(!tone)throw Error('INVALID_CALLOUT_TONE');return [`<table data-sidebar-callout="${a.tone}" cellpadding="12" cellspacing="0" style="width:100%;border-collapse:collapse;border:0"><tbody><tr><td style="background-color:${tone.background};border:0;border-left:3px solid ${tone.border};padding:12px 16px">`,'</td></tr></tbody></table>'];}
+      if(j.type==='taskList')return ['<ul data-sidebar-tasks="true" style="list-style:none;padding-left:4px">','</ul>'];
+      if(j.type==='taskItem')return [`<li data-sidebar-task="true" data-checked="${a.checked?'true':'false'}" style="list-style:none;position:relative;padding-left:24px"><span data-task-marker="true" style="position:absolute;left:0;top:0">${a.checked?'☑':'☐'}</span><div data-task-content="true">`,'</div></li>'];
       let tag = r?.tag;
       const freshTags: Record<string, string> = { paragraph: 'p', heading: `h${a.level ?? 1}`, bulletList: 'ul', orderedList: 'ol', listItem: 'li', blockquote: 'blockquote', sourceContainer: 'div', table: 'table', tableRow: 'tr', tableCell: 'td', tableHeader: 'th', horizontalRule: 'hr', hardBreak: 'br', bold: 'strong', italic: 'em', underline: 'u', strike: 's', code: 'code', link: 'a', subscript: 'sub', superscript: 'sup', sourceSpan: 'span', paint: 'span' };
       if (!r || r.original.type !== j.type || r.synthetic) tag = freshTags[j.type!];
@@ -189,22 +222,23 @@ export class RichDocument {
       if (r) usedWrappers.add(r.id);
       const set = (key: string, value: any, defaultValue?: any) => { if (value == null || value === defaultValue) delete attributes[key]; else attributes[key] = String(value); };
       let style = r ? mergeSourceStyle(attributes.style ?? '', r.original.attrs?.sourceStyle, a.sourceStyle) : safeStyle(a.sourceStyle);
+      // Only new nodes get portable defaults. Editing an existing clause must not
+      // repaint its neighbours or overwrite the project's original formatting.
+      if (!r) style = [documentNodeStyle(j.type!, a), style].filter(Boolean).join(';');
       const css = (key: string, value: string | null) => { style = style.split(';').filter(s => s.trim() && s.slice(0,s.indexOf(':')).trim().toLowerCase() !== key).join(';'); if (value) style += `;${key}:${value}`; };
       if (a.textAlign !== r?.original.attrs?.textAlign) css('text-align', ['left', 'center', 'right', 'justify'].includes(a.textAlign) ? a.textAlign : null);
-      if (a.lineHeight !== r?.original.attrs?.lineHeight) css('line-height', /^(1|1\.5|1\.75|2)$/.test(a.lineHeight) ? a.lineHeight : null);
+      if (a.lineHeight !== r?.original.attrs?.lineHeight && (r || a.lineHeight != null)) css('line-height', /^(1|1\.2|1\.5|1\.75|2)$/.test(a.lineHeight) ? a.lineHeight : null);
       if (['tableCell', 'tableHeader'].includes(j.type!)) { set('colspan', a.colspan, 1); set('rowspan', a.rowspan, 1); }
       if (['tableCell', 'tableHeader'].includes(j.type!)) {
-        if (a.fill !== r?.original.attrs?.fill) css('background-color', /^#[a-f0-9]{6}$/i.test(a.fill) ? a.fill : null);
-        if (a.valign !== r?.original.attrs?.valign) css('vertical-align', ['top', 'middle', 'bottom'].includes(a.valign) ? a.valign : null);
+        if (a.fill !== r?.original.attrs?.fill && (r || a.fill != null)) css('background-color', safeColor(a.fill));
+        if (a.valign !== r?.original.attrs?.valign && (r || a.valign != null)) css('vertical-align', ['top', 'middle', 'bottom'].includes(a.valign) ? a.valign : null);
         if (a.cellHeight !== r?.original.attrs?.cellHeight) css('height', Number(a.cellHeight) >= 24 && Number(a.cellHeight) <= 600 ? `${Number(a.cellHeight)}px` : null);
         if (!equal(a.colwidth, r?.original.attrs?.colwidth) && Array.isArray(a.colwidth) && a.colwidth.every((w: any) => Number.isInteger(w) && w > 0 && w < 5000)) { attributes['data-colwidth'] = a.colwidth.join(','); css('width', `${a.colwidth.reduce((sum: number, w: number) => sum + w, 0)}px`); }
-        if (!r) style = `border:1px solid #cbd5e1;padding:8px;${style}`;
       }
-      if (j.type === 'table' && !r) style = 'border-collapse:collapse;width:100%;' + style;
       if(j.type==='table'&&a.sourceStyle!==r?.original.attrs?.sourceStyle){const spacing=style.match(/(?:^|;)\s*border-spacing\s*:\s*(\d+)px\s*(?:;|$)/)?.[1];if(spacing)attributes.cellspacing=spacing;}
       if (j.type === 'orderedList') set('start', a.start, 1);
       if (j.type === 'link') { if (!this.safeLink(a.href)) throw Error('UNSAFE_LINK'); attributes.href = a.href; }
-      if (j.type === 'paint') { for (const [key, value] of [['color', a.color], ['background-color', a.background], ['font-size', a.size], ['font-family', a.font]]) if (value) css(key, safeStyle(`${key}:${value}`) ? value : null); }
+      if (j.type === 'paint') { for (const [key, value] of [['color', a.color], ['background-color', a.background], ['font-size', a.size], ['font-family', a.font]]) if (value) css(key, safeStyle(`${key}:${value}`) ? value : null);if(/^(1|1\.2|1\.5|1\.75|2)$/.test(a.line))css('line-height',a.line);else if(/^\d+(\.\d+)?pt$/.test(a.size??''))css('line-height',parseFloat(a.size)>=15?'1.2':'1.5'); }
       if (style) attributes.style = style; else delete attributes.style;
       // Original attributes survive; newly supplied arbitrary attributes never enter HTML.
       const opening = `<${tag}${Object.entries(attributes).map(([k, v]) => ` ${k}="${attr(v)}"`).join('')}>`;
@@ -226,14 +260,14 @@ export class RichDocument {
       let result = '';
       for (let i = 0; i < items.length; i++) {
         const prev = this.records.get(identity(items[i - 1] ?? {})!); const curr = this.records.get(identity(items[i]!)!);
-        if (prev && curr && prev.end <= curr.start && r?.children.includes(prev.id) && r.children.indexOf(curr.id) === r.children.indexOf(prev.id) + 1) result += this.source.slice(prev.end, curr.start);
+        if (prev && curr && prev.end <= curr.start && r?.children.includes(prev.id) && r.children.indexOf(curr.id) === r.children.indexOf(prev.id) + 1) result += this.source.slice(prev.synthetic&&prev.start===prev.end?Math.max(prev.end,r.start+r.open.length):prev.end, curr.start);
         result += render(items[i]!);
       }
       if (r && items.length) {
         const first = this.records.get(identity(items[0]!)!); const last = this.records.get(identity(items.at(-1)!)!);
         const originalFirst = this.records.get(r.children[0]!); const originalLast = this.records.get(r.children.at(-1)!);
-        if (first && originalFirst?.id === first.id) { const prefix = this.source.slice(r.start + r.open.length, first.start); if (/^\s*$/.test(prefix)) result = prefix + result; }
-        if (last && originalLast?.id === last.id) { const suffix = this.source.slice(last.end, r.end - r.close.length); if (/^\s*$/.test(suffix)) result += suffix; }
+        if (first && originalFirst?.id === first.id) { const prefix = this.source.slice(r.start + r.open.length, first.start); if (r.tag==='tr'||/^\s*$/.test(prefix)) result = prefix + result; }
+        if (last && originalLast?.id === last.id) { const suffix = this.source.slice(last.end, r.end - r.close.length); if (r.tag==='tr'||/^\s*$/.test(suffix)) result += suffix; }
       }
       return result;
     };
@@ -256,15 +290,30 @@ export class RichDocument {
         return '<img'+Object.entries(attrs).map(([k,v])=>` ${k}="${attr(v)}"`).join('')+'>';
       }
       const [open, close] = wrapper(j);
-      let body = j.type==='codeBlock'?'':['paragraph', 'heading'].includes(j.type!) ? inline(j.content ?? []) : children(j.content ?? [], r);
+      let body = j.type==='codeBlock'||j.type==='table'&&r?.tableLayout?'':['paragraph', 'heading'].includes(j.type!) ? inline(j.content ?? []) : children(j.content ?? [], r);
       if(j.type==='codeBlock'){const language=j.attrs?.language;if(language&&!/^[\w+-]{1,40}$/.test(language))throw Error('INVALID_CODE_LANGUAGE');body=`<code${language?` class="language-${language}"`:''}>${escapeText((j.content??[]).map(c=>c.text??'').join(''))}</code>`;}
       // Polarion LiveDoc strips heading tags inside a work-item description. Keep
       // semantics in stored HTML and an inline style carrier for the native view.
       if (j.type === 'heading' && !r?.raw.includes('data-polarion-sidebar-heading=')) {
-        const level=Number(j.attrs?.level??2);const size=[28,24,20,17,15,14][level-1]??20;
-        body=`<span data-polarion-sidebar-heading="${level}" style="font-size:${size}px;font-weight:bold;color:#263E5C;line-height:1.6">${body}</span>`;
+        const level=Number(j.attrs?.level??2);const size=headingSizes[level-1]??18;
+        // The carrier survives LiveDoc's heading flattening. Explicit heading
+        // formatting must take precedence over the editor's default typography.
+        const presentation = safeStyle(j.attrs?.sourceStyle).split(';').filter(d=>/^\s*(font-(size|family|weight|style)|color|line-height)\s*:/i.test(d)).join(';');
+        body=`<span data-polarion-sidebar-heading="${level}" style="font-size:${size}pt;font-weight:600;color:#000000;line-height:${size>=15?'1.2':'1.5'};${presentation}">${body}</span>`;
       }
-      if (j.type === 'table' && r?.tableSection) body = r.tableSection.open + body + r.tableSection.close;
+      if(j.type==='table'&&r?.tableLayout){
+        const layout=r.tableLayout,rows=j.content??[],owners=new Map(layout.sections.flatMap((section,index)=>section.rows.map(id=>[id,index] as const)));
+        const assigned=rows.map(row=>owners.get(identity(row)!));
+        // Newly inserted rows inherit an adjacent source group. Existing groups
+        // cannot be silently duplicated/reordered when their wrappers carry IDs.
+        for(let i=0;i<assigned.length;i++)if(assigned[i]===undefined)assigned[i]=assigned.slice(0,i).findLast(v=>v!==undefined)??assigned.slice(i+1).find(v=>v!==undefined)??0;
+        if(assigned.some((group,i)=>i>0&&group!<assigned[i-1]!))throw Error('TABLE_GROUP_REORDER_UNSUPPORTED');
+        body=layout.sections.map((section,index)=>{
+          const items=rows.filter((_row,i)=>assigned[i]===index);let content='';
+          for(let i=0;i<items.length;i++){const prev=this.records.get(identity(items[i-1]??{})!),curr=this.records.get(identity(items[i]!)!);if(prev&&curr&&prev.end<=curr.start&&section.rows.indexOf(curr.id)===section.rows.indexOf(prev.id)+1)content+=this.source.slice(prev.end,curr.start);content+=render(items[i]!);}
+          return section.before+section.open+content+section.close;
+        }).join('')+layout.tail;
+      }
       return open + body + close;
     };
     return render(json);

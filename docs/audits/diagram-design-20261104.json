@@ -1,0 +1,660 @@
+{
+  "date": "2026-11-04",
+  "status": "passed-scoped",
+  "releaseApproved": false,
+  "scope": "Latest real requirements-to-board compact auto generation, native editing and explicit Polarion save/readback; two UI retests remain",
+  "environment": {
+    "hostVersion": "0.3.0",
+    "hostPid": 16936,
+    "egoTaskSpace": 7,
+    "polarionPage": "p1",
+    "diagnosticsPage": "p6",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "permissionMode": "auto"
+  },
+  "source": {
+    "repository": "https://github.com/cathrynlavery/diagram-design",
+    "commit": "f24d98b05e2d7a5e68c2dedfe46e5b7173f50118",
+    "version": "2.6",
+    "visualType": "flowchart",
+    "manifestSha256": "4e83a608f5100b8e711da78779c72b446c29d19c04cf15e90faf4048a2b9e679",
+    "skillSha256": "83fd5aa46965ce2b14bd42ade80c065a4e17a9f83d2a9f4f275b47cd45d72666",
+    "documents": [
+      {
+        "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\SKILL.md",
+        "sha256": "83fd5aa46965ce2b14bd42ade80c065a4e17a9f83d2a9f4f275b47cd45d72666",
+        "relativePath": "SKILL.md",
+        "original": true
+      },
+      {
+        "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\type-flowchart.md",
+        "sha256": "c2af5e2b849255ae4859125db7b101b74bfb9b201204725c1e83fac51a98ebab",
+        "relativePath": "references/type-flowchart.md",
+        "original": true
+      },
+      {
+        "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\primitives-core.md",
+        "sha256": "bd011a9ed2e1b4e27d2ecc83872127eb8f5b1d91026a162a211974b3eeebc7e0",
+        "relativePath": "references/primitives-core.md",
+        "original": true
+      },
+      {
+        "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\layout-budget.md",
+        "sha256": "7ece87d01d3dbe42a2293114b423a44e254482a4931e402e6dc4ba7cf9902bcb",
+        "relativePath": "references/layout-budget.md",
+        "original": true
+      }
+    ],
+    "deferredDocuments": [
+      {
+        "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\profiles.md",
+        "relativePath": "references/profiles.md",
+        "sha256": "8afea09015a456b218287f08a2e9ac44bb50f6a9ebd2a7c1487bd774e89f9016",
+        "instruction": "Read the complete original with readDiagramDesignDocument or the agent Read tool when applicable; do not infer its content from this pointer."
+      },
+      {
+        "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\semantic-patterns.md",
+        "relativePath": "references/semantic-patterns.md",
+        "sha256": "7aa5f7a0840be234d2b10bc3742b17151f94f550a0d72afd820413859a898c8f",
+        "instruction": "Read the complete original with readDiagramDesignDocument or the agent Read tool when applicable; do not infer its content from this pointer."
+      },
+      {
+        "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\output-spec.md",
+        "relativePath": "references/output-spec.md",
+        "sha256": "12dc0eed3514e387328651652604ef4fba1a76bce1823a79f4da2993336d1e69",
+        "instruction": "Read the complete original with readDiagramDesignDocument or the agent Read tool when applicable; do not infer its content from this pointer."
+      }
+    ],
+    "style": {
+      "path": "C:\\Users\\Lenovo\\.diagram-design\\profiles\\polarion-super-sidebar.md",
+      "sha256": "c296438d49c08b910ad03dbb8fc8181837af58aad2da099a18601d0fc33e5da2",
+      "original": false
+    },
+    "adapter": {
+      "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\POLARION-ADAPTER.md",
+      "sha256": "3ec06a3354a1c3b021374c506244ef7bc977c733c139b09d05f2b1611868fbbc",
+      "original": false
+    },
+    "warnings": [],
+    "delivery": {
+      "characterBudget": 80000,
+      "characterCount": 67913,
+      "exceedsBudget": false,
+      "truncated": false
+    },
+    "sdkSkillExpandedCharacters": 29892,
+    "upstreamHtmlCheckerRun": false,
+    "readingLimitation": "Source delivery was complete; some agent Bash extracts were limited to 5000/6000 characters, while several references were actually read via Read. Do not infer complete model comprehension."
+  },
+  "evidenceDirectory": ".research/release-20261104/board-compact-live",
+  "evidencePublication": "Local raw evidence; not included in release package",
+  "sessionId": "3ca7b402-6477-4935-a719-9e8e890d2ccb",
+  "nativeSessionId": "2138f612-c26d-4c56-8118-75e5f9fb1d81",
+  "runs": [
+    "7ebe0129-688e-4dab-8721-161b89d5a738"
+  ],
+  "eventCount": 756,
+  "proposal": {
+    "id": "06b56a0a-a56f-4aa2-8373-be7d70f43327",
+    "requestId": "ff66eeff-83b6-4ad6-aa80-acd5b1547e7c",
+    "entry": "requirements"
+  },
+  "passed": [
+    "real-skill-invocation-and-sdk-expansion",
+    "pinned-source-read-event",
+    "requirements-to-board-new-real-model-proposal",
+    "nine-nodes-ten-arrows-multiple-decisions-merge-loop",
+    "explicit-canvas-overflow-rejected-and-agent-recovered",
+    "compact-auto-960x720",
+    "preview-plus-minus-fit-original-size",
+    "restore-elements-canvas-check-and-apply-signature",
+    "nine-native-node-texts-18px-center-middle",
+    "native-arrow-bindings-follow-drag",
+    "double-click-text-edit-keeps-center-middle",
+    "insert-draft-remote-unchanged",
+    "explicit-ui-save-and-independent-readback",
+    "native-png-loaded-without-full-page-refresh",
+    "remote-source-png-manifest-hashes-match",
+    "normal-reopen-native-source",
+    "original-remote-content-restored",
+    "esc-restores-preview-trigger-focus",
+    "post-apply-fit-after-card-removal-entire-diagram-visible",
+    "1440x900-fit-preview-readable",
+    "fresh-real-auto-permission-run-no-manual-permission-wait"
+  ],
+  "closedDefects": [
+    {
+      "id": "BOARD-LIVE-01",
+      "summary": "Pending diagram now has enlargeable preview",
+      "status": "real-retest-passed-with-focus-followup"
+    },
+    {
+      "id": "BOARD-LIVE-02",
+      "summary": "Node text center/middle retained after generation, native edit and remote export",
+      "status": "real-retest-passed"
+    },
+    {
+      "id": "BOARD-LIVE-03",
+      "severity": "minor",
+      "summary": "Esc closes preview but focus returns to iframe BODY instead of trigger",
+      "status": "real-retest-passed",
+      "evidence": "modal-controls.json",
+      "retestEvidence": "board-compact-ui-final/focus-retest.json"
+    },
+    {
+      "id": "BOARD-LIVE-04",
+      "severity": "major",
+      "summary": "Apply fits before proposal card removal, leaving new canvas viewport poorly centered",
+      "status": "real-retest-passed",
+      "evidence": "applied.png",
+      "retestEvidence": "board-compact-ui-final/applied-fit-1440x900.png"
+    }
+  ],
+  "openDefects": [],
+  "geometry": {
+    "nodes": 9,
+    "arrows": 10,
+    "decisions": 2,
+    "accents": 2,
+    "nativeObjects": 38,
+    "imageObjects": 0,
+    "canvas": {
+      "size": "auto",
+      "width": 960,
+      "height": 720
+    },
+    "nodeFontPx": 18,
+    "nodeAlignment": "center/middle",
+    "generatedChecker": {
+      "ok": true,
+      "errors": [],
+      "nodes": 9,
+      "arrows": 10,
+      "orthogonal": true,
+      "crossings": 0,
+      "minParallelGap": 12,
+      "labelGap": [
+        6,
+        10
+      ],
+      "grid": 4
+    },
+    "normalizedChecker": {
+      "ok": true,
+      "errors": [],
+      "nodes": 9,
+      "arrows": 10,
+      "orthogonal": true,
+      "crossings": 0,
+      "minParallelGap": 12,
+      "labelGap": [
+        6,
+        10
+      ],
+      "grid": 4
+    },
+    "manualChecker": {
+      "ok": false,
+      "errors": [
+        "OFF_GRID:collect",
+        "SHORT_BEND:e_collect_need"
+      ],
+      "nodes": 9,
+      "arrows": 10,
+      "orthogonal": true,
+      "crossings": 0,
+      "minParallelGap": 12,
+      "labelGap": [
+        6,
+        10
+      ],
+      "grid": 4
+    },
+    "canvasCheckPassedAll": true,
+    "manualEditingLimitation": "Native free drag may leave the 4px grid and create a short bend. Generated rules are not a guarantee after arbitrary manual edits.",
+    "drag": {
+      "from": {
+        "x": 392,
+        "y": 184
+      },
+      "to": {
+        "x": 412,
+        "y": 210.6666666666667
+      },
+      "connected": [
+        {
+          "id": "e_start_collect",
+          "geometryChanged": true,
+          "startSame": true,
+          "endSame": true,
+          "elbowed": true
+        },
+        {
+          "id": "e_collect_need",
+          "geometryChanged": true,
+          "startSame": true,
+          "endSame": true,
+          "elbowed": true
+        },
+        {
+          "id": "e_retry_collect",
+          "geometryChanged": true,
+          "startSame": true,
+          "endSame": true,
+          "elbowed": true
+        }
+      ]
+    }
+  },
+  "performance": {
+    "agentMs": 423484,
+    "approvalRequests": 8,
+    "approvalUnionMs": 322894,
+    "agentExcludingApprovalMs": 100590,
+    "previewOpenMs": 664,
+    "applyMs": 299,
+    "insertMs": 399,
+    "saveMs": 5050,
+    "reopenMs": 150,
+    "dragInputMs": 63,
+    "longTasks": [],
+    "restoreSaveMs": 1378
+  },
+  "performanceLimitations": [
+    "Single 9-node/10-arrow graph, no stress test or percentiles",
+    "Long-task observer installed after first proposal preview, covers enlargement/apply/zoom/pan/drag/text edit",
+    "Current run used ask; later automatic-approval default not yet tested here"
+  ],
+  "remoteArtifact": {
+    "objectId": "c9281c77-0bf6-44ee-8021-bc15a788f32a",
+    "snapshotId": "d379c30d-cf88-4e1c-8bd8-59745c74a440",
+    "source": {
+      "bytes": 49734,
+      "sha256": "f831101b32f1de767cbb23c67bad5a9c850be6fb58fe1b76bc832d4a1a32034f"
+    },
+    "png": {
+      "bytes": 224515,
+      "sha256": "dbb08f4ed9422946f0bab4c255cb04bd0012fdeed2387e2402d978f521e804e1",
+      "width": 1920,
+      "height": 1440
+    },
+    "manifest": {
+      "bytes": 759,
+      "sha256": "5ae6848e4a41ace74c70cdcfedd9cba90f397967cc6e235d57363fd063ede4b5"
+    },
+    "manifestHashesMatch": true
+  },
+  "cleanup": {
+    "remoteOriginalRestored": true,
+    "remoteCharacters": 3050,
+    "remoteSha256": "a9bf1059b11edb7584bc8e3f98bb1d66fe9600c9a0c188d5850825ad5dc5c218",
+    "draftRevision": 262,
+    "draftState": "clean",
+    "activeRuns": 0,
+    "taskSpaceFinished": false,
+    "finalRoundDidNotInsertOrSave": true
+  },
+  "representativeScreenshot": {
+    "path": "docs/assets/screenshots/agent-diagram-complex-real.png",
+    "width": 1440,
+    "height": 900,
+    "sha256": "30305c8f805aa39bed45575bdae5f6637f3d0accf47e2dfcf881d77dc0247583",
+    "source": "Actual Ego screenshot of newly generated proposal preview; original bytes copied without crop or redraw"
+  },
+  "priorRound": {
+    "date": "2026-11-04",
+    "status": "partial",
+    "releaseApproved": false,
+    "scope": "Real Agent and native Excalidraw board flow in isolated Polarion TEST-729",
+    "environment": {
+      "hostVersion": "0.3.0",
+      "hostPid": 62812,
+      "egoTaskSpace": 5,
+      "polarionPage": "p2",
+      "diagnosticsPage": "p12"
+    },
+    "source": {
+      "repository": "https://github.com/cathrynlavery/diagram-design",
+      "commit": "f24d98b05e2d7a5e68c2dedfe46e5b7173f50118",
+      "version": "2.6",
+      "visualType": "flowchart",
+      "skillSha256": "83fd5aa46965ce2b14bd42ade80c065a4e17a9f83d2a9f4f275b47cd45d72666",
+      "sdkSkillExpandedCharacters": 29892,
+      "sourcePayloadCharacters": 67913,
+      "sourcePayloadTruncated": false,
+      "upstreamHtmlCheckerRun": false
+    },
+    "evidenceDirectory": ".research/release-20261104/board-live",
+    "sessionId": "edaba2e4-85ec-4ac7-84ee-f2f0a361a6d4",
+    "nativeSessionId": "cd8f4269-4e46-4913-b6a0-67813eeccc28",
+    "runs": [
+      "abba72e9-9d51-415f-9623-661da2c53231",
+      "d360192d-ee5a-4035-9994-29ae28ca532e",
+      "f638ad5f-cd6e-474b-981a-d3450160a780"
+    ],
+    "passed": [
+      "real-skill-invocation-and-expansion",
+      "pinned-source-trace",
+      "requirements-to-board-proposal",
+      "nine-nodes-ten-arrows-multiple-decisions-merge-loop",
+      "invalid-coordinate-rejection-and-agent-recovery",
+      "pending-close-recovery-same-request",
+      "manual-change-signature-guard",
+      "reject-and-new-generation",
+      "native-editable-elbow-bindings-follow-drag",
+      "double-click-text-edit",
+      "insert-draft-remote-unchanged",
+      "explicit-ui-save-independent-readback",
+      "native-png-loaded-without-page-refresh",
+      "remote-source-preview-manifest-hashes-match",
+      "normal-reopen-from-selected-board",
+      "ordinary-body-agent-request-no-generation-marker",
+      "original-remote-content-restored"
+    ],
+    "openDefects": [
+      {
+        "id": "BOARD-LIVE-01",
+        "severity": "major",
+        "summary": "Pending complex diagram preview too small to read and has no enlargement path",
+        "evidence": "first-proposal-open.png",
+        "status": "reported-awaiting-fix-and-real-retest"
+      },
+      {
+        "id": "BOARD-LIVE-02",
+        "severity": "major",
+        "summary": "Bound node text retains left/top alignment instead of center/middle",
+        "evidence": "complex-zoom-inspect.png and remote-preview.png",
+        "status": "reported-awaiting-fix-and-real-retest"
+      }
+    ],
+    "geometry": {
+      "nodes": 9,
+      "arrows": 10,
+      "decisions": 2,
+      "accents": 2,
+      "nativeObjects": 37,
+      "imageObjects": 0,
+      "generatedChecker": "pass",
+      "normalizedChecker": "pass",
+      "manualChecker": {
+        "orthogonal": true,
+        "crossings": 0,
+        "errors": [
+          "OFF_GRID:collect"
+        ],
+        "note": "Native free dragging was intentionally tested without grid snapping; later arbitrary user edits are not certified to retain generated grid."
+      }
+    },
+    "performance": {
+      "initialAgentMs": 283423,
+      "initialApprovalWaitMs": 136714,
+      "secondAgentMs": 38998,
+      "secondApprovalWaitMs": 16777,
+      "previewOpenMs": 682,
+      "applyMs": 7030,
+      "insertDraftMs": 1773,
+      "reopenIframeVisibleMs": 1571,
+      "ordinaryBodyAgentMs": 18229,
+      "restoreUiSaveMs": 2407,
+      "restoreIncludingIndependentReadbackMs": 2896,
+      "saveGraphUpperBoundMs": 29939,
+      "saveGraphTimingLimitation": "Includes erroneous 25-second UI wait; not a pure save duration",
+      "observedLongTasksMs": [
+        56
+      ],
+      "longTaskCoverage": "Board zoom, drag and text editing after observer installation; initial apply not covered",
+      "loadTest": false
+    },
+    "remoteArtifact": {
+      "objectId": "ba45ff36-f5c6-47e7-a41f-442c55904c91",
+      "snapshotId": "c866ee80-6ade-4567-a232-7462798f2480",
+      "sourceBytes": 49255,
+      "sourceSha256": "8c3ff7c5d47d2e4f52757e12b7b5961d541aa6afed4d935272fb94c7834d0986",
+      "pngBytes": 193598,
+      "pngSha256": "d197b9ee70df744c8b07fe08544f885d080750f2d5c7555f7df927b887a77a66",
+      "pngWidth": 1122,
+      "pngHeight": 2400
+    },
+    "cleanup": {
+      "remoteOriginalRestored": true,
+      "remoteCharacters": 3050,
+      "remoteSha256": "a9bf1059b11edb7584bc8e3f98bb1d66fe9600c9a0c188d5850825ad5dc5c218",
+      "draftRevision": 259,
+      "draftState": "clean",
+      "activeRuns": 0,
+      "taskSpaceFinished": false
+    },
+    "representativeScreenshot": "pending-fixed-real-render-retest",
+    "limitations": [
+      "One real 9-node/10-arrow flowchart, not all diagram types or arbitrary graph topology",
+      "No standalone HTML or raster replacement for editable source",
+      "Static routing checks do not replace real screenshots",
+      "Release requires fixes, runtime retest and parent integration with other acceptance lines"
+    ]
+  },
+  "releaseDecisionOwner": "Parent agent aggregates the other live engineering acceptance lines",
+  "fullSaveRoundEnvironment": {
+    "hostVersion": "0.3.0",
+    "hostPid": 57596,
+    "egoTaskSpace": 7,
+    "polarionPage": "p1",
+    "diagnosticsPage": "p4",
+    "viewport": {
+      "width": 1351,
+      "height": 606
+    },
+    "permissionMode": "ask"
+  },
+  "finalUiRetest": {
+    "evidenceDirectory": ".research/release-20261104/board-compact-ui-final",
+    "run": {
+      "permissionMode": "auto",
+      "id": "82dfebea-865f-4297-938c-7ad484a23b7d",
+      "requestId": "98cf838f-99e3-48ad-a456-4dc7be54da7b",
+      "sessionId": "3ca7b402-6477-4935-a719-9e8e890d2ccb",
+      "target": {
+        "origin": "https://polarion.pufafen.com",
+        "projectId": "test01",
+        "document": "Requirements/Sidebar_S1_20261103_0a72944c"
+      },
+      "attachments": [],
+      "status": "completed",
+      "startedAt": 1793763143727,
+      "endedAt": 1793763168989
+    },
+    "eventCount": 378,
+    "toolCalls": 2,
+    "permissionPrompts": 0,
+    "totalMs": 25262,
+    "proposal": {
+      "proposalId": "135fb7af-30ae-4c61-ab3c-44b9569ae046",
+      "draftId": "c0018417-317e-4aa3-bfd7-186ff85051f0",
+      "requestId": "9ce3ab87-6d0e-4e47-9b06-a1fb2cb950a7",
+      "title": "热管理闭环 · 隔离验收示例",
+      "summary": {
+        "nodes": 9,
+        "edges": 10,
+        "text": "TEST-729 当前 revision 262 的全新待审流程图草案：开始→采集温度→需要冷却？；是→执行冷却、否→保持待机；两支合流至反馈满足？；满足→归档结果→结束，不满足→记录并重试→采集温度形成闭环。共 9 节点、10 箭头；执行冷却与反馈满足？为仅有的两处深青重点。采用 auto 自动紧凑布局，不含手工坐标。本图仅用于测试，不代表真实工程需求。",
+        "checks": {
+          "ok": true,
+          "errors": [],
+          "nodes": 9,
+          "arrows": 10,
+          "orthogonal": true,
+          "crossings": 0,
+          "minParallelGap": 12,
+          "labelGap": [
+            6,
+            10
+          ],
+          "grid": 4,
+          "frameContained": true,
+          "canvas": {
+            "size": "auto",
+            "width": 960,
+            "height": 720,
+            "contentBounds": {
+              "x": 32,
+              "y": 96,
+              "width": 896,
+              "height": 592
+            }
+          },
+          "accents": 2,
+          "budget": {
+            "nodes": 9,
+            "arrows": 12,
+            "accents": 2
+          },
+          "cornerRadius": "native-elbow-max-16"
+        }
+      },
+      "entry": "requirements"
+    },
+    "focus": {
+      "modal": {
+        "dialog": {
+          "x": 16,
+          "y": 16,
+          "width": 903.3333740234375,
+          "height": 831.3333740234375,
+          "top": 16,
+          "right": 919.3333740234375,
+          "bottom": 847.3333740234375,
+          "left": 16
+        },
+        "text": "热管理闭环 · 隔离验收示例\n−\n60%\n＋\n适合窗口\n原始尺寸\n关闭预览\n\n可放大后滚动检查文字与连线。此草案尚未应用到画板。",
+        "image": {
+          "w": 839,
+          "h": 629,
+          "nw": 1400,
+          "nh": 1050
+        },
+        "focusTag": "BUTTON",
+        "focusText": "−"
+      },
+      "closed": {
+        "open": false,
+        "focusTag": "BUTTON",
+        "focusClass": "generation-preview-trigger",
+        "focusTitle": "放大检查文字与连线",
+        "isTrigger": true
+      }
+    },
+    "display": {
+      "viewport": {
+        "w": 1403,
+        "h": 863
+      },
+      "zoom": "90%",
+      "canvas": {
+        "x": 0,
+        "y": 103.86458587646484,
+        "width": 1403.3333740234375,
+        "height": 725.2083740234375,
+        "top": 103.86458587646484,
+        "right": 1403.3333740234375,
+        "bottom": 829.0729598999023,
+        "left": 0
+      },
+      "toolbar": {
+        "x": 400.66668701171875,
+        "y": 119.86458587646484,
+        "width": 602,
+        "height": 48,
+        "top": 119.86458587646484,
+        "right": 1002.6666870117188,
+        "bottom": 167.86458587646484,
+        "left": 400.66668701171875
+      },
+      "status": "画板已保存到本地"
+    },
+    "visualObservation": {
+      "titleAndAllNodesInsideCanvas": true,
+      "toolbarOccludesTitleOrNodes": false,
+      "manualPanOrZoomAfterApply": false
+    },
+    "sameDraftAndRemote": true,
+    "sourceTrace": {
+      "repository": "https://github.com/cathrynlavery/diagram-design",
+      "commit": "f24d98b05e2d7a5e68c2dedfe46e5b7173f50118",
+      "version": "2.6",
+      "visualType": "flowchart",
+      "manifestSha256": "4e83a608f5100b8e711da78779c72b446c29d19c04cf15e90faf4048a2b9e679",
+      "skillSha256": "83fd5aa46965ce2b14bd42ade80c065a4e17a9f83d2a9f4f275b47cd45d72666",
+      "documents": [
+        {
+          "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\SKILL.md",
+          "sha256": "83fd5aa46965ce2b14bd42ade80c065a4e17a9f83d2a9f4f275b47cd45d72666",
+          "relativePath": "SKILL.md",
+          "original": true
+        },
+        {
+          "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\type-flowchart.md",
+          "sha256": "c2af5e2b849255ae4859125db7b101b74bfb9b201204725c1e83fac51a98ebab",
+          "relativePath": "references/type-flowchart.md",
+          "original": true
+        },
+        {
+          "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\primitives-core.md",
+          "sha256": "bd011a9ed2e1b4e27d2ecc83872127eb8f5b1d91026a162a211974b3eeebc7e0",
+          "relativePath": "references/primitives-core.md",
+          "original": true
+        },
+        {
+          "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\layout-budget.md",
+          "sha256": "7ece87d01d3dbe42a2293114b423a44e254482a4931e402e6dc4ba7cf9902bcb",
+          "relativePath": "references/layout-budget.md",
+          "original": true
+        }
+      ],
+      "deferredDocuments": [
+        {
+          "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\profiles.md",
+          "relativePath": "references/profiles.md",
+          "sha256": "8afea09015a456b218287f08a2e9ac44bb50f6a9ebd2a7c1487bd774e89f9016",
+          "instruction": "Read the complete original with readDiagramDesignDocument or the agent Read tool when applicable; do not infer its content from this pointer."
+        },
+        {
+          "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\semantic-patterns.md",
+          "relativePath": "references/semantic-patterns.md",
+          "sha256": "7aa5f7a0840be234d2b10bc3742b17151f94f550a0d72afd820413859a898c8f",
+          "instruction": "Read the complete original with readDiagramDesignDocument or the agent Read tool when applicable; do not infer its content from this pointer."
+        },
+        {
+          "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\skill\\references\\output-spec.md",
+          "relativePath": "references/output-spec.md",
+          "sha256": "12dc0eed3514e387328651652604ef4fba1a76bce1823a79f4da2993336d1e69",
+          "instruction": "Read the complete original with readDiagramDesignDocument or the agent Read tool when applicable; do not infer its content from this pointer."
+        }
+      ],
+      "style": {
+        "path": "C:\\Users\\Lenovo\\.diagram-design\\profiles\\polarion-super-sidebar.md",
+        "sha256": "c296438d49c08b910ad03dbb8fc8181837af58aad2da099a18601d0fc33e5da2",
+        "original": false
+      },
+      "adapter": {
+        "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\resources\\diagram-design\\POLARION-ADAPTER.md",
+        "sha256": "3ec06a3354a1c3b021374c506244ef7bc977c733c139b09d05f2b1611868fbbc",
+        "original": false
+      },
+      "warnings": [],
+      "delivery": {
+        "characterBudget": 80000,
+        "characterCount": 67913,
+        "exceedsBudget": false,
+        "truncated": false
+      }
+    }
+  },
+  "nonBlockingObservations": [
+    {
+      "id": "BOARD-VISUAL-HINT",
+      "summary": "Native Excalidraw gray gesture hint partly overlaps the right side of the canvas title. Proposal modal is clear; toolbar does not occlude title or nodes.",
+      "evidence": "board-compact-ui-final/applied-fit-1440x900.png"
+    }
+  ]
+}

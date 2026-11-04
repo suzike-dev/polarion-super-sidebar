@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620" viewBox="0 0 1000 620" role="img" aria-labelledby="title desc">
+  <title id="title">浏览器、本机 Host 与 Polarion 服务端</title>
+  <desc id="desc">浏览器扩展负责上下文、富文本、表格、画板与审阅，通过 Native Messaging 连接本机 Host。Host 管理 SQLite 会话和草稿，并运行 Claude Code 的本机 Skills 与 MCP。独立 Polarion 凭据进程通过 SOAP 读写服务端工作项正文及附件。模型请求遵循本机 CLI 配置。</desc>
+  <rect width="1000" height="620" fill="#f3f5f5"/>
+  <g font-family="Microsoft YaHei, Segoe UI, sans-serif" fill="#172a2e">
+    <text x="36" y="54" font-size="30" font-weight="700">界面在浏览器，草稿与 Agent 在本机。</text>
+    <text x="36" y="87" font-size="18">Polarion 继续承载正式工作项；明确保存连接本地草稿与服务端正文。</text>
+    <rect x="36" y="122" width="350" height="242" fill="#ffffff"/>
+    <text x="60" y="166" font-size="26" font-weight="700">浏览器扩展</text>
+    <text x="60" y="207" font-size="20">Polarion 原生文档中的工作区</text>
+    <text x="60" y="250" font-size="20">上下文选区 · AI 对话 · 修改审阅</text>
+    <text x="60" y="286" font-size="20">富文本 · 工程表格 · 可编辑画板</text>
+    <text x="60" y="335" font-size="18">React / WXT / Tiptap / Excalidraw</text>
+    <rect x="430" y="122" width="534" height="242" fill="#e2e9e8"/>
+    <text x="454" y="166" font-size="26" font-weight="700">本地 Host</text>
+    <text x="454" y="207" font-size="20">SQLite 会话与草稿 · 本地资源 · 保存编排</text>
+    <rect x="454" y="232" width="486" height="71" fill="#ffffff"/>
+    <text x="474" y="260" font-size="21" font-weight="700">Claude Code</text>
+    <text x="474" y="286" font-size="18">持续会话 · 本机 Skills / MCP · 权限交互</text>
+    <text x="454" y="335" font-size="18">Node.js 24.22.2 · 独立 Polarion 凭据进程</text>
+    <path d="M211 364V399H571V364M204 373L211 364L218 373M564 373L571 364L578 373" fill="none" stroke="#245c58" stroke-width="3"/>
+    <text x="391" y="431" font-size="18" text-anchor="middle">Native Messaging · 浏览器与本机通信</text>
+    <path d="M816 364V463M809 373L816 364L823 373M809 454L816 463L823 454" fill="none" stroke="#245c58" stroke-width="3"/>
+    <text x="842" y="411" font-size="18">SOAP</text>
+    <text x="842" y="438" font-size="18">读写与回读</text>
+    <rect x="36" y="478" width="928" height="100" fill="#245c58"/>
+    <text x="60" y="521" font-size="26" font-weight="700" fill="#ffffff">Polarion 服务端</text>
+    <text x="60" y="553" font-size="19" fill="#ffffff">工作项正文与版本 · 图片附件 · 画板源文件、PNG 预览与 manifest</text>
+    <text x="36" y="607" font-size="17">本地描述 CLI 与工具的运行位置；模型请求按本机 Claude Code 配置发送。</text>
+  </g>
+</svg>

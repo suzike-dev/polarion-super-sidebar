@@ -1,0 +1,401 @@
+{
+  "recordedAt": "2026-11-04T01:47:02.897Z",
+  "status": "complete-with-explicit-environment-boundaries",
+  "scope": "Windows x64 repository relocation, first-install clean-room build and native transport; not a second-machine account/browser/business acceptance",
+  "cleanroom": {
+    "startedAt": "2026-11-04T01:34:29.068Z",
+    "source": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发",
+    "destination": "C:\\Temp\\Polarion clean 中文 20261104-2",
+    "bootstrapNode": "v25.2.1",
+    "npmCli": "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+    "isolation": {
+      "copiedDependencyCache": false,
+      "copiedCredentials": false,
+      "copiedGlobalConfig": false,
+      "registryWrites": false,
+      "realBusinessRequests": false
+    },
+    "steps": [
+      {
+        "name": "01-runtime-download",
+        "exit": 0,
+        "durationMs": 62634,
+        "log": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\.research\\release-20261104\\portability\\01-runtime-download.log",
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\scripts\\setup-runtime.mjs"
+        ]
+      },
+      {
+        "name": "02-npm-clean-install",
+        "exit": 0,
+        "durationMs": 199612,
+        "log": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\.research\\release-20261104\\portability\\02-npm-clean-install.log",
+        "command": [
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\.runtime\\node-v24.22.2-win-x64\\node.exe",
+          "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+          "ci",
+          "--ignore-scripts",
+          "--no-audit",
+          "--no-fund"
+        ]
+      },
+      {
+        "name": "03-check-and-build",
+        "exit": 0,
+        "durationMs": 44140,
+        "log": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\.research\\release-20261104\\portability\\03-check-and-build.log",
+        "command": [
+          "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "-NoLogo",
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\scripts\\check.ps1"
+        ]
+      },
+      {
+        "name": "04-build-from-other-cwd",
+        "exit": 0,
+        "durationMs": 462,
+        "log": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\.research\\release-20261104\\portability\\04-build-from-other-cwd.log",
+        "command": [
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\.runtime\\node-v24.22.2-win-x64\\node.exe",
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\scripts\\build-host.mjs"
+        ]
+      },
+      {
+        "name": "05-prepare-native-launcher",
+        "exit": 0,
+        "durationMs": 1326,
+        "log": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\.research\\release-20261104\\portability\\05-prepare-native-launcher.log",
+        "command": [
+          "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "-NoLogo",
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\scripts\\install-dev-host.ps1",
+          "-PrepareOnly",
+          "-DataDirectory",
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\isolated app data"
+        ]
+      },
+      {
+        "name": "06-diagnose-missing-prerequisites",
+        "exit": 0,
+        "durationMs": 624,
+        "log": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\.research\\release-20261104\\portability\\06-diagnose-missing-prerequisites.log",
+        "command": [
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\.runtime\\node-v24.22.2-win-x64\\node.exe",
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\scripts\\diagnose-install.mjs"
+        ]
+      },
+      {
+        "name": "07-native-transport",
+        "exit": 0,
+        "durationMs": 1468,
+        "log": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\.research\\release-20261104\\portability\\07-native-transport.log",
+        "command": [
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\.runtime\\node-v24.22.2-win-x64\\node.exe",
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\scripts\\probe-portable-host.mjs",
+          "--data",
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\isolated app data"
+        ]
+      },
+      {
+        "name": "08-first-legacy-extension-copy",
+        "exit": 0,
+        "durationMs": 1453,
+        "log": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\.research\\release-20261104\\portability\\08-first-legacy-extension-copy.log",
+        "command": [
+          "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "-NoLogo",
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "C:\\Temp\\Polarion clean 中文 20261104-2\\scripts\\deploy-dev-extension.ps1"
+        ]
+      }
+    ],
+    "snapshot": {
+      "package-lock.json": "ab119fec5ce556ab842f8f75090111a36f05ddc78fdb33a01d84f7f1f503d045",
+      "apps/host/paths.ts": "65e1373384e4fb2a86abdbdda6e1e20787ebba127aec68429caaff2236a15247",
+      "scripts/install-dev-host.ps1": "da2685b5984a5988b880c98e3b55e1fb783a13941886303c91116d19238d4556",
+      "scripts/start-polarion-worker.ps1": "03fb6464ab46a34ce223db4cdaa9cfd5f55fc75c8b66de6bbb7f329ea049a032",
+      "scripts/build-host.mjs": "a915d1fdecf580332f55dcef7547d713a7668a8e91b7b3683d55de36a389d0a4"
+    },
+    "complete": true,
+    "registryUnchanged": true,
+    "endedAt": "2026-11-04T01:39:43.486Z",
+    "sourceSnapshotTests": {
+      "passed": 153,
+      "failed": 0
+    },
+    "compiledHostAndExtension": true,
+    "temporaryDirectoryCleanup": "blocked-by-tool-policy; both generated C:/Temp directories retained; no bypass attempted"
+  },
+  "targetedTests": {
+    "pathsAndDownload": {
+      "passed": 7,
+      "failed": 0
+    },
+    "credentials": {
+      "passed": 9,
+      "failed": 0,
+      "cases": [
+        {
+          "case": "interactive-config-engine-roundtrip",
+          "actualPromptNotTested": true,
+          "passed": true
+        },
+        {
+          "case": "config-refuses-implicit-overwrite",
+          "passed": true
+        },
+        {
+          "case": "config-explicit-replace-with-encrypted-backup",
+          "passed": true
+        },
+        {
+          "networkUsed": false,
+          "case": "DPAPI-v1",
+          "passed": true
+        },
+        {
+          "case": "worker-start-v1",
+          "businessRequests": 0,
+          "passed": true
+        },
+        {
+          "networkUsed": false,
+          "case": "DPAPI-v2",
+          "passed": true
+        },
+        {
+          "case": "worker-start-v2",
+          "businessRequests": 0,
+          "passed": true
+        },
+        {
+          "case": "missing-file",
+          "passed": true
+        },
+        {
+          "case": "unknown-version",
+          "passed": true
+        }
+      ]
+    },
+    "currentHostTypecheck": "passed",
+    "repeatPreparePreservedCustomData": true,
+    "installedClaudeVersion": {
+      "discovery": "PATH-npm",
+      "version": "2.1.312"
+    }
+  },
+  "diagnosticFinal": {
+    "passedInfrastructure": true,
+    "intentionallyMissing": [
+      "claude-installed",
+      "polarion-credential-file"
+    ],
+    "evidence": ".research\\release-20261104\\portability\\10-diagnostic-final.json"
+  },
+  "changes": [
+    {
+      "file": "apps/host/paths.ts",
+      "sha256": "65e1373384e4fb2a86abdbdda6e1e20787ebba127aec68429caaff2236a15247"
+    },
+    {
+      "file": "apps/host/paths.test.ts",
+      "sha256": "536aeb71076f95da2412156d46c6d3971d0f53bd90056559e59a8599f3921c62"
+    },
+    {
+      "file": "scripts/setup-runtime.mjs",
+      "sha256": "b9ced8d97c38bb672f995f110cebf86f6de2f8dc7f7844caebc9de2218e6005f"
+    },
+    {
+      "file": "scripts/build-host.mjs",
+      "sha256": "a915d1fdecf580332f55dcef7547d713a7668a8e91b7b3683d55de36a389d0a4"
+    },
+    {
+      "file": "scripts/install-dev-host.ps1",
+      "sha256": "7cb7368418db5d94fbe1777419afdf68a77167ec1f7af47915fd3cd721a43f91"
+    },
+    {
+      "file": "scripts/uninstall-dev-host.ps1",
+      "sha256": "7167e94dc4fd24cea17701aab7a3373ed45e8c10f805c841d9912d899d70a632"
+    },
+    {
+      "file": "scripts/start-polarion-worker.ps1",
+      "sha256": "14716c418b37b4a6d071d43384b0fbacd4db28cc7f245e039e80ba473273c1f4"
+    },
+    {
+      "file": "scripts/deploy-dev-extension.ps1",
+      "sha256": "abedce0191ad4ce7d44bbc98382034db13d48d86986ab7474a5b84e5f2dd048c"
+    },
+    {
+      "file": "scripts/NativeLauncher.cs",
+      "sha256": "15a7488bc7dc5d090b4ff07fe571d9082e003300beba4a2b91d33c408e97d768"
+    },
+    {
+      "file": "scripts/diagnose-install.mjs",
+      "sha256": "418399ee227dc33f115d7319bc6e6a3ded0a144658f06bd346f388dc82819050"
+    },
+    {
+      "file": "scripts/configure-polarion-credentials.ps1",
+      "sha256": "07085a667012afdd25daebcb7513b9bba383bd0910cbb12e2a204dcc4e02ab01"
+    },
+    {
+      "file": "scripts/probe-portable-host.mjs",
+      "sha256": "7f7fb97afbeb3bd6594750af3a4fe9101bd879557029ecf001c62117aa0b8f0e"
+    },
+    {
+      "file": "scripts/probe-portability-cleanroom.mjs",
+      "sha256": "37a96d46580f2e16ce261c180e859471782b882969200f99e44e6402668e00e6"
+    },
+    {
+      "file": "scripts/probe-portable-credentials.ps1",
+      "sha256": "e62596babd230a4fb4e8080782cca34bedad5b6c53ffb6f111d65d60dfa53d52"
+    },
+    {
+      "file": "scripts/probe-runtime-download.test.mjs",
+      "sha256": "9c04940d31e5cf4b0cb030c02921da664339624460ddc11f0385326e78e3d8ee"
+    },
+    {
+      "file": "scripts/probe-cli-paths.mjs",
+      "sha256": "2f9bb9201df27e2e51bfe86aca23888a29651fe24c6e749a13551e4867a2c2c5"
+    },
+    {
+      "file": "scripts/probe-engines.mjs",
+      "sha256": "0642385a1dd655e52f6d02fea9623b8fd9baec08553a6331dc81fb55dd119343"
+    },
+    {
+      "file": "scripts/probe-codex-native.mjs",
+      "sha256": "005f74bafd0079f15cbb636ab76496af221f3d923897360196b3b76001b1e9da"
+    }
+  ],
+  "realUserChanges": {
+    "registry": false,
+    "credentialStore": false,
+    "globalEnvironment": false,
+    "hostRestart": false,
+    "extensionDeployment": false,
+    "browserOperations": false
+  },
+  "boundaries": [
+    "Same Windows identity and OS; no new physical machine, VM or Windows user",
+    "No actual browser registry/extension-loading test",
+    "No new-user Claude or Polarion login/business request",
+    "Interactive hidden input engine tested with SecureString fixture; human keyboard prompt not tested",
+    "Windows x64 only; ARM64 and non-Windows unsupported",
+    "Archived historical experiments are not installation, diagnostic or release commands"
+  ],
+  "evidenceDirectory": ".research/release-20261104/portability",
+  "quality": {
+    "alignment": 5,
+    "completeness": 4,
+    "verifiability": 5,
+    "evidence": 5,
+    "implementation": 4,
+    "riskTransparency": 5,
+    "handoff": 5
+  },
+  "cleanup": {
+    "attempted": true,
+    "performed": false,
+    "reason": "Tool rejected the recursive Remove-Item operation as blocked by policy without a more specific explanation",
+    "paths": [
+      "C:/Temp/Polarion clean 中文 20261104-1",
+      "C:/Temp/Polarion clean 中文 20261104-2"
+    ]
+  },
+  "readmeReview": {
+    "at": "2026-11-04T02:52:45.072Z",
+    "scope": "README installation, portability, diagnostics; read-only source review and documentation edits only",
+    "files": [
+      "README.md",
+      "docs/跨电脑安装验收_20261104.md"
+    ],
+    "commandSyntax": {
+      "powershellBlocksParsed": 8,
+      "executed": false
+    },
+    "referencedScripts": {
+      "checked": 12,
+      "missing": []
+    },
+    "bootstrap": {
+      "globalNode24Required": false,
+      "feature": "import.meta.dirname",
+      "documented": "20.11+ in 20.x or 22+",
+      "officialReference": "https://nodejs.org/api/esm.html#importmetadirname",
+      "actuallyTestedBootstrap": "25.2.1",
+      "dependencyInstallRuntime": "private 24.22.2 executing installed npm-cli.js"
+    },
+    "fixed": [
+      "bootstrap versus application runtime versions clarified",
+      "PowerShell examples use process-only ExecutionPolicy Bypass",
+      "custom CLI/credential preparation precedes strict diagnosis",
+      "ValidateOnly explicitly requires custom CredentialPath and does not prove authentication",
+      "record PID before browser close",
+      "older tags use their own README",
+      "writable local directory scope and untested path classes declared"
+    ],
+    "personalAbsoluteDependencyScan": {
+      "selectedRuntimeAndInstallerSources": true,
+      "matches": 0,
+      "readOnly": true
+    },
+    "releaseBlockers": [],
+    "releaseDecisionBoundary": "No confirmed blocker in reviewed install/runtime chain; overall release and live UI gates remain with root",
+    "historicalArchive": {
+      "probePolarion": "spikes/historical/probe-polarion.mjs",
+      "probeDocumentStructure": "spikes/historical/probe-document-structure.mjs",
+      "publicNpmEntryRemoved": true,
+      "additional": [
+        "spikes/historical/start-polarion-capability.ps1",
+        "spikes/historical/probe-claude-capabilities.mjs",
+        "spikes/historical/probe-native-command.mjs"
+      ]
+    },
+    "nonblockingFindings": [
+      {
+        "file": "scripts/start-polarion-capability.ps1",
+        "issue": "References moved historical script; root agreed to archive wrapper",
+        "runtimeDependency": false,
+        "status": "resolved-by-root-archival",
+        "verified": true
+      },
+      {
+        "files": [
+          "scripts/probe-claude-capabilities.mjs",
+          "scripts/probe-native-command.mjs"
+        ],
+        "issue": "Optional development probes still assume npm installation layout; not installation or product runtime commands",
+        "runtimeDependency": false,
+        "status": "resolved-by-root-archival",
+        "verified": true
+      }
+    ],
+    "parentReportedDeployment": {
+      "source": "root task message during this review",
+      "chromeAndEdgeRegistration": true,
+      "healthyHostPid": 57596,
+      "independentlyRetested": false,
+      "edgeBrowserAcceptance": false
+    },
+    "documentSha256": {
+      "README.md": "26a2f7397429a2bada1c141ce3e9c332b76c5e37607360ae419cc4e779d4f1c9",
+      "docs/跨电脑安装验收_20261104.md": "8ca3e40d73de63d2e5bfb9c16117ad9a68b3bde5532688b76c35d6fee87508d2"
+    },
+    "unresolvedFindings": []
+  }
+}

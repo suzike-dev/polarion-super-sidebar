@@ -1,0 +1,2265 @@
+{
+  "date": "2026-11-04",
+  "status": "passed-scoped",
+  "phase": "final-implemented-agent-ui-accepted",
+  "scope": "implemented Claude / Agent / Host / sidebar functions; isolated Polarion fixture only",
+  "fixture": {
+    "projectId": "test01",
+    "document": "Requirements/Sidebar_S1_20261103_0a72944c"
+  },
+  "constraints": [
+    "No browser operation before explicit UI handoff",
+    "Reuse Ego TaskSpace5",
+    "No product source writes, version changes, deploys, restarts or global config changes by this agent",
+    "No write to formal requirements",
+    "Only supported known implemented features can pass",
+    "TaskSpace5 vanished; user authorized replacement7. Native test trust and only fixture approval explicitly authorized, precisely reverted afterwards."
+  ],
+  "cases": [
+    {
+      "id": "AG-01",
+      "requirements": [
+        "AT-01",
+        "AT-37"
+      ],
+      "title": "Native Messaging / 版本",
+      "steps": "诊断页面与既有 Host health 对照 extension、Host、protocol 和连接状态",
+      "expected": "三个版本与协议可核对；安装目录与当前运行版本分开记录",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/final-ui-health.json"
+      ],
+      "result": "p10 Native Messaging真实往返；extension/Host0.3.0，protocol1，PID62852，结束running0。"
+    },
+    {
+      "id": "AG-02",
+      "requirements": [
+        "AT-02"
+      ],
+      "title": "侧栏模式和恢复",
+      "steps": "切大纲/AI/属性，收起重开，固定/取消大纲，拖动宽度",
+      "expected": "原生正文可读、状态保留，无重复常驻侧栏",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/sidebar-layout-settings.json",
+        ".research/release-20261104/agent/ui-handoff.json"
+      ],
+      "result": "大纲/AI/属性切换、固定大纲、原生属性入口恢复正文、收起重开和宽度拖动完成。"
+    },
+    {
+      "id": "AG-03",
+      "requirements": [
+        "AT-06"
+      ],
+      "title": "页面选区与输入区隔离",
+      "steps": "选择隔离文档文字，再选择 AI 输入框文字",
+      "expected": "业务选区生成来源卡片；AI输入框选区不污染业务上下文；不自动发模型请求",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/image-and-native-selection-ui.json",
+        ".research/release-20261104/agent/round-18.mjs",
+        ".research/release-20261104/agent/round-19.mjs"
+      ],
+      "result": "真实鼠标选择TEST729工程参数；输入框Ctrl+A没有污染业务选区。"
+    },
+    {
+      "id": "AG-04",
+      "requirements": [
+        "AT-07"
+      ],
+      "title": "右键选区入口",
+      "steps": "在隔离文档选区上使用右键引用",
+      "expected": "失焦后文字、工作项与目标保持准确",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/context-menu.png",
+        ".research/release-20261104/agent/round-22.mjs",
+        ".research/release-20261104/native-context-menu-final.json"
+      ],
+      "result": "主Agent在同一Ego真实页面点选原生“交给Polarion助手”，UI准确显示TEST-729、右键选区、完整7字文本；未注入菜单handler。",
+      "initialResult": {
+        "status": "unverified",
+        "result": "真实选区右击后Ego未捕获浏览器原生菜单，未完成菜单入口点击；不判通过或产品失败。"
+      }
+    },
+    {
+      "id": "AG-05",
+      "requirements": [
+        "AT-08"
+      ],
+      "title": "固定上下文与跨工作项",
+      "steps": "固定 TEST-729 引用，再选择同一隔离文档另一工作项",
+      "expected": "卡片显示精确来源；固定项保留，新选区不串工作项",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json"
+      ],
+      "result": "固定TEST729后选择TEST728，两卡来源、工作项、固定状态均准确。"
+    },
+    {
+      "id": "AG-06",
+      "requirements": [
+        "AT-08"
+      ],
+      "title": "发送快照冻结",
+      "steps": "发送固定 A 与当前 B，运行时选择 C",
+      "expected": "本轮 user/context 记录仍为 A+B；C仅影响下一轮",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json",
+        ".research/release-20261104/agent/round-21.mjs"
+      ],
+      "result": "发送A+B后选second row；实际context工具/user事件仍冻结A+B。"
+    },
+    {
+      "id": "AG-07",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "Claude 冷启动与连续对话",
+      "steps": "新建隔离会话，记忆随机短语，再无工具追问",
+      "expected": "真实模型回答正确，native session ID连续；第二轮可观测 reused",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-continuous.json"
+      ],
+      "result": "冷启动13.146s回复READY；第二轮2.138s复述violet-pine-4791，reused=true且nativeId一致。provider为deepseek-flash[1m]经Claude Code。"
+    },
+    {
+      "id": "AG-08",
+      "requirements": [
+        "AT-26"
+      ],
+      "title": "会话切换与历史恢复",
+      "steps": "新建第二会话，切回首会话，刷新隔离页",
+      "expected": "项目内历史正确恢复，消息不丢、不重复、未运行不误报执行",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-mcp-restored.json",
+        ".research/release-20261104/agent/long-wait-denial-ui.json"
+      ],
+      "result": "两个会话切换；刷新恢复批准卡、清除边界和历史；返回等待15分钟的会话仍能拒绝。"
+    },
+    {
+      "id": "AG-09",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "运行反馈与日志",
+      "steps": "请求只读上下文和 node -p \"1+1\"，查看执行记录",
+      "expected": "连接、工具、结束状态及耗时可见；工具结果与展示一致",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-main.json",
+        ".research/release-20261104/agent/session-final-attachments.json"
+      ],
+      "result": "context、Bash、MCP、Write/Read真实工具/返回事件；UI连接、等待、完成/取消和耗时可见。"
+    },
+    {
+      "id": "AG-10",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "取消与恢复",
+      "steps": "启动受控等待，点击停止，随后发短消息",
+      "expected": "run=cancelled，停止后不继续执行；下一轮可用",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "30秒等待命令运行19.479s后取消，run=cancelled且无result完成事件；后续RECOVERED-20261104成功。"
+    },
+    {
+      "id": "AG-11",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "ask 允许与拒绝",
+      "steps": "请求无害本地命令，先拒绝，再重新请求并允许",
+      "expected": "权限卡与工具匹配；拒绝不执行；允许只执行该次；运行时权限不可改",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/long-wait-denial-ui.json",
+        ".research/release-20261104/agent/session-final-main.json"
+      ],
+      "result": "ask拒绝Bash无执行输出/无重试；MCP和清理测试文件分别允许本次并成功。运行中权限控件禁用。"
+    },
+    {
+      "id": "AG-12",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "auto 权限",
+      "steps": "在项目工作区请求受控文件草稿，再请求无害命令",
+      "expected": "工作区文件可自动批准，命令仍有权限交互；清理测试文件",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json",
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "auto自动批准项目工作区Write，Bash仍请求批准并实际返回2；受控文件经ask清理且独立确认不存在。"
+    },
+    {
+      "id": "AG-13",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "full 权限",
+      "steps": "仅请求 node -p \"1+1\"",
+      "expected": "无权限卡，输出2，工具与运行状态正确；结束恢复ask",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json",
+        ".research/release-20261104/agent/ui-handoff.json"
+      ],
+      "result": "full实际调用一次node -p \"1+1\"，输出2，无权限事件；最终恢复ask。"
+    },
+    {
+      "id": "AG-14",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "原生 AskUserQuestion",
+      "steps": "要求模型使用原生单选/多选问题；回答并观察",
+      "expected": "真实问题卡、必填校验、回答回到同一会话；回答内容不误记为独立任务",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/question-ui.json",
+        ".research/release-20261104/agent/session-final-main.json"
+      ],
+      "result": "真实单选/多选问题，必填空值被阻止；青色及温度+时间送回同会话并正确复述。"
+    },
+    {
+      "id": "AG-15",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "命令目录与键盘补全",
+      "steps": "打开目录、搜索/context，方向键与Tab补全",
+      "expected": "来源为本机；名称、描述、别名与计数正确，键盘可用",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/round-04.mjs",
+        ".research/release-20261104/agent/round-05.mjs",
+        ".research/release-20261104/agent/session-context.json",
+        ".research/release-20261104/agent/final-real-acceptance-evidence.json"
+      ],
+      "result": "新部署真实复测精确命令优先；/context不再被描述匹配抢占，Tab及显式ArrowDown选择正确。",
+      "initialResult": {
+        "status": "failed-awaiting-retest",
+        "result": "精确/clear排在无关Skill后；/context不在目录，描述模糊匹配doc-coauthoring，Tab误替换并执行。主Agent修复后需重新部署复测。"
+      }
+    },
+    {
+      "id": "AG-16",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "原生 /context",
+      "steps": "通过输入框执行/context",
+      "expected": "原生输出可读且正常结束；不被包装为普通模型请求",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-context.json"
+      ],
+      "result": "直接/context（Escape关闭补全后发送）753ms返回真实表，localCommand=context、turns0。"
+    },
+    {
+      "id": "AG-17",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "原生 /clear 与本地输出",
+      "steps": "独立测试会话记录短语后/clear，再追问",
+      "expected": "清除事件/新原生会话ID/界面语义一致；本地命令输出不静默丢失",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/clear-ui.json",
+        ".research/release-20261104/agent/session-clear-after.json",
+        ".research/release-20261104/agent/session-final-main.json"
+      ],
+      "result": "/clear 5.558s产生reset和新nativeId；标题重置，旧4轮折叠保留；下一轮UNKNOWN且不回旧ID。清除后基础系统上下文3%，不是tokens归零。"
+    },
+    {
+      "id": "AG-18",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "Skill 真正执行",
+      "steps": "从目录选择只改写测试短文的human-writing Skill",
+      "expected": "有原生命令扩展/Skill执行证据与文本结果；仅目录出现不算通过",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-main.json"
+      ],
+      "result": "原生/human-writing实际command-expanded，5.017s改写并保留42 °C、3 s和触发条件。"
+    },
+    {
+      "id": "AG-19",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "MCP 状态与真实只读调用",
+      "steps": "查看实际已连接 MCP 及工具，执行可用无副作用只读工具",
+      "expected": "实际状态与工具一致；成功调用有结果；pending/failed不算通过",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/warm-capabilities-ui.json",
+        ".research/release-20261104/agent/session-mcp-restored.json"
+      ],
+      "result": "26个MCP显示21连接、5失败；sequential-thinking实际调用成功。只对该工具判执行通过。"
+    },
+    {
+      "id": "AG-20",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "Skills 重载 / MCP 重连",
+      "steps": "在存活会话执行重载及一个可用 MCP 重连",
+      "expected": "控件可达，实际 runtime动作返回；不改全局配置",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/warm-capabilities-ui.json",
+        ".research/release-20261104/agent/round-09.mjs"
+      ],
+      "result": "无活动run的热会话Skills重载和sequential-thinking重连实际成功；未等待整20分钟idle TTL。"
+    },
+    {
+      "id": "AG-21",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "上下文仪表",
+      "steps": "冷会话观察—，运行后查看明细并刷新",
+      "expected": "有真实tokens/有效窗口/分类/更新时间；未知不显示0；会话切换不串值",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/mcp-and-context-ui.json",
+        ".research/release-20261104/agent/clear-ui.json"
+      ],
+      "result": "冷启动—；运行后39k/1000k=4%，分类/时间可见；clear后基础3%，不显示为订阅额度。"
+    },
+    {
+      "id": "AG-22",
+      "requirements": [
+        "AT-29"
+      ],
+      "title": "文本/CSV附件",
+      "steps": "文件选择加入受控TXT/CSV，预览移除与重新添加，发送读取校验短语及单元格",
+      "expected": "元信息、解析状态、hash和读取事件对应实际内容",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json",
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "TXT/CSV选择、预览、移除和实际read_attachment读取，独有标识/0017保留；源hash未改。"
+    },
+    {
+      "id": "AG-23",
+      "requirements": [
+        "AT-29"
+      ],
+      "title": "图片附件",
+      "steps": "选择/拖入/剪贴板入口加入受控图片并询问可观察图案",
+      "expected": "卡片和预览可用，native-image-block与真实模型观察一致；拒绝需如实显示",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/image-and-native-selection-ui.json",
+        ".research/release-20261104/agent/image-input-methods.json",
+        ".research/release-20261104/agent/session-final-attachments.json"
+      ],
+      "result": "文件选择、CDP文件拖入、Windows图像剪贴板原生Ctrl+V均进入图像卡；选择图native-image-block实际识别红方/蓝圆/ALPHA27。拖入/粘贴仅测试入口。"
+    },
+    {
+      "id": "AG-24",
+      "requirements": [
+        "AT-29"
+      ],
+      "title": "Office/PDF附件",
+      "steps": "受控DOCX/XLSX/PPTX/PDF各一个，读取独有短语",
+      "expected": "区分本地提取与原生Read，解析范围明确，源文件hash不变",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json",
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "DOCX/XLSX/PPTX经提取和read_attachment；PDF原生Read pages1成功；独有标识正确，不将D1缓存43当公式重算证明。源hash不变。"
+    },
+    {
+      "id": "AG-25",
+      "requirements": [
+        "AT-29"
+      ],
+      "title": "附件冻结与失败状态",
+      "steps": "发送后增删附件；加入损坏Office、空文件和越界文件",
+      "expected": "本轮仅发送时附件；失败不称已读取；错误不丢其他附件",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/round-13.mjs",
+        ".research/release-20261104/agent/round-14.mjs",
+        ".research/release-20261104/agent/round-15.mjs",
+        ".research/release-20261104/agent/round-16.mjs",
+        ".research/release-20261104/agent/session-final-attachments.json"
+      ],
+      "result": "损坏DOCX明确需原生解析，空/超过25MB被拒绝；有效附件保留。6文件运行中加PNG仅留下一轮，user事件没有后加附件。"
+    },
+    {
+      "id": "AG-26",
+      "requirements": [
+        "AT-27"
+      ],
+      "title": "设置读取",
+      "steps": "打开设置对照只读 settings.read",
+      "expected": "默认Claude、模型配置与服务端一致；本次不修改全局设置",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/sidebar-layout-settings.json",
+        ".research/release-20261104/agent/final-ui-health.json"
+      ],
+      "result": "UI设置与settings.read一致：defaultEngine=claude、claudeModel空、Codex禁用；未改设置。"
+    },
+    {
+      "id": "AG-27",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "AI共享草稿边界",
+      "steps": "仅对隔离测试短语生成本地草稿，核对原生正文未改",
+      "expected": "草稿可审阅，未点击保存前Polarion原文不变；恢复本地基线",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/ai-draft-before.json",
+        ".research/release-20261104/agent/ai-draft-after.json",
+        ".research/release-20261104/agent/ai-draft-restored.json",
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "TEST728 AI最小改写为revision7 dirty，编辑器可审阅，远端hash不变/原生页面无标记；恢复revision8 clean且原文精确一致，无保存调用。"
+    },
+    {
+      "id": "AG-28",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "原生能力错误与未接入状态",
+      "steps": "查看Codex与不支持原生交互入口",
+      "expected": "缺口明确；不能把硬编码错误、目录数量或未实现能力当通过",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/final-ui-health.json",
+        ".research/release-20261104/agent/sidebar-layout-settings.json"
+      ],
+      "result": "Codex明确not-integrated并禁用新选择，不报账号阻塞；MCP失败可见。URL elicitation未接入、第三方form未测，单列缺口。"
+    },
+    {
+      "id": "AG-29",
+      "requirements": [
+        "AT-37"
+      ],
+      "title": "安装注册与升级方案",
+      "steps": "只读读取注册、launcher、manifest、路径与卸载脚本",
+      "expected": "稳定ID匹配，路径存在，状态目录保留；升级与重启步骤明确",
+      "status": "pass-readonly",
+      "evidence": [
+        ".research/release-20261104/agent/install-readonly-evidence.json",
+        ".research/release-20261104/agent/host-readonly-evidence.json",
+        ".research/release-20261104/agent/final-ui-health.json"
+      ],
+      "result": "开发注册/launcher/manifest只读核验：Chrome有、Edge缺失。主Agent部署后实际p10为0.3.0；不算完整安装/卸载或跨浏览器通过。"
+    },
+    {
+      "id": "AG-30",
+      "requirements": [
+        "AT-38"
+      ],
+      "title": "侧栏键盘与焦点",
+      "steps": "键盘开关面板、选命令、发送、关闭、输入换行",
+      "expected": "功能可达，Escape/Tab行为合理；不触发原生误输入",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/keyboard-ui.json",
+        ".research/release-20261104/agent/round-04.mjs",
+        ".research/release-20261104/agent/final-f11-panels-retest.json",
+        ".research/release-20261104/agent/final-f11-attachments-retest.json"
+      ],
+      "result": "实际Enter发送、Shift+Enter换行、命令Tab补全；history/capabilities/context的Esc与回焦，PNG/TXT/PDF初始焦点、Tab/ShiftTab循环、Esc关闭与背景inert恢复均通过。",
+      "initialResult": {
+        "status": "partial",
+        "result": "Enter实际发送，Shift+Enter换行，Escape关闭补全；Tab有AG-15缺陷。其余面板键盘可达性未穷尽。"
+      }
+    },
+    {
+      "id": "AG-31",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "长任务、侧栏隐藏和重载续订",
+      "steps": "受控等待期间收起重开；在等待批准时刷新后响应",
+      "expected": "隐藏不取消；事件完整恢复，原生会话继续；超过10分钟需专门证据",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/long-wait-denial-ui.json",
+        ".research/release-20261104/agent/session-mcp-restored.json",
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "图像任务收起重开未取消；批准等待时刷新可恢复；Bash等待14分59秒可答，整轮15分7秒。不是30分钟计算性能或20分钟idle测试。"
+    },
+    {
+      "id": "AG-32",
+      "requirements": [
+        "AT-40"
+      ],
+      "title": "范围与来源约束",
+      "steps": "对本轮固定上下文要求只读说明目标与来源",
+      "expected": "证据指向隔离夹具，不借外部MCP/Shell写Polarion，不伪造验证结论",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/real-acceptance-evidence.json",
+        ".research/release-20261104/agent/ui-handoff.json"
+      ],
+      "result": "context回传固定隔离文档、TEST729/728和选区；未写正式需求或发送任何他人消息。"
+    }
+  ],
+  "findings": [
+    {
+      "id": "AG-F01",
+      "severity": "release-claim-blocker",
+      "status": "resolved-explicit-not-integrated",
+      "title": "Codex adapter short-circuits; current account rejection is not measured",
+      "evidence": [
+        "apps/host/engine.ts:99",
+        "apps/host/service.ts:18"
+      ],
+      "resolution": "Deployed health and UI explicitly show not integrated; no fresh account result inferred."
+    },
+    {
+      "id": "AG-F02",
+      "severity": "high",
+      "status": "repaired-unit-tested-and-real-ui-passed",
+      "title": "SDK local_command_output and conversation_reset frames are not handled",
+      "evidence": [
+        "apps/host/engine.ts message loop",
+        "node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts:5391",
+        "node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts:5544"
+      ],
+      "resolution": "Direct /context, /clear, changed ID/title, retained history and next turn passed. Result-less contracts remain regression coverage."
+    },
+    {
+      "id": "AG-F03",
+      "severity": "medium",
+      "status": "repaired-unit-tested-and-real-ui-passed",
+      "title": "Native capability controls use active run instead of pooled runtime connectivity",
+      "evidence": [
+        "apps/extension/ui/App.tsx passes running={!!active}",
+        "apps/extension/ui/CapabilitiesPanel.tsx disables reload/reconnect when !running",
+        "apps/host/engine.ts retains idle runtime for 20 minutes"
+      ],
+      "resolution": "Idle connected reload/reconnect controls and actual actions passed."
+    },
+    {
+      "id": "AG-F04",
+      "severity": "scope-gap",
+      "status": "registration-restored-by-root-edge-browser-matrix-unverified",
+      "title": "Edge native host registration missing",
+      "evidence": [
+        ".research/release-20261104/agent/install-readonly-evidence.json"
+      ],
+      "resolution": "Three-browser acceptance remains unverified; do not claim six browser/engine combinations.",
+      "initialStatus": "confirmed-readonly",
+      "finalResolution": "Root installation registered Chrome and Edge; actual validation remains Ego/Chromium, no claim of complete Edge UI matrix. See portability-20261104.json."
+    },
+    {
+      "id": "AG-F05",
+      "severity": "high",
+      "status": "repaired-targeted-checks-and-scoped-real-ui-passed",
+      "title": "Exact slash commands displaced by description fuzzy matches",
+      "reproduction": "Input /context then Tab changes to /doc-coauthoring; /clear ranks fourth.",
+      "resolution": "Parent repairing exact name/alias priority and raw Enter protection; new deployment needs real retest.",
+      "evidence": [
+        ".research/release-20261104/agent/round-04.mjs",
+        ".research/release-20261104/agent/session-context.json"
+      ],
+      "initialStatus": "confirmed-real-awaiting-deployed-retest",
+      "finalResolution": "real exact command/name/Tab/manual ArrowDown verified"
+    },
+    {
+      "id": "AG-F06",
+      "severity": "low",
+      "status": "repaired-targeted-checks-and-scoped-real-ui-passed",
+      "title": "/clear successful empty result uses generic no-answer fallback",
+      "resolution": "Prefer explicit reset success/no-text output message.",
+      "evidence": [
+        ".research/release-20261104/agent/clear-ui.json"
+      ],
+      "initialStatus": "observed-real",
+      "finalResolution": "real clear no-text success wording verified"
+    },
+    {
+      "id": "AG-F07",
+      "severity": "medium",
+      "status": "repaired-targeted-checks-and-scoped-real-ui-passed",
+      "title": "Session switch displays next-turn permission mode rather than current active-run mode",
+      "reproduction": "Start ask Bash wait in session A, run auto task in session B, switch to waiting A: selector stays auto and disabled although A correctly waits for ask approval.",
+      "resolution": "Display active.permissionMode for an active run or clearly label current versus next-turn permission. No permission bypass observed.",
+      "evidence": [
+        ".research/release-20261104/agent/round-31.mjs",
+        ".research/release-20261104/agent/long-wait-denial-ui.json"
+      ],
+      "initialStatus": "observed-real",
+      "finalResolution": "active ask displayed before reload and after reload"
+    },
+    {
+      "id": "AG-F08",
+      "severity": "medium",
+      "status": "repaired-targeted-checks-and-scoped-real-ui-passed",
+      "title": "Pre-reset context usage can overwrite post-reset usage on the same runtime",
+      "reproduction": "Import actual ContextUsageCache; start deferred read; disconnect while keeping same Query; complete new read(100) then old read(99000); final cache is99000.",
+      "resolution": "Per-session generation/epoch must guard pending refresh writes, including same-runtime conversation_reset.",
+      "evidence": [
+        ".research/release-20261104/agent/review-context-reset-race.mjs",
+        ".research/release-20261104/agent/review-context-reset-race.json",
+        ".research/release-20261104/agent/final-code-repairs-evidence.json"
+      ],
+      "initialStatus": "code-repaired-targeted-tests-pass-real-ui-pending",
+      "finalResolution": "ordinary reset usage real path passed; pathological late-response race remains targeted regression proof"
+    },
+    {
+      "id": "AG-F09",
+      "severity": "medium",
+      "status": "repaired-targeted-checks-and-scoped-real-ui-passed",
+      "title": "MCP form empty numeric/boolean controls are converted into valid values",
+      "reproduction": "NativeInteraction number input onChange Number(empty string)=0; boolean empty option value is mapped to false. Required validation therefore no longer sees an absent answer.",
+      "resolution": "Delete answer key for empty values; convert only nonempty inputs; add focused regression. Real MCP provider form remains unverified.",
+      "evidence": [
+        "apps/extension/ui/NativeInteraction.tsx",
+        "apps/host/interactions.ts",
+        ".research/release-20261104/agent/final-code-repairs-evidence.json"
+      ],
+      "initialStatus": "code-repaired-targeted-tests-pass-real-ui-pending",
+      "finalResolution": "Real MCP form blank validation and typed number0/booleanfalse accepted; second actual form cancel. Native raw tool results independently corroborate model final output."
+    },
+    {
+      "id": "AG-F10",
+      "severity": "medium",
+      "status": "repaired-targeted-checks-and-scoped-real-ui-passed",
+      "title": "Explicitly denied tool remains unknown in execution log",
+      "reproduction": "Real run669e0092-6b3b-4a75-8d94-84918c3708df has permission-result allow=false but no tool-result. activitySteps returns unknown and UI says no result received.",
+      "resolution": "Correlate options.toolUseID to explicit rejection/cancellation outcome; retest with the single planned ask-denial task.",
+      "evidence": [
+        ".research/release-20261104/agent/review-existing-results.json",
+        "apps/extension/lib/activity.ts",
+        "apps/host/engine.ts",
+        ".research/release-20261104/agent/final-code-repairs-evidence.json"
+      ],
+      "initialStatus": "code-repaired-targeted-tests-pass-real-ui-pending",
+      "finalResolution": "real explicit denied tool terminal, one tool call, no retry; late-event and cancel contracts covered by targeted regression"
+    },
+    {
+      "id": "AG-F11",
+      "severity": "medium",
+      "status": "repaired-targeted-checks-and-scoped-real-ui-passed",
+      "title": "Keyboard Escape and preview focus do not stay inside the sidebar interaction boundary",
+      "reproduction": "Real history/capability Escape keeps panel open; ContextMeter document listener cannot receive isolated key; attachment preview initially leaves focus on background trigger and Tab reaches background remove button.",
+      "resolution": "History, capabilities and ContextMeter native Escape close with trigger focus. PNG/text/PDF attachment preview starts on close, cycles both directions internally, restores background inert state and returns to original attachment button.",
+      "evidence": [
+        ".research/release-20261104/agent/final-keyboard-history-context.json",
+        ".research/release-20261104/agent/final-context-escape-confirmed.json",
+        ".research/release-20261104/agent/final-keyboard-attachment.json",
+        ".research/release-20261104/agent/f11-code-repair-evidence.json",
+        ".research/release-20261104/agent/final-f11-panels-retest.json",
+        ".research/release-20261104/agent/final-f11-attachments-retest.json"
+      ],
+      "initialStatus": "repaired-types-and-real-ui-passed",
+      "finalResolution": "Deployed real keyboard/focus retests passed for history/capabilities/context and PNG/TXT/PDF attachment modal."
+    }
+  ],
+  "unimplementedOrSeparate": [
+    "Codex adapter and Codex context statistics: not integrated; account inference not retested",
+    "Session archive/restore management and manually naming existing sessions have no UI entry; first-message auto-title and history switching are implemented",
+    "Cross-project/cross-document navigation is outside this isolated-document-only UI slot; no equivalent pass from same-document cross-work-item test",
+    "All discovered Skills/MCP/terminal commands cannot be equated with end-to-end support; only individually exercised paths pass",
+    "Native full property/workflow editing is not implemented in assistant; current properties panel exposes workspace info, shared drafts and native sidebar restoration",
+    "Official installer/automatic update/uninstall data-selection UI is not delivered; development registration scripts only",
+    "Full 40-case v0.1 product acceptance, electronic workbook, complete LiveDoc operations and three-browser/dual-engine matrix are separate unfinished scope",
+    "15-minute permission wait verified; 30-minute compute/large-table performance and exact idle-pool TTL remain unverified",
+    "New diagram-design / complex diagrams handled by parent after UI handoff, not covered here",
+    "MCP URL elicitation/login is not integrated; real stdio form accept/cancel is now verified.",
+    "Rare ContextUsageCache late-response ordering is verified with targeted regression; ordinary real reset path is verified, not a forced UI race."
+  ],
+  "readonlyEvidence": ".research/release-20261104/agent/host-readonly-evidence.json",
+  "quality": {
+    "requirements": 5,
+    "completeness": 4,
+    "verifiability": 5,
+    "evidenceChain": 5,
+    "engineering": 4,
+    "riskExposure": 5,
+    "handoff": 5,
+    "limits": "Failed, partial, unverified and read-only cases remain; not full-product release approval."
+  },
+  "codeRepairs": {
+    "at": "2026-11-04T00:20:06.378Z",
+    "status": "unit-and-selected-real-ui-passed",
+    "sourceFiles": [
+      "apps/host/engine.ts",
+      "apps/host/engine.test.ts",
+      "apps/extension/ui/App.tsx",
+      "apps/extension/ui/CapabilitiesPanel.tsx",
+      "apps/extension/lib/session-events.ts",
+      "apps/extension/lib/session-events.test.ts",
+      "packages/protocol/index.ts"
+    ],
+    "contracts": [
+      "SDK 0.3.316 local_command_output and conversation_reset declared types",
+      "Installed Claude CLI emits command_lifecycle(command_uuid,state); SDK readMessages passes frames through",
+      "SDK session_state_changed idle is an explicit runtime end signal"
+    ],
+    "behavior": [
+      "Preserve local-command-output and assistant-block answers when result text is empty",
+      "Correlate user uuid=run.id; accept only matching command lifecycle",
+      "Reset nativeId/title and context-usage cache; stale init/result cannot restore the old ID",
+      "Keep SQLite history and collapse pre-reset transcript in UI; remount context meter at reset boundary",
+      "Retire result-less command streams so optional trailing result cannot mix into next turn; resume latest nativeId",
+      "Use capability connected field for idle warm runtime controls; guard stale capability responses on session switches"
+    ],
+    "tests": {
+      "command": "node --test apps/host/engine.test.ts apps/extension/lib/session-events.test.ts",
+      "passed": 14,
+      "failed": 0,
+      "hostTypecheck": "passed",
+      "extensionTypecheck": "passed",
+      "realBrowser": "Direct /context and /clear plus next turn/history; idle reload/reconnect passed"
+    },
+    "limitations": [
+      "No deploy, Host restart or browser interaction in this code-repair step",
+      "Unknown or failed/cancelled command lifecycle is not passed",
+      "No timeout is used to claim command success",
+      "Result-less local command completion releases its runtime; next turn resumes instead of warm reuse"
+    ]
+  },
+  "realEnvironment": {
+    "egoSpace": 5,
+    "pages": [
+      "p2",
+      "p10"
+    ],
+    "version": "0.3.0",
+    "hostPid": 62852,
+    "model": "deepseek-flash[1m] via local Claude Code",
+    "evidence": ".research/release-20261104/agent/real-acceptance-evidence.json",
+    "counts": {
+      "total": 19,
+      "completed": 18,
+      "cancelled": 1,
+      "active": 0
+    }
+  },
+  "summary": {
+    "pass": 31,
+    "pass-readonly": 1
+  },
+  "handoff": {
+    "at": 1793754605072,
+    "active": false,
+    "contextCount": 0,
+    "attachmentCount": 0,
+    "permission": "ask",
+    "input": "",
+    "width": "450.323px",
+    "evidence": ".research/release-20261104/agent/ui-handoff.json",
+    "drafts": [
+      {
+        "id": "c0018417-317e-4aa3-bfd7-186ff85051f0",
+        "workItemId": "TEST-729",
+        "revision": 255,
+        "state": "clean"
+      },
+      {
+        "id": "e9302023-ad07-42d8-b0a7-9c622698e915",
+        "workItemId": "TEST-728",
+        "revision": 8,
+        "state": "clean"
+      }
+    ],
+    "temporaryFileRemoved": true,
+    "uiReturnedToParent": true
+  },
+  "finalReview": {
+    "at": "2026-11-04T01:30:57.970Z",
+    "status": "source-rechecked-ui-handoff-pending",
+    "uiNotTouched": true,
+    "sourceNotModified": true,
+    "plan": ".research/release-20261104/agent/final-ui-retest-plan.md",
+    "existingResultsReview": ".research/release-20261104/agent/review-existing-results.json",
+    "newIssues": [
+      "AG-F08",
+      "AG-F09",
+      "AG-F10"
+    ],
+    "expectedNewRunsAtMost": 5,
+    "portableScopeDelegated": true,
+    "performanceBoundary": "Representative composer and existing 44k-character reply only; full AT-39 stress not covered",
+    "historicalMatrixPreserved": true,
+    "uiSurface": {
+      "space": 7,
+      "polarion": "p1",
+      "diagnostics": "p6",
+      "priorSpace5": "gone; no further operation",
+      "owner": "board_generation until explicit root handoff",
+      "reportedHostPid": 16936,
+      "reportedFullTestsPassed": 167,
+      "independentlyQueriedRuntime": false,
+      "priorP4": "gone; no further operation"
+    },
+    "additionalPendingChecks": {
+      "defaultPermission": {
+        "status": "source-reviewed-awaiting-ui",
+        "expected": "auto on new page/new empty session/refresh; ask and full remain selectable; active run freezes its actual mode",
+        "modelRunsAdded": 0,
+        "integratedWith": "post-clear short run: one controlled workspace Write, exact byte readback, no permission card/event",
+        "finalRestoration": "auto; delete only the controlled single file"
+      },
+      "assistantFontSize": {
+        "status": "source-reviewed-awaiting-ui",
+        "defaults": {
+          "body": 13,
+          "h1": 17,
+          "h2": 15,
+          "h3": 14,
+          "tableCodeMinimum": 12
+        },
+        "range": [
+          12,
+          18
+        ],
+        "checks": [
+          "live preview",
+          "cancel rollback",
+          "X rollback",
+          "Escape rollback and trigger focus",
+          "save18",
+          "page reopen persists18",
+          "1440x900 and390 layouts",
+          "user-message/native-body unchanged",
+          "restore-default save13 and reopen"
+        ],
+        "failureState": "not accepted through synthetic handlers; real recoverable failure required or explicitly unverified",
+        "modelRunsAdded": 0
+      }
+    }
+  },
+  "finalCodeRepairs": {
+    "at": "2026-11-04T01:47:51.111Z",
+    "status": "code-fixed-targeted-tests-pass-real-ui-pending",
+    "issues": [
+      "AG-F08",
+      "AG-F09",
+      "AG-F10"
+    ],
+    "sourceFiles": [
+      "apps/host/context-usage.ts",
+      "apps/host/context-usage.test.ts",
+      "apps/host/engine.ts",
+      "apps/host/engine.test.ts",
+      "apps/extension/ui/NativeInteraction.tsx",
+      "apps/extension/lib/interaction-values.ts",
+      "apps/extension/lib/interaction-values.test.ts"
+    ],
+    "testsPassed": 18,
+    "testsFailed": 0,
+    "hostTypecheck": "passed",
+    "extensionTypecheck": "passed",
+    "diffCheck": "passed",
+    "evidence": ".research/release-20261104/agent/final-code-repairs-evidence.json",
+    "fixture": {
+      "path": ".research/release-20261104/agent/mcp-form-fixture/server.mjs",
+      "transportSmoke": "passed",
+      "globalOrProjectMcpActivated": false
+    },
+    "cleanup": {
+      "status": "blocked-by-automatic-approval",
+      "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\.research\\release-20261104\\agent\\test-runtime",
+      "reason": "blocked by policy; no detailed reason returned",
+      "attempts": "Initial computed-path guarded cleanup and separate literal-path cleanup were both rejected; no workaround attempted.",
+      "globalConfigChanged": false
+    }
+  },
+  "evidenceStorage": {
+    "repositoryAudit": "docs/audits/release-agent-20261104.json",
+    "rawResearch": "local-only, gitignored",
+    "includedInReleasePackage": false
+  },
+  "finalAcceptance": {
+    "at": "2026-11-04T04:49:38.579Z",
+    "status": "passed-scoped",
+    "surface": {
+      "space": 7,
+      "polarion": "p1",
+      "diagnostics": "p7",
+      "hostPid": 16936,
+      "extension": "0.3.0",
+      "protocol": 1,
+      "model": "deepseek-flash[1m]"
+    },
+    "runtimeCalls": {
+      "newRuns": 7,
+      "completedRunStates": 7,
+      "requestedCoreTestsPassed": 4,
+      "mcpFormTestPassed": true,
+      "runs": [
+        {
+          "id": "a21a822c-9d1b-4996-be4d-c28fb9ef13ae",
+          "prompt": "/context",
+          "mode": "auto",
+          "status": "completed",
+          "elapsedMs": 12697,
+          "events": [
+            {
+              "kind": "progress",
+              "at": 1793763677016,
+              "data": {
+                "title": "连接本地 Claude Code",
+                "detail": "首次连接或连接已释放，加载会话、Skills 与 MCP",
+                "reused": false
+              }
+            },
+            {
+              "kind": "progress",
+              "at": 1793763689683,
+              "data": {
+                "title": "本地智能体已就绪",
+                "detail": "正在分析请求与选区"
+              }
+            },
+            {
+              "kind": "result",
+              "at": 1793763689708,
+              "data": {
+                "text": "## Context Usage\n\n**Model:** deepseek-flash[1m]  \n**Tokens:** 55.7k / 1m (6%)\n\n### Estimated usage by category\n\n| Category | Tokens | Percentage |\n|----------|--------|------------|\n| System prompt | ",
+                "durationMs": 1897,
+                "turns": 0,
+                "localCommand": "context"
+              }
+            }
+          ]
+        },
+        {
+          "id": "04c568ae-73c0-4aea-94b9-866783a1645b",
+          "prompt": "/clear",
+          "mode": "auto",
+          "status": "completed",
+          "elapsedMs": 6559,
+          "events": [
+            {
+              "kind": "progress",
+              "at": 1793763725524,
+              "data": {
+                "title": "处理当前请求",
+                "detail": "复用已连接的 Claude Code 会话",
+                "reused": true
+              }
+            },
+            {
+              "kind": "conversation-reset",
+              "at": 1793763726287,
+              "data": {
+                "nativeId": "3879379a-4083-4d3d-8332-7dda914d2cfb",
+                "previousNativeId": "a9a4786e-08ac-4e93-8610-8d270dc5c729",
+                "trigger": "clear",
+                "at": "2026-11-04T03:42:06.286Z"
+              }
+            },
+            {
+              "kind": "progress",
+              "at": 1793763732074,
+              "data": {
+                "title": "本地智能体已就绪",
+                "detail": "正在分析请求与选区"
+              }
+            },
+            {
+              "kind": "result",
+              "at": 1793763732079,
+              "data": {
+                "text": "",
+                "durationMs": 6334,
+                "turns": 0,
+                "localCommand": "clear"
+              }
+            }
+          ]
+        },
+        {
+          "id": "56fc0305-1514-49b7-b82e-25dc504c662e",
+          "prompt": "发布前隔离验收：仅调用一次 Write，在当前项目工作目录创建文件 C:/Users/Lenovo/AppData/Local/Nanju/PolarionSidebar/workspaces/test01/.release-auto-20261104.txt，content 必须精确为 \"AFTER-CLEAR-20261104\\n42\\n\"（两行，各以换行结束）。不要调用 Bash、Read、MCP、Skill 或其它工具，不读写任何其它文件，不写 Polarion。完成后仅回复两行：AFTER-CLEAR-20261104 和 42。若写入失败或被拒绝，立即停止，不重试。",
+          "mode": "auto",
+          "status": "completed",
+          "elapsedMs": 7115,
+          "events": [
+            {
+              "kind": "progress",
+              "at": 1793763758027,
+              "data": {
+                "title": "处理当前请求",
+                "detail": "复用已连接的 Claude Code 会话",
+                "reused": true
+              }
+            },
+            {
+              "kind": "progress",
+              "at": 1793763758798,
+              "data": {
+                "title": "本地智能体已就绪",
+                "detail": "正在分析请求与选区"
+              }
+            },
+            {
+              "kind": "tool",
+              "at": 1793763761644,
+              "data": {
+                "id": "call_00_HoRykIDdVhGbdTmqN5lF2309",
+                "title": "调用 Write",
+                "detail": "C:\\Users\\Lenovo\\AppData\\Local\\Nanju\\PolarionSidebar\\workspaces\\test01\\.release-auto-20261104.txt",
+                "name": "Write"
+              }
+            },
+            {
+              "kind": "tool-result",
+              "at": 1793763762405,
+              "data": {
+                "id": "call_00_HoRykIDdVhGbdTmqN5lF2309",
+                "status": "completed",
+                "summary": "工具执行完成",
+                "durationMs": 21
+              }
+            },
+            {
+              "kind": "result",
+              "at": 1793763765140,
+              "data": {
+                "text": "AFTER-CLEAR-20261104\n42",
+                "durationMs": 6897,
+                "turns": 2
+              }
+            }
+          ]
+        },
+        {
+          "id": "945e77cc-3a82-4388-8472-abb593acff2a",
+          "prompt": "FINAL-PERMISSION-20261104：仅调用一次 Bash，command 为 node -p \"23+19\"。等待用户批准；若被拒绝，立即停止并只回复 DENIED-20261104，不重试、不换工具。不读写文件，不访问网络或Polarion。",
+          "mode": "ask",
+          "status": "completed",
+          "elapsedMs": 49355,
+          "events": [
+            {
+              "kind": "progress",
+              "at": 1793763796094,
+              "data": {
+                "title": "连接本地 Claude Code",
+                "detail": "首次连接或连接已释放，加载会话、Skills 与 MCP",
+                "reused": false
+              }
+            },
+            {
+              "kind": "progress",
+              "at": 1793763809850,
+              "data": {
+                "title": "本地智能体已就绪",
+                "detail": "正在分析请求与选区"
+              }
+            },
+            {
+              "kind": "tool",
+              "at": 1793763811288,
+              "data": {
+                "id": "call_00_hvktO4R7XiFIYIznttIa6234",
+                "title": "计算 23+19 并输出结果",
+                "detail": "node -p \"23+19\"",
+                "name": "Bash"
+              }
+            },
+            {
+              "kind": "permission",
+              "at": 1793763811883,
+              "data": {
+                "id": "34433556-cd8c-49f2-98cf-53f63cb5e99d",
+                "tool": "Bash",
+                "preview": "{\"command\":\"node -p \\\"23+19\\\"\",\"description\":\"计算 23+19 并输出结果\"}"
+              }
+            },
+            {
+              "kind": "permission-result",
+              "at": 1793763844103,
+              "data": {
+                "id": "34433556-cd8c-49f2-98cf-53f63cb5e99d",
+                "allow": false
+              }
+            },
+            {
+              "kind": "tool-result",
+              "at": 1793763844104,
+              "data": {
+                "id": "call_00_hvktO4R7XiFIYIznttIa6234",
+                "status": "failed",
+                "summary": "用户已拒绝，未执行",
+                "durationMs": 32817,
+                "outcome": "denied"
+              }
+            },
+            {
+              "kind": "result",
+              "at": 1793763845437,
+              "data": {
+                "text": "DENIED-20261104",
+                "durationMs": 36292,
+                "turns": 2
+              }
+            }
+          ]
+        },
+        {
+          "id": "bb3b6041-ce5c-4ac3-9416-e27e5cc7bdd2",
+          "prompt": "FINAL-MCP-FORM-20261104：只调用 MCP sidebar-release-form-20261104 的 review_safe_inputs，参数 marker=\"RELEASE-MCP-FORM-20261104\"。如工具需要发现，只使用 ToolSearch 找到该工具。等待真实表单回答，然后准确复述 count 与 enabled；不得用其它 MCP 或 AskUserQuestion 替代，不调用 Bash，不读写任何文件或Polarion。若该工具不可用，立即停止并报告，不重试。",
+          "mode": "auto",
+          "status": "completed",
+          "elapsedMs": 23809,
+          "requestedFeatureOutcome": "blocked before MCP form; ToolSearch found no tool; no substitute or retry",
+          "events": [
+            {
+              "kind": "tool",
+              "at": 1793763937397,
+              "data": {
+                "id": "call_00_oBIvX7cOp0gJyOdtST1X2864",
+                "title": "查找可用工具",
+                "detail": "sidebar-release-form-20261104 review_safe_inputs",
+                "name": "ToolSearch"
+              }
+            },
+            {
+              "kind": "tool-result",
+              "at": 1793763943026,
+              "data": {
+                "id": "call_00_oBIvX7cOp0gJyOdtST1X2864",
+                "status": "completed",
+                "summary": "工具执行完成",
+                "durationMs": 5052
+              }
+            },
+            {
+              "kind": "result",
+              "at": 1793763947805,
+              "data": {
+                "text": "## 结果：目标工具不可用，已按你的要求停止\n\n| 项目 | 结果 |\n|---|---|\n| 查找方式 | ToolSearch，查询词为 `sidebar-release-form-20261104 review_safe_inputs` |\n| 查询次数 | 1 次（未重试） |\n| 返回 | `No matching deferred tools found`，即未发现匹配工具 |\n\n**未执行的操作**\n\n- 未调用 `sidebar-release-form-20261104` 的 `review_safe_inputs`，因为本轮工具注册表里不存在该工具。\n- 未调用其他 MCP",
+                "durationMs": 12667,
+                "turns": 2
+              }
+            }
+          ]
+        },
+        {
+          "id": "842aa9de-2805-45d4-8d0b-9e799af363fb",
+          "prompt": "FINAL-MCP-FORM-APPROVED-20261104：隔离测试服务已由用户明确批准并验证连接。只调用 MCP sidebar-release-form-20261104 的 review_safe_inputs，参数 marker=\"RELEASE-MCP-FORM-20261104\"。如需要发现，只使用 ToolSearch 找到该工具。等待原生 MCP 表单回答，然后准确复述 count 与 enabled；不得用其它 MCP 或 AskUserQuestion 替代，不调用 Bash，不读写文件或Polarion。若不可用立即停止报告，不重试。",
+          "mode": "auto",
+          "status": "completed",
+          "elapsedMs": 25429,
+          "requestedFeatureOutcome": "not reached: ToolSearch reported still connecting; model truthfully stopped, no replacement or retry",
+          "events": [
+            {
+              "kind": "tool",
+              "at": 1793765812329,
+              "data": {
+                "id": "call_00_r2r5gZFEUoqx6v8VcuL27517",
+                "title": "查找可用工具",
+                "detail": "select:mcp__sidebar-release-form-20261104__review_safe_inputs",
+                "name": "ToolSearch"
+              }
+            },
+            {
+              "kind": "tool-result",
+              "at": 1793765817810,
+              "data": {
+                "id": "call_00_r2r5gZFEUoqx6v8VcuL27517",
+                "status": "completed",
+                "summary": "工具执行完成",
+                "durationMs": 5067
+              }
+            },
+            {
+              "kind": "result",
+              "at": 1793765825255,
+              "data": {
+                "text": "## 执行结果：未能调用，已按指令停止\n\n**动作**：仅执行了一次 ToolSearch，查询 `mcp__sidebar-release-form-20261104__review_safe_inputs`。\n\n**结果**：未返回该工具的 schema。ToolSearch 明确提示 `sidebar-release-form-20261104` 服务仍处于 **still connecting（正在连接）** 状态，其工具尚未注册到本会话，因此无法发起调用。\n\n**因此**：\n- `count` 与 `enabled`：**未获取**（表单未提交，无任何返回值）。我不会推测或编造这两个值。\n- 未使用其它 MCP 服务、未使用 AskUserQuestion、未调用 Bash、未读写任何文件或 Polarion。\n- 按你的指令「若不可用立即停止报告，不重试」，此处停止，不再重试搜索或改用替代通道。\n\n**需要你处理的事项**：该隔离测试服务在当前会话未完成连接注册（尽管你已确认服务侧连通）。请确认侧栏进程内该 MCP 服务的连接状态；待其工具可发现后，下一轮可使用同一 marker `RELEASE-MCP-FORM-20261104` 重新发起本请求。",
+                "durationMs": 15672,
+                "turns": 2
+              }
+            }
+          ]
+        },
+        {
+          "id": "a4e7e7f6-d8ae-483f-9111-353414fed97f",
+          "prompt": "FINAL-MCP-FORM-VALIDATION-20261104：当前暖会话能力面板已确认 sidebar-release-form-20261104 已连接且有 review_safe_inputs。请只对这个工具做两次顺序调用，参数都为 marker=\"RELEASE-MCP-FORM-20261104\"：第一次等待真实表单，接受我的回答后准确保留其 count 与 enabled；第二次再请求同一真实表单，我将取消它，取消后立即结束，不进行第三次调用或任何重试。需要schema时只用ToolSearch。不得用AskUserQuestion或其他MCP替代，不读写任何文件、网络或Polarion。最终仅报告第一次的真实count/enabled及第二次真实action，不猜测。",
+          "mode": "auto",
+          "status": "completed",
+          "elapsedMs": 77258,
+          "requestedFeatureOutcome": "passed: two real MCP forms, blank validation, typed 0/false accept, then cancel; no third call",
+          "events": [
+            {
+              "kind": "tool",
+              "at": 1793766095322,
+              "data": {
+                "id": "call_00_Xe4eeeWCIyTUGFgLjgLw4756",
+                "title": "查找可用工具",
+                "detail": "select:mcp__sidebar-release-form-20261104__review_safe_inputs",
+                "name": "ToolSearch"
+              }
+            },
+            {
+              "kind": "tool-result",
+              "at": 1793766095733,
+              "data": {
+                "id": "call_00_Xe4eeeWCIyTUGFgLjgLw4756",
+                "status": "completed",
+                "summary": "工具执行完成",
+                "durationMs": 3
+              }
+            },
+            {
+              "kind": "tool",
+              "at": 1793766097113,
+              "data": {
+                "id": "call_00_Pb2WYsI4eSxLoz5KGPIp6358",
+                "title": "调用 mcp__sidebar-release-form-20261104__review_safe_inputs",
+                "detail": "",
+                "name": "mcp__sidebar-release-form-20261104__review_safe_inputs"
+              }
+            },
+            {
+              "kind": "permission",
+              "at": 1793766097519,
+              "data": {
+                "id": "f282ee39-30d3-42f5-b60a-c3b189ff7f06",
+                "tool": "mcp__sidebar-release-form-20261104__review_safe_inputs",
+                "preview": "{\"marker\":\"RELEASE-MCP-FORM-20261104\"}"
+              }
+            },
+            {
+              "kind": "permission-result",
+              "at": 1793766107576,
+              "data": {
+                "id": "f282ee39-30d3-42f5-b60a-c3b189ff7f06",
+                "allow": true
+              }
+            },
+            {
+              "kind": "interaction",
+              "at": 1793766107877,
+              "data": {
+                "kind": "mcp-form",
+                "title": "MCP · sidebar-release-form-20261104",
+                "message": "隔离验收：数量和确认都是必填；0 和“否”是合法答案。此表单不会执行任何外部操作。",
+                "fields": [
+                  {
+                    "key": "count",
+                    "label": "验收数量",
+                    "description": "输入0至10；清空后必须保持未回答。",
+                    "type": "integer",
+                    "required": true,
+                    "secret": false,
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  {
+                    "key": "enabled",
+                    "label": "确认测试",
+                    "description": "“否”也是合法值；“请选择”必须保持未回答。",
+                    "type": "boolean",
+                    "required": true,
+                    "secret": false
+                  }
+                ],
+                "id": "b5144e13-b8e1-4cb4-af91-0a75d964ad26"
+              }
+            },
+            {
+              "kind": "interaction-result",
+              "at": 1793766137951,
+              "data": {
+                "id": "b5144e13-b8e1-4cb4-af91-0a75d964ad26",
+                "action": "accept"
+              }
+            },
+            {
+              "kind": "tool-result",
+              "at": 1793766138302,
+              "data": {
+                "id": "call_00_Pb2WYsI4eSxLoz5KGPIp6358",
+                "status": "completed",
+                "summary": "工具执行完成",
+                "durationMs": 30720
+              }
+            },
+            {
+              "kind": "tool",
+              "at": 1793766140438,
+              "data": {
+                "id": "call_00_sakQNYw8xEA2lBuEJvV46207",
+                "title": "调用 mcp__sidebar-release-form-20261104__review_safe_inputs",
+                "detail": "",
+                "name": "mcp__sidebar-release-form-20261104__review_safe_inputs"
+              }
+            },
+            {
+              "kind": "permission",
+              "at": 1793766140811,
+              "data": {
+                "id": "26ce876d-28ae-434a-8e88-efdf6f8da70e",
+                "tool": "mcp__sidebar-release-form-20261104__review_safe_inputs",
+                "preview": "{\"marker\":\"RELEASE-MCP-FORM-20261104\"}"
+              }
+            },
+            {
+              "kind": "permission-result",
+              "at": 1793766166653,
+              "data": {
+                "id": "26ce876d-28ae-434a-8e88-efdf6f8da70e",
+                "allow": true
+              }
+            },
+            {
+              "kind": "interaction",
+              "at": 1793766167272,
+              "data": {
+                "kind": "mcp-form",
+                "title": "MCP · sidebar-release-form-20261104",
+                "message": "隔离验收：数量和确认都是必填；0 和“否”是合法答案。此表单不会执行任何外部操作。",
+                "fields": [
+                  {
+                    "key": "count",
+                    "label": "验收数量",
+                    "description": "输入0至10；清空后必须保持未回答。",
+                    "type": "integer",
+                    "required": true,
+                    "secret": false,
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  {
+                    "key": "enabled",
+                    "label": "确认测试",
+                    "description": "“否”也是合法值；“请选择”必须保持未回答。",
+                    "type": "boolean",
+                    "required": true,
+                    "secret": false
+                  }
+                ],
+                "id": "e3b118ab-7daa-4001-be5a-44162a898529"
+              }
+            },
+            {
+              "kind": "interaction-result",
+              "at": 1793766167799,
+              "data": {
+                "id": "e3b118ab-7daa-4001-be5a-44162a898529",
+                "action": "cancel"
+              }
+            },
+            {
+              "kind": "tool-result",
+              "at": 1793766168213,
+              "data": {
+                "id": "call_00_sakQNYw8xEA2lBuEJvV46207",
+                "status": "completed",
+                "summary": "工具执行完成",
+                "durationMs": 1553
+              }
+            },
+            {
+              "kind": "result",
+              "at": 1793766170615,
+              "data": {
+                "text": "## 调用结果（两次顺序调用，均为真实返回值）\n\n| 次序 | marker | 返回 |\n|---|---|---|\n| 第一次 | `RELEASE-MCP-FORM-20261104` | `action: \"accept\"`；`values`: `count = 0`，`enabled = false` |\n| 第二次 | `RELEASE-MCP-FORM-20261104` | `action: \"cancel\"`；无 `values` 字段 |\n\n**说明**：\n- 第一次返回 `accept`，表单值为 `count = 0`、`enabled = false`，`sideEffects: false`。\n- 第二次返回 `cancel`，未提供 `count`/`enabled`，我不推断其值。\n- 已按指令在第二次取消后立即结束：未发起第三次调用，未重试，未使用 AskUserQuestion 或其他 MCP，未读写文件、网络或 Polarion。",
+                "durationMs": 76988,
+                "turns": 4
+              }
+            }
+          ]
+        }
+      ],
+      "mcpSetupOrColdFailures": 2,
+      "note": "Seven new UI runs include local /context and /clear. Completed run state is not equivalent to the requested feature passing; both setup/cold failures are retained."
+    },
+    "repairs": {
+      "F05": "real exact command/name/Tab/manual ArrowDown verified",
+      "F06": "real clear no-text success wording verified",
+      "F07": "active ask displayed before reload and after reload",
+      "F08": "ordinary reset usage real path passed; pathological late-response race remains targeted regression proof",
+      "F09": "Real MCP form blank validation and typed number0/booleanfalse accepted; second actual form cancel. Native raw tool results independently corroborate model final output.",
+      "F10": "real explicit denied tool terminal, one tool call, no retry; late-event and cancel contracts covered by targeted regression",
+      "F11": "Deployed real keyboard/focus retests passed for history/capabilities/context and PNG/TXT/PDF attachment modal."
+    },
+    "defaultAuto": {
+      "fresh": {
+        "title": "新工程会话",
+        "permission": "auto",
+        "turns": 0
+      },
+      "reloaded": "auto",
+      "full": "full",
+      "ask": "ask",
+      "data": {
+        "permission": "auto",
+        "summaries": [
+          "查看新对话之前的记录 · 4 轮",
+          "2 次操作 · 展开执行记录"
+        ],
+        "title": "不调用工具或读取文件。只根据当前对话，我之前要求你记住的短语是什么？若",
+        "turns": 8,
+        "font": "13px"
+      }
+    },
+    "autoWrite": {
+      "file": "C:/Users/Lenovo/AppData/Local/Nanju/PolarionSidebar/workspaces/test01/.release-auto-20261104.txt",
+      "expected": "AFTER-CLEAR-20261104\n42\n",
+      "actual": "AFTER-CLEAR-20261104\n42\n",
+      "exact": true,
+      "ui": {
+        "currentTurns": [
+          {
+            "prompt": "/clear",
+            "text": "/clearP＋工程助手已完成本轮已完成6 秒此处开始新的原生对话；更早的消息作为历史保留。原生对话已重置，本次操作没有文本输出。"
+          },
+          {
+            "prompt": "发布前隔离验收：仅调用一次 Write，在当前项目工作目录创建文件 C:/Users/Lenovo/AppData/Local/Nanju/PolarionSidebar/workspaces/test01/.release-auto-20261104.txt，content 必须精确为 \"AFTER-CLEAR-20261104\\n42\\n\"（两行，各以换行结束）。不要调用 Bash、Read、MCP、Skill 或其它工具，不读写任何其它文件，不写 Polarion。完成后仅回复两行：AFTER-CLEAR-20261104 和 42。若写入失败或被拒绝，立即停止，不重试。",
+            "answer": "AFTER-CLEAR-20261104\n42",
+            "text": "发布前隔离验收：仅调用一次 Write，在当前项目工作目录创建文件 C:/Users/Lenovo/AppData/Local/Nanju/PolarionSidebar/workspaces/test01/.release-auto-20261104.txt，content 必须精确为 \"AFTER-CLEAR-20261104\\n42\\n\"（两行，各以换行结束）。不要调用 Bash、Read、MCP、Skill 或其它工具，不读写任何其它文件，不写 Polarion。完成后仅回复两行：AFTER-CLEAR-20261104 和 42。若写入失败或被拒绝，立即停止，不重试。P＋工程助手已完成本轮已完成7 秒1 次操作 · 展开执行记录AFTER-CLEAR-20261104\n42复制回答复制 Markdown"
+          }
+        ],
+        "contexts": [
+          {
+            "class": "context-card pinned",
+            "text": "TEST-729页面选区 · 20 字 · 已固定test01 / Requirements/Sidebar_S1_20261103_0a72944c阈值 26.5 °C；保持 3.75 s取消固定移除"
+          }
+        ],
+        "permission": "auto",
+        "meter": "4%",
+        "history": "查看新对话之前的记录 · 15 轮"
+      }
+    },
+    "font": {
+      "status": "pass-for-requested-success-paths",
+      "persist18": {
+        "persisted": "18",
+        "save": {
+          "protocol": 1,
+          "id": "fb0822a9-c3f7-4fa1-9e80-0f235185fbf9",
+          "ok": true,
+          "value": {
+            "defaultEngine": "claude",
+            "claudeModel": "",
+            "codexModel": "gpt-6.1-sol",
+            "assistantFontSize": 18
+          }
+        }
+      },
+      "reopen18": {
+        "font": "18px",
+        "turns": 14
+      },
+      "restored13": 13,
+      "rollback": [
+        {
+          "method": "cancel",
+          "preview": "12px",
+          "after": "18px",
+          "focus": "设置",
+          "nativeHTMLUnchanged": true,
+          "previewNativeHTMLUnchanged": true,
+          "nativeFontUnchanged": true,
+          "userFontUnchanged": true
+        },
+        {
+          "method": "X",
+          "preview": "12px",
+          "after": "18px",
+          "focus": "设置",
+          "nativeHTMLUnchanged": true,
+          "previewNativeHTMLUnchanged": true,
+          "nativeFontUnchanged": true,
+          "userFontUnchanged": true
+        },
+        {
+          "method": "Escape",
+          "preview": "12px",
+          "after": "18px",
+          "focus": "设置",
+          "nativeHTMLUnchanged": true,
+          "previewNativeHTMLUnchanged": true,
+          "nativeFontUnchanged": true,
+          "userFontUnchanged": true
+        }
+      ],
+      "viewports": [
+        {
+          "width": 1440,
+          "height": 900
+        },
+        {
+          "width": 390,
+          "height": 900
+        }
+      ],
+      "body18": {
+        "h1": 22,
+        "h2": 20,
+        "h3": 19,
+        "tableCode": 17
+      },
+      "body13": {
+        "h1": 17,
+        "h2": 15,
+        "h3": 14,
+        "tableCode": 12
+      },
+      "userFont": 14,
+      "bodyOverflow": false,
+      "failureStates": "not fault-injected; unverified",
+      "screenshots": "local research only; never public README/assets"
+    },
+    "keyboard": {
+      "status": "pass-for-requested-real-retests",
+      "panels": {
+        "historyOpened": {
+          "hosts": 1,
+          "history": true,
+          "caps": false,
+          "context": "false",
+          "focus": {
+            "tag": "BUTTON",
+            "title": null,
+            "aria": null,
+            "class": ""
+          },
+          "font": "13px",
+          "permission": "auto"
+        },
+        "historyClosed": {
+          "hosts": 1,
+          "history": false,
+          "caps": false,
+          "context": "false",
+          "focus": {
+            "tag": "BUTTON",
+            "title": "会话历史",
+            "aria": null,
+            "class": ""
+          },
+          "font": "13px",
+          "permission": "auto"
+        },
+        "capsOpened": {
+          "hosts": 1,
+          "history": false,
+          "caps": true,
+          "context": "false",
+          "focus": {
+            "tag": "INPUT",
+            "title": null,
+            "aria": "搜索本机能力",
+            "class": ""
+          },
+          "font": "13px",
+          "permission": "auto"
+        },
+        "capsClosed": {
+          "hosts": 1,
+          "history": false,
+          "caps": false,
+          "context": "false",
+          "focus": {
+            "tag": "BUTTON",
+            "title": "Claude Code 命令、Skills 与 MCP",
+            "aria": null,
+            "class": "icon"
+          },
+          "font": "13px",
+          "permission": "auto"
+        },
+        "contextOpened": {
+          "hosts": 1,
+          "history": false,
+          "caps": false,
+          "context": "true",
+          "focus": {
+            "tag": "BUTTON",
+            "title": "上下文尚未读取，发送消息后更新",
+            "aria": "上下文尚未读取，发送消息后更新",
+            "class": "context-meter-trigger"
+          },
+          "font": "13px",
+          "permission": "auto"
+        },
+        "contextClosed": {
+          "hosts": 1,
+          "history": false,
+          "caps": false,
+          "context": "false",
+          "focus": {
+            "tag": "BUTTON",
+            "title": "上下文尚未读取，发送消息后更新",
+            "aria": "上下文尚未读取，发送消息后更新",
+            "class": "context-meter-trigger"
+          },
+          "font": "13px",
+          "permission": "auto"
+        }
+      },
+      "attachments": [
+        {
+          "name": "release-agent-shapes.png",
+          "initial": {
+            "open": true,
+            "focus": {
+              "tag": "BUTTON",
+              "title": "关闭附件预览",
+              "text": "",
+              "class": "icon"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": {
+              "width": 300,
+              "height": 160
+            },
+            "download": false
+          },
+          "next": {
+            "open": true,
+            "focus": {
+              "tag": "BUTTON",
+              "title": "关闭附件预览",
+              "text": "",
+              "class": "icon"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": {
+              "width": 300,
+              "height": 160
+            },
+            "download": false
+          },
+          "wrap": {
+            "open": true,
+            "focus": {
+              "tag": "BUTTON",
+              "title": "关闭附件预览",
+              "text": "",
+              "class": "icon"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": {
+              "width": 300,
+              "height": 160
+            },
+            "download": false
+          },
+          "reverse": {
+            "open": true,
+            "focus": {
+              "tag": "BUTTON",
+              "title": "关闭附件预览",
+              "text": "",
+              "class": "icon"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": {
+              "width": 300,
+              "height": 160
+            },
+            "download": false
+          },
+          "closed": {
+            "open": false,
+            "focus": {
+              "tag": "BUTTON",
+              "title": null,
+              "text": "release-agent-shapes.png2 KB · 图像上下文",
+              "class": "attachment-open"
+            },
+            "inside": false,
+            "backgroundInert": false,
+            "image": null,
+            "download": false
+          }
+        },
+        {
+          "name": "release-agent.txt",
+          "initial": {
+            "open": true,
+            "focus": {
+              "tag": "BUTTON",
+              "title": "关闭附件预览",
+              "text": "",
+              "class": "icon"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": null,
+            "text": "RELEASE-AGENT-TXT-20261104\n只读验收材料。热管理测试值=42，标识符保留0017。\n",
+            "download": false
+          },
+          "next": {
+            "open": true,
+            "focus": {
+              "tag": "BUTTON",
+              "title": "关闭附件预览",
+              "text": "",
+              "class": "icon"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": null,
+            "text": "RELEASE-AGENT-TXT-20261104\n只读验收材料。热管理测试值=42，标识符保留0017。\n",
+            "download": false
+          },
+          "wrap": {
+            "open": true,
+            "focus": {
+              "tag": "BUTTON",
+              "title": "关闭附件预览",
+              "text": "",
+              "class": "icon"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": null,
+            "text": "RELEASE-AGENT-TXT-20261104\n只读验收材料。热管理测试值=42，标识符保留0017。\n",
+            "download": false
+          },
+          "reverse": {
+            "open": true,
+            "focus": {
+              "tag": "BUTTON",
+              "title": "关闭附件预览",
+              "text": "",
+              "class": "icon"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": null,
+            "text": "RELEASE-AGENT-TXT-20261104\n只读验收材料。热管理测试值=42，标识符保留0017。\n",
+            "download": false
+          },
+          "closed": {
+            "open": false,
+            "focus": {
+              "tag": "BUTTON",
+              "title": null,
+              "text": "release-agent.txt1 KB · 文字已提取",
+              "class": "attachment-open"
+            },
+            "inside": false,
+            "backgroundInert": false,
+            "image": null,
+            "download": false
+          }
+        },
+        {
+          "name": "release-agent.pdf",
+          "initial": {
+            "open": true,
+            "focus": {
+              "tag": "BUTTON",
+              "title": "关闭附件预览",
+              "text": "",
+              "class": "icon"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": null,
+            "download": true
+          },
+          "next": {
+            "open": true,
+            "focus": {
+              "tag": "A",
+              "title": null,
+              "text": "下载原文件",
+              "class": "secondary"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": null,
+            "download": true
+          },
+          "wrap": {
+            "open": true,
+            "focus": {
+              "tag": "BUTTON",
+              "title": "关闭附件预览",
+              "text": "",
+              "class": "icon"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": null,
+            "download": true
+          },
+          "reverse": {
+            "open": true,
+            "focus": {
+              "tag": "A",
+              "title": null,
+              "text": "下载原文件",
+              "class": "secondary"
+            },
+            "inside": true,
+            "modal": "true",
+            "backgroundInert": true,
+            "image": null,
+            "download": true
+          },
+          "closed": {
+            "open": false,
+            "focus": {
+              "tag": "BUTTON",
+              "title": null,
+              "text": "release-agent.pdf1 KB · 待原生工具读取",
+              "class": "attachment-open"
+            },
+            "inside": false,
+            "backgroundInert": false,
+            "image": null,
+            "download": false
+          }
+        }
+      ],
+      "shiftEnterOnlyNewline": true
+    },
+    "performance": {
+      "kind": "representative small sample; not full AT-39 stress",
+      "observationMs": 2501.6999999955297,
+      "inputSampleCount": 50,
+      "inputToNextFrameP95Ms": 30.19999999552965,
+      "menuFirstFrame": [
+        {
+          "label": "会话历史",
+          "ms": 5.600000001490116
+        },
+        {
+          "label": "设置",
+          "ms": 11.600000001490116
+        }
+      ],
+      "longTasks": [],
+      "domBefore": 5931,
+      "domAfter": 5931,
+      "conversationCharacters": 53789,
+      "scroll": {
+        "top": 0,
+        "height": 63262,
+        "client": 918
+      },
+      "scrollAfterNativeWheel": 980,
+      "heapBefore": 108690731,
+      "heapAfter": 80004135,
+      "heapBoundary": "GC can lower values; no leak conclusion"
+    },
+    "nativeMenu": {
+      "status": "pass",
+      "evidence": {
+        "at": "2026-11-04T04:39:57.338Z",
+        "method": "Real Ego native context menu, Computer Use transient menu region click; DOM range used only to establish selected text; no handler injection",
+        "context": [
+          "TEST-729右键选区 · 7 字test01 / Requirements/Sidebar_S1_20261103_0a72944c图后说明不丢失固定上下文移除"
+        ],
+        "permission": "auto",
+        "selected": "图后说明不丢失"
+      }
+    },
+    "mcp": {
+      "status": "real-form-passed",
+      "explicitNativeTrustAuthorized": true,
+      "onlyProject": "test01",
+      "onlyFixture": "sidebar-release-form-20261104",
+      "globalEnableAllUsed": false,
+      "approvalApply": {
+        "at": "2026-11-04T04:13:45.799Z",
+        "mode": "apply",
+        "project": "C:/Users/Lenovo/AppData/Local/Nanju/PolarionSidebar/workspaces/test01",
+        "field": "hasTrustDialogAccepted",
+        "value": true,
+        "otherFieldsPreserved": true,
+        "privateBackup": true,
+        "globalEnableAllUsed": false,
+        "onlyFixtureLocallyApproved": true
+      },
+      "approvalRestore": {
+        "at": "2026-11-04T04:23:47.164Z",
+        "mode": "restore",
+        "project": "C:/Users/Lenovo/AppData/Local/Nanju/PolarionSidebar/workspaces/test01",
+        "field": "hasTrustDialogAccepted",
+        "value": false,
+        "otherFieldsPreserved": true,
+        "privateBackup": true,
+        "globalEnableAllUsed": false,
+        "onlyFixtureLocallyApproved": true
+      },
+      "projectConfigRestore": {
+        "at": "2026-11-04T04:23:53.488Z",
+        "method": "restore only fixture configuration fields, not filesystem deletion",
+        "globalTrustRestored": true,
+        "results": [
+          {
+            "file": "C:\\Users\\Lenovo\\AppData\\Local\\Nanju\\PolarionSidebar\\workspaces\\test01\\.mcp.json",
+            "exists": true,
+            "fixtureRemoved": true,
+            "topKeys": [
+              "mcpServers"
+            ],
+            "otherServers": [],
+            "originallyAbsent": true,
+            "restoredToAbsence": false
+          },
+          {
+            "file": "C:\\Users\\Lenovo\\AppData\\Local\\Nanju\\PolarionSidebar\\workspaces\\test01\\.claude\\settings.local.json",
+            "exists": true,
+            "fixtureRemoved": true,
+            "topKeys": [],
+            "originallyAbsent": true,
+            "restoredToAbsence": false
+          }
+        ],
+        "cleanupPolicyBoundary": "Prior exact-file deletion rejected; no deletion retried. Empty project config files remain and are not claimed absent."
+      },
+      "validation": {
+        "at": "2026-11-04T04:49:38.561Z",
+        "passed": true,
+        "sessionId": "a5850111-cb63-4491-9a8b-67527add4244",
+        "runId": "a4e7e7f6-d8ae-483f-9111-353414fed97f",
+        "nativeId": "ebd8fe27-c3bd-42a1-97f0-227a569610a0",
+        "blankNumber": {
+          "error": "请填写：验收数量",
+          "count": "",
+          "enabled": "true"
+        },
+        "blankBoolean": {
+          "error": "请填写：确认测试",
+          "count": "0",
+          "enabled": ""
+        },
+        "typedNativeResults": [
+          {
+            "toolUseId": "call_00_Pb2WYsI4eSxLoz5KGPIp6358",
+            "value": {
+              "marker": "RELEASE-MCP-FORM-20261104",
+              "action": "accept",
+              "values": {
+                "count": 0,
+                "enabled": false
+              },
+              "sideEffects": false
+            }
+          },
+          {
+            "toolUseId": "call_00_sakQNYw8xEA2lBuEJvV46207",
+            "value": {
+              "marker": "RELEASE-MCP-FORM-20261104",
+              "action": "cancel",
+              "sideEffects": false
+            }
+          }
+        ],
+        "interactionActions": [
+          {
+            "seq": 16009,
+            "id": "b5144e13-b8e1-4cb4-af91-0a75d964ad26",
+            "action": "accept"
+          },
+          {
+            "seq": 16050,
+            "id": "e3b118ab-7daa-4001-be5a-44162a898529",
+            "action": "cancel"
+          }
+        ],
+        "exactlyTwoFixtureCalls": true,
+        "noRetryOrOtherTools": true,
+        "permissions": [
+          {
+            "id": "f282ee39-30d3-42f5-b60a-c3b189ff7f06",
+            "allow": true
+          },
+          {
+            "id": "26ce876d-28ae-434a-8e88-efdf6f8da70e",
+            "allow": true
+          }
+        ],
+        "runStatus": "completed",
+        "elapsedMs": 77258,
+        "finalText": "## 调用结果（两次顺序调用，均为真实返回值）\n\n| 次序 | marker | 返回 |\n|---|---|---|\n| 第一次 | `RELEASE-MCP-FORM-20261104` | `action: \"accept\"`；`values`: `count = 0`，`enabled = false` |\n| 第二次 | `RELEASE-MCP-FORM-20261104` | `action: \"cancel\"`；无 `values` 字段 |\n\n**说明**：\n- 第一次返回 `accept`，表单值为 `count = 0`、`enabled = false`，`sideEffects: false`。\n- 第二次返回 `cancel`，未提供 `count`/`enabled`，我不推断其值。\n- 已按指令在第二次取消后立即结束：未发起第三次调用，未重试，未使用 AskUserQuestion 或其他 MCP，未读写文件、网络或 Polarion。",
+        "evidenceBoundary": "Real UI form actions, independently corroborated by read-only Host SQLite and exact native tool_result JSON. Model prose alone is not the typed-value proof.",
+        "nativeSource": "native Claude session JSONL; only two controlled tool results extracted; full source is private and not copied",
+        "evidence": [
+          "final-mcp-form-numeric-blank.json",
+          "final-mcp-form-boolean-blank.json",
+          "final-mcp-form-valid-input.json",
+          "final-mcp-form-cancel-ui.json",
+          "session-final-mcp-validated.json"
+        ]
+      },
+      "cliAfterRestore": "No MCP server named sidebar-release-form-20261104; expected exit1",
+      "hostConnectionBeforeRun": {
+        "before": "Claude Code本机命令 · Skills · MCP命令40Skills356MCP27重连当前会话的 MCP…zreadzai-mcp-servermcp-deepwikisequential-thinkingAgent2Canoeexapolarionpolyspacedrawiomemoryrailwaynode_replcontext7web-readerweb-search-primepolarion-mcp-serverspec-workflowsimulinkopen-websearchPlaywrightplaywrighthuashu-chromeAgent2Canapematlabobsidiansidebar-release-form-20261104polarion_draftssidebar-release-form-20261104已连接 · 1 工具review_safe_inputs已连接的当前会话 · 12:17:57 · 28 个原生 Agent",
+        "after": "Claude Code本机命令 · Skills · MCP命令40Skills356MCP27重连当前会话的 MCP…zreadzai-mcp-servermcp-deepwikisequential-thinkingAgent2Canoeexapolarionpolyspacedrawiomemoryrailwaynode_replcontext7web-readerweb-search-primepolarion-mcp-serverspec-workflowsimulinkopen-websearchPlaywrightplaywrighthuashu-chromeAgent2Canapematlabobsidiansidebar-release-form-20261104polarion_draftssidebar-release-form-20261104已连接 · 1 工具review_safe_inputs已连接的当前会话 · 12:17:58 · 28 个原生 Agent",
+        "at": "2026-11-04T04:17:58.177Z"
+      }
+    },
+    "restoration": {
+      "at": "2026-11-04T04:24:36.046Z",
+      "ui": {
+        "contextCount": 0,
+        "attachmentCount": 0,
+        "active": false,
+        "permission": "auto",
+        "input": "",
+        "font": "13px",
+        "settingsOpen": false,
+        "historyOpen": false,
+        "capsOpen": false,
+        "lastAnswer": "调用结果（两次顺序调用，均为真实返回值）\n次序marker返回第一次RELEASE-MCP-FORM-20261104action: \"accept\"；values: count = 0，enabled = false第二次RELEASE-MCP-FORM-20261104action: \"cancel\"；无 values 字段\n说明：\n\n第一次返回 accept，表单值为 count = 0、enabled = false，sideEffects: false。\n第二次返回 cancel，未提供 count/enabled，我不推断其值。\n已按指令在第二次取消后立即结束：未发起第三次调用，未重试，未使用 AskUserQuestion 或其他 MCP，未读写文件、网络或 Polarion。\n"
+      },
+      "health": {
+        "protocol": 1,
+        "version": "0.3.0",
+        "pid": 16936,
+        "running": 0,
+        "codex": "not-integrated",
+        "writeScope": "explicit-user-save-with-readback"
+      },
+      "settings": {
+        "defaultEngine": "claude",
+        "claudeModel": "",
+        "codexModel": "gpt-6.1-sol",
+        "assistantFontSize": 13
+      },
+      "remote729": {
+        "length": 3050,
+        "hash": "a9bf1059b11edb7584bc8e3f98bb1d66fe9600c9a0c188d5850825ad5dc5c218",
+        "equalsDraft": true,
+        "equalsBase": true,
+        "draftLength": 3050,
+        "revision": 262,
+        "state": "clean"
+      },
+      "remote728": {
+        "length": 533,
+        "hash": "44e40d7fceea5b4f0f363c275dd5d29f5a02cc5e9e83cf2d9ccd67bfa4b2b589",
+        "equalsDraft": true,
+        "equalsBase": true,
+        "draftLength": 533,
+        "revision": 8,
+        "state": "clean"
+      },
+      "fixtureHotRuntime": {
+        "connected": true,
+        "fixture": {
+          "name": "sidebar-release-form-20261104",
+          "status": "connected",
+          "scope": "project",
+          "tools": [
+            {
+              "name": "review_safe_inputs"
+            }
+          ]
+        }
+      },
+      "configurationBindingsRemoved": true,
+      "trustRestored": false,
+      "sourceOrRemoteWrites": false
+    },
+    "cleanup": {
+      "status": "blocked-by-automatic-approval",
+      "reason": "Remove-Item exact literal files rejected: blocked by policy",
+      "bypassAttempted": false,
+      "configurationExactlyRestored": false,
+      "remainingFiles": [
+        {
+          "file": "C:/Users/Lenovo/AppData/Local/Nanju/PolarionSidebar/workspaces/test01/.mcp.json",
+          "exists": true,
+          "sha256": "d8e397af03b5b032f21d0aa967086f0c78b33c87b76f2e9898ae0a144df7de02"
+        },
+        {
+          "file": "C:/Users/Lenovo/AppData/Local/Nanju/PolarionSidebar/workspaces/test01/.claude/settings.local.json",
+          "exists": true,
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        },
+        {
+          "file": "C:/Users/Lenovo/AppData/Local/Nanju/PolarionSidebar/workspaces/test01/.release-auto-20261104.txt",
+          "exists": true,
+          "sha256": "f208c72f55abfbf9bf28c6e9a823afa1f09233495b8ef16ce3381f09aaaec84b"
+        }
+      ],
+      "otherLocalResidue": [
+        "test-runtime (previous rejection)",
+        "final-context-menu-desktop.png (unrelated screenshot excluded from evidence)"
+      ],
+      "configurationFieldsRestored": true,
+      "projectFieldRestore": {
+        "at": "2026-11-04T04:23:53.488Z",
+        "method": "restore only fixture configuration fields, not filesystem deletion",
+        "globalTrustRestored": true,
+        "results": [
+          {
+            "file": "C:\\Users\\Lenovo\\AppData\\Local\\Nanju\\PolarionSidebar\\workspaces\\test01\\.mcp.json",
+            "exists": true,
+            "fixtureRemoved": true,
+            "topKeys": [
+              "mcpServers"
+            ],
+            "otherServers": [],
+            "originallyAbsent": true,
+            "restoredToAbsence": false
+          },
+          {
+            "file": "C:\\Users\\Lenovo\\AppData\\Local\\Nanju\\PolarionSidebar\\workspaces\\test01\\.claude\\settings.local.json",
+            "exists": true,
+            "fixtureRemoved": true,
+            "topKeys": [],
+            "originallyAbsent": true,
+            "restoredToAbsence": false
+          }
+        ],
+        "cleanupPolicyBoundary": "Prior exact-file deletion rejected; no deletion retried. Empty project config files remain and are not claimed absent."
+      },
+      "note": "Prior deletion rejection respected. Fixture configuration bindings removed and original trust=false restored, but originally absent empty config files and the controlled Write file remain. Existing hot runtime retains its already-established connection until normal release/expiry; no new fixture binding exists. Root then cold-restarted the idle Host, reloaded extension and confirmed zero fixture Node processes.",
+      "hotRuntimeEndedByRoot": true,
+      "fixtureNodeProcessesAfterColdRestart": 0
+    },
+    "handoff": {
+      "uiReturnedToRoot": true,
+      "finishCalled": false,
+      "browserOperationsStopped": true,
+      "at": "2026-11-04T04:49:38.663Z",
+      "nativeMenuOwner": "root"
+    },
+    "keyboardBeforeRepair": {
+      "status": "failed-awaiting-repair-retest",
+      "finding": "AG-F11",
+      "capabilities": {
+        "open": true,
+        "active": null
+      },
+      "historyContext": {
+        "historyEscape": true,
+        "meterOpen": "true",
+        "meterEscape": {
+          "open": "true",
+          "focus": "context-meter-trigger"
+        }
+      },
+      "contextConfirmed": {
+        "escaped": false,
+        "focus": "context-meter-trigger"
+      },
+      "attachment": {
+        "previewOpened": {
+          "tag": "BUTTON",
+          "class": "attachment-open",
+          "title": null,
+          "aria": null,
+          "preview": true,
+          "insidePreview": false
+        },
+        "afterTab": {
+          "tag": "BUTTON",
+          "class": "icon",
+          "title": "移除附件 release-agent-shapes.png",
+          "aria": null,
+          "preview": true,
+          "insidePreview": false
+        },
+        "afterEscape": {
+          "tag": "BUTTON",
+          "class": "icon",
+          "title": "移除附件 release-agent-shapes.png",
+          "aria": null,
+          "preview": true,
+          "insidePreview": false
+        }
+      },
+      "settings": "cancel/X/Escape returned focus to trigger",
+      "shiftEnterOnlyNewline": true
+    },
+    "mcpBeforeNativeApproval": {
+      "firstConfigLandingFailed": true,
+      "explicitWriteVerified": {
+        "at": "2026-11-04T03:50:21.600Z",
+        "file": "C:/Users/Lenovo/AppData/Local/Nanju/PolarionSidebar/workspaces/test01/.mcp.json",
+        "exists": true,
+        "hash": "3aa3458ccecc3c516a0392288ae3b414f8dc0085ceb0d1d65d3aa36f5e709941",
+        "note": "apply_patch returned empty success twice but file absent immediately; explicit create verified"
+      },
+      "discovery": [
+        {
+          "name": "sidebar-release-form-20261104",
+          "status": "pending",
+          "scope": "project",
+          "tools": []
+        }
+      ],
+      "nativeCli": "claude mcp get: Pending approval",
+      "localApprovalSettingGated": "Installed Claude executable says untrusted workspaces gate .claude/settings.local.json approval choices",
+      "globalTrustChanged": false,
+      "extraModelRunAttempted": false
+    }
+  },
+  "historicalInitialSummary": {
+    "pass": 28,
+    "unverified": 1,
+    "failed-awaiting-retest": 1,
+    "pass-readonly": 1,
+    "partial": 1
+  },
+  "currentSurface": {
+    "space": 7,
+    "polarion": "p1",
+    "diagnostics": "p9",
+    "health": {
+      "at": "2026-11-04T04:44:56.501Z",
+      "diag": "p9",
+      "extension": "0.3.0",
+      "protocol": 1,
+      "version": "0.3.0",
+      "pid": 48672,
+      "running": 0,
+      "codex": "not-integrated",
+      "writeScope": "explicit-user-save-with-readback"
+    },
+    "ui": {
+      "at": "2026-11-04T04:45:39.800Z",
+      "permission": "auto",
+      "input": "",
+      "answerFont": "13px",
+      "context": 0
+    }
+  },
+  "releaseGate": {
+    "openImplementedFeatureDefects": [],
+    "accepted": true,
+    "scope": "This implemented release increment only; external capabilities and product roadmap remain bounded above.",
+    "parentSummary": "docs/0.3.0最终验收汇总_20261104.md",
+    "pending": "PR/main/tag CI and actual GitHub release steps are performed by root separately."
+  }
+}

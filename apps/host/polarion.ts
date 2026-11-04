@@ -13,7 +13,7 @@ import { RichDocument } from '../../packages/core/rich-document.ts';
 import type { JSONContent } from '@tiptap/core';
 import { Assets } from './assets.ts';
 import {Boards} from './boards.ts';
-type RichSession = { id: string; draftId: string; source: string; revision: number };
+type RichSession = { id: string; draftId: string; source: string; revision: number; imageAliases?:Record<string,string>;saved?:boolean };
 export type RemoteItem = { id: string; title: string; description?: string; updated?: string; status?: string; submittedHtml?: string; uploadedAssets?: {localId:string;attachmentId:string;sha256:string}[] };
 export interface Remote { read(target: Target, workItemId: string): Promise<RemoteItem>; save(draft: Draft): Promise<RemoteItem> }
 export class Polarion implements Remote {
@@ -87,7 +87,9 @@ export class Drafts {
     if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
     let model = this.richModels.get(editorId);
     if (!model) { model = new RichDocument(session.source, session.id); this.richModels.set(editorId, model); }
-    const html = model.serialize(document);
+    let html = model.serialize(document);
+    for(const [localId,attachmentId] of Object.entries(session.imageAliases??{}))html=html.replaceAll('polarion-asset:'+localId,'workitemimg:'+attachmentId);
+    if(session.saved){html=polarionWriteHtml(html);if(equivalentHtml(html,draft.baseHtml))html=draft.baseHtml;}
     if (html === draft.html) return draft;
     const value: Draft = { ...draft, html, revision: draft.revision + 1, state: draft.state === 'conflict' ? 'conflict' : html === draft.baseHtml ? 'clean' : 'dirty' };
     this.store.db.exec('BEGIN IMMEDIATE');
@@ -140,7 +142,14 @@ export class Drafts {
       const submitted=outcome.submittedHtml??outgoing.html;
       const savedHtml=readback.description??'';
       if (!equivalentHtml(savedHtml,submitted)){knownUnchanged=savedHtml===draft.baseHtml&&readback.updated===draft.baseUpdated;throw Error(knownUnchanged?'SAVE_NOT_APPLIED':'READBACK_MISMATCH');}
-      this.store.put('draft', id, { ...draft, html:savedHtml,revision:draft.revision+(savedHtml===draft.html?0:1),baseHtml: savedHtml, baseUpdated: readback.updated, state: 'clean', savedAt: Date.now() });
+      const savedRevision=draft.revision+(savedHtml===draft.html?0:1);
+      this.store.put('draft', id, { ...draft, html:savedHtml,revision:savedRevision,baseHtml: savedHtml, baseUpdated: readback.updated, state: 'clean', savedAt: Date.now() });
+      // Keep source IDs and the open editor's undo history valid across a verified save.
+      // Only sessions at the saved revision can continue; stale clients remain stale.
+      for(const session of this.store.list<RichSession>('rich-editor'))if(session.draftId===id&&session.revision===draft.revision){
+        const imageAliases={...session.imageAliases,...Object.fromEntries((outcome.uploadedAssets??[]).map(a=>[a.localId,a.attachmentId]))};
+        this.store.put('rich-editor',session.id,{...session,revision:savedRevision,imageAliases,saved:true});
+      }
       this.store.put('save', operationId, { ...audit, phase: 'verified', endedAt: Date.now(), serverUpdated: readback.updated,submittedHash:createHash('sha256').update(submitted).digest('hex'),uploadedAssets:outcome.uploadedAssets??[] });
       return this.read(id);
     } catch (error) {
