@@ -33,15 +33,14 @@ export function ContextMeter({sessionId, engine, busy, online}: {sessionId?:stri
   useEffect(()=>{
     if (!open) return;
     const outside = (event:PointerEvent) => {if (!event.composedPath().includes(root.current!)) setOpen(false);};
-    const escape = (event:KeyboardEvent) => {if (event.key==='Escape') {event.preventDefault();setOpen(false);trigger.current?.focus();}};
-    document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);
-    return ()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
+    document.addEventListener('pointerdown',outside);
+    return ()=>{document.removeEventListener('pointerdown',outside);};
   },[open]);
   const usage = online ? state?.usage : null;
   const percent = usage ? Math.round(usage.percentage * 10) / 10 : null;
   const level = percent === null ? 'unknown' : percent >= 90 ? 'critical' : percent > 80 ? 'warning' : 'normal';
   const description = usage ? `上下文占用 ${percent}% · ${tokens(usage.usedTokens)} / ${tokens(usage.windowTokens)} tokens` : !online ? '本地服务未连接' : engine==='codex' ? 'Codex 上下文统计尚未接入' : !sessionId ? '发送第一条消息后显示上下文占用' : '上下文尚未读取，发送消息后更新';
-  return <div className="context-meter" ref={root} data-level={level}>
+  return <div className="context-meter" ref={root} data-level={level} onKeyDown={event=>{if(open&&event.key==='Escape'){event.preventDefault();event.stopPropagation();setOpen(false);trigger.current?.focus();}}}>
     <button ref={trigger} type="button" className="context-meter-trigger" title={description} aria-label={description} aria-expanded={open} onClick={()=>{setOpen(v=>!v);if(!open)void read();}}>
       <svg width="17" height="17" viewBox="0 0 20 20" aria-hidden="true"><path className="meter-track" d="M 3.94 13.5 A 7 7 0 1 1 16.06 13.5"/><path className="meter-value" pathLength="100" strokeDasharray="100" strokeDashoffset={100-Math.max(0,Math.min(100,percent??0))} d="M 3.94 13.5 A 7 7 0 1 1 16.06 13.5"/></svg>
       <span>{state?.compacting ? '压缩中' : percent === null ? '—' : `${percent}%`}</span>
