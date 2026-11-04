@@ -5,6 +5,44 @@ import type { JSONContent } from '@tiptap/core';
 import {patchStyle,mergeSourceStyle,safeStyle} from './rich-style.ts';
 const visit = (j: JSONContent, fn: (j: JSONContent) => void) => { fn(j); j.content?.forEach(c => visit(c, fn)); };
 const source = '<div class="polarion-rte"><p style="color:#123456">Before&nbsp;<strong>bold</strong></p><table id="polarion_wiki macro name=table;params=uid=12" style="width:100%;border-collapse:collapse"><tbody><tr><td colspan="2" style="background-color:#eee"><p>A &amp; B</p><table><tbody><tr><td>nested</td></tr></tbody></table></td></tr><tr><td>x</td><td>y</td></tr></tbody></table><p><img src="attachment.png"><span id="polarion_wiki macro name=unknown;params=id=7">payload</span></p></div>';
+test('native table macro without semicolon is editable just like the parameterized form',()=>{
+  const html='<table id="polarion_wiki macro name=table;params=uid=fixture"><tbody><tr><td>A</td></tr></tbody></table><table id="polarion_wiki macro name=table"><tbody><tr><td>B</td></tr></tbody></table>';
+  const d=new RichDocument(html);assert.deepEqual(d.document.content!.map(n=>n.type),['table','table']);assert.equal(d.protectedIds.size,0);assert.equal(d.serialize(d.document),html);
+  const j=structuredClone(d.document);visit(j,n=>{if(n.text==='B')n.text='B updated';});assert.equal(d.serialize(j),html.replace('>B<','>B updated<'));
+  const unknown=new RichDocument('<table id="polarion_wiki macro name=tableExtension"><tr><td>C</td></tr></table>');assert.equal(unknown.document.content![0]!.type,'protectedBlock');
+});
+test('ordinary nested formatting spans expose list/table blocks and preserve source wrappers',()=>{
+  const html='<ol><li><span style="font-size:10pt">条件<span class="native"><table id="polarion_wiki macro name=table"><tbody><tr><td>cell</td></tr></tbody></table><ul><li>step</li></ul></span>结尾</span></li></ol>';
+  const d=new RichDocument(html),j=structuredClone(d.document);let tables=0,lists=0;visit(j,n=>{if(n.type==='table')tables++;if(n.type==='bulletList')lists++;if(n.text==='cell')n.text='edited';});assert.equal(tables,1);assert.equal(lists,1);assert.equal(d.protectedIds.size,0);assert.equal(d.serialize(d.document),html);assert.equal(d.serialize(j),html.replace('>cell<','>edited<'));
+  const unknown=new RichDocument('<span><span id="polarion_wiki macro name=unknown"><table><tr><td>hidden</td></tr></table></span></span>');assert.equal(unknown.protectedIds.size,1);let exposed=0;visit(unknown.document,n=>{if(n.type==='table')exposed++;});assert.equal(exposed,0);
+});
+test('native table macro wrappers expose tables while unrelated macros stay protected',()=>{
+  for(const wrapper of ['span','div'])for(const suffix of [';params=uid=711','']){
+    const html=`<${wrapper} id="polarion_wiki macro name=table${suffix}" class="polarion-rte"><table class="polarion-table"><tr><td>目标值</td></tr></table></${wrapper}><span id="polarion_wiki macro name=unknown;params=x">opaque</span>`;
+    const d=new RichDocument(html),j=structuredClone(d.document);let tables=0,protectedCount=0;
+    visit(j,n=>{if(n.type==='table')tables++;if(n.type?.startsWith('protected'))protectedCount++;if(n.text==='目标值')n.text='新值';});
+    assert.equal(tables,1);assert.equal(protectedCount,1);assert.equal(d.serialize(d.document),html);assert.equal(d.serialize(j),html.replace('目标值','新值'));
+  }
+});
+test('complex table cell editing preserves caption, colgroup, all row-group wrappers and unrelated bytes',()=>{
+  const html='<table id="polarion_wiki macro name=table;params=uid=711" class="polarion-rte-table">\n<caption id="cap"><strong>接口矩阵</strong></caption>\n<colgroup span="2"><col style="width:120px"><col width="250"></colgroup>\n<thead id="head">\n<tr><!--head--><th>信号</th><th>阈值</th></tr>\n</thead>\n<!--between--><tbody id="body"><tr><td>温度</td><td><p>25 °C</p></td></tr><tr><td>时长</td><td>3 s</td></tr></tbody>\n<tfoot class="foot"><tr><td colspan="2">注释</td></tr></tfoot>\n</table>';
+  const d=new RichDocument(html);assert.equal(d.document.content![0]!.type,'table');assert.equal(d.document.content![0]!.content!.length,4);assert.equal(d.serialize(d.document),html);
+  for(const [before,after] of [['25 °C','26 °C'],['信号','输入信号'],['注释','保留注释']]){
+    const j=structuredClone(d.document);visit(j,n=>{if(n.text===before)n.text=after;});const saved=d.serialize(j);assert.equal(saved,html.replace(before!,after!));const reopened=new RichDocument(saved);assert.equal(reopened.serialize(reopened.document),saved);
+  }
+});
+test('complex table row insertion retains groups and rejects unsafe cross-group reordering',()=>{
+  const html='<table><colgroup><col width="120"></colgroup><thead id="h"><tr><th>H</th></tr></thead><tbody id="b"><tr><td>A</td></tr><tr><td>B</td></tr></tbody></table>';
+  const d=new RichDocument(html),j=structuredClone(d.document),rows=j.content![0]!.content!;
+  rows.splice(2,0,{type:'tableRow',content:[{type:'tableCell',content:[{type:'paragraph',content:[{type:'text',text:'new'}]}]}]});
+  const saved=d.serialize(j);assert.match(saved,/<thead id="h"><tr><th>H<\/th><\/tr><\/thead><tbody id="b"><tr><td>A<\/td><\/tr><tr><td[^>]*><p[^>]*>new<\/p><\/td><\/tr><tr><td>B/);assert.equal(new RichDocument(saved).document.content![0]!.content!.length,4);
+  const reordered=structuredClone(d.document);reordered.content![0]!.content!.reverse();assert.throws(()=>d.serialize(reordered),/TABLE_GROUP_REORDER_UNSUPPORTED/);
+});
+test('unknown structural macros and empty tables remain protected rather than discarded',()=>{
+  for(const html of ['<table id="polarion_wiki macro name=custom;params=x"><tr><td>x</td></tr></table>','<table><caption><span id="polarion_wiki macro name=custom;params=x">caption</span></caption><tr><td>x</td></tr></table>','<table><tbody></tbody></table>','<div id="polarion_wiki macro name=table;params=x">unexpanded macro</div>','<table><tbody id="polarion_wiki macro name=custom;params=x"><tr><td>x</td></tr></tbody></table>','<table><tr id="polarion_wiki macro name=custom;params=x"><td>x</td></tr></table>']){
+    const d=new RichDocument(html);assert.equal(d.document.content![0]!.type,'protectedBlock');assert.equal(d.serialize(d.document),html);
+  }
+});
 test('native div inside inline span exposes its clause and retains exact wrappers',()=>{
  const html='<span style="color:red"><div></div><div>工程条件</div></span>',d=new RichDocument(html);assert.equal(d.serialize(d.document),html);const j=structuredClone(d.document);visit(j,n=>{if(n.text==='工程条件')n.text='工程条件确认';});assert.equal(d.serialize(j),html.replace('工程条件','工程条件确认'));
 });
@@ -32,7 +70,7 @@ test('table insertion/deletion and merge attributes remain valid with nested tab
   const d = new RichDocument('<table class="t"><tbody><tr><td>a</td><td>b</td></tr></tbody></table>');
   const j = structuredClone(d.document); const table = j.content![0]!;
   table.content!.push({ type: 'tableRow', content: [{ type: 'tableCell', attrs: { colspan: 2 }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'new' }] }] }] });
-  assert.equal(d.serialize(j), '<table class="t"><tbody><tr><td>a</td><td>b</td></tr><tr><td colspan="2" style="border:1px solid #cbd5e1;padding:8px;"><p>new</p></td></tr></tbody></table>');
+  assert.match(d.serialize(j), /^<table class="t"><tbody><tr><td>a<\/td><td>b<\/td><\/tr><tr><td colspan="2" style="[^"]+"><p style="[^"]+">new<\/p><\/td><\/tr><\/tbody><\/table>$/);
 });
 test('paragraph formatting and new content cannot inject active HTML', () => {
   const d = new RichDocument('<p class="native">x</p>'); const j = structuredClone(d.document); const p = j.content![0]!;

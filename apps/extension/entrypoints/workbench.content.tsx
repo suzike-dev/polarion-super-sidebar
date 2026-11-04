@@ -12,6 +12,7 @@ import '../ui/capabilities.css';
 import '../ui/attachments.css';
 import '../ui/assistant-content.css';
 import '../ui/compact-workspace.css';
+import '../ui/editor-toolbar.css';
 export default defineContentScript({
   matches: ['https://polarion.pufafen.com/polarion/*'], allFrames: false,
   cssInjectionMode: 'ui', runAt: 'document_idle',

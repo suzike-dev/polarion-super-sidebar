@@ -1,5 +1,6 @@
 import {parseFragment} from 'parse5';
-import {applyBoardPatches,type BoardPatch} from '../../packages/core/board-changes.ts';
+import {applyBoardPatches,boardSceneSignature,type BoardPatch} from '../../packages/core/board-changes.ts';
+import {generateBoardDiagram,type BoardDiagram} from '../../packages/core/board-generation.ts';
 import type {Draft,Run} from '../../packages/protocol/index.ts';
 import {createHash} from 'node:crypto';
 import {Assets} from './assets.ts';
@@ -9,6 +10,9 @@ import {boardFileNames,BoardManifestSchema,validateBoardSource,type BoardManifes
 export type BoardRecord={manifest:BoardManifest;sourceId:string;previewId:string;manifestId:string};
 export type BoardRead={id:string;runId:string;draftId:string;revision:number;objectId:string;snapshotId:string;sourceHash:string;selectedIds:string[]};
 export type BoardProposal=BoardRead&{proposalId:string;title:string;patches:BoardPatch[];summary:ReturnType<typeof applyBoardPatches>['summary'];status:'pending'|'applied'|'rejected';createdAt:number};
+export type BoardGenerationRequest={requestId:string;localBoardId:string;draftId:string;target:Target;workItemId:string;revision:number;baselineSignature:string;createdAt:number;status:'active'|'superseded'|'applied';originRunId?:string};
+export type BoardGenerationRead={id:string;requestId:string;runId:string;draftId:string;revision:number};
+export type BoardGenerationProposal={proposalId:string;requestId:string;localBoardId:string;runId:string;draftId:string;target:Target;workItemId:string;revision:number;baselineSignature:string;diagram:BoardDiagram;elements:ReturnType<typeof generateBoardDiagram>['elements'];summary:ReturnType<typeof generateBoardDiagram>['summary'];status:'pending'|'applied'|'rejected';createdAt:number};
 export const hashBytes=(bytes:Buffer)=>createHash('sha256').update(bytes).digest('hex');
 export class Boards{
   readonly store:Store;readonly assets:Assets;
@@ -58,6 +62,66 @@ export class Boards{
     const record=this.owned(draft,p.objectId,p.snapshotId),run=this.store.require<Run>('run',p.runId);if(!sameTarget(run.target,draft.target))throw Error('BOARD_TARGET_MISMATCH');
     if(action==='apply'&&(draft.revision!==p.revision||record.manifest.source.sha256!==p.sourceHash))throw Error('BOARD_BASELINE_CONFLICT');
     p.status=action==='apply'?'applied':'rejected';this.store.put('board-proposal',p.proposalId,p);return p;
+  }
+  beginGeneration(draft:Draft,localBoardId:string,baselineSignature:string){
+    if(!/^[0-9a-f-]{36}$/i.test(localBoardId)||!/^[a-f0-9]{64}$/.test(baselineSignature))throw Error('BOARD_GENERATION_CONTEXT_INVALID');
+    if(draft.state==='uncertain'||draft.state==='conflict')throw Error('BOARD_DRAFT_UNAVAILABLE');
+    const old=this.store.get<BoardGenerationRequest>('board-generation-active',localBoardId);
+    if(old&&(old.draftId!==draft.id||!sameTarget(old.target,draft.target)||old.workItemId!==draft.workItemId))throw Error('BOARD_TARGET_MISMATCH');
+    if(old){old.status='superseded';this.store.put('board-generation-request',old.requestId,old);}
+    const request:BoardGenerationRequest={requestId:crypto.randomUUID(),localBoardId,draftId:draft.id,target:draft.target,workItemId:draft.workItemId,revision:draft.revision,baselineSignature,createdAt:Date.now(),status:'active'};
+    this.store.put('board-generation-request',request.requestId,request);this.store.put('board-generation-active',localBoardId,request);return request;
+  }
+  readRequirementGeneration(run:Run,draft:Draft){
+    if(!sameTarget(run.target,draft.target))throw Error('BOARD_TARGET_MISMATCH');
+    const signature=hashBytes(Buffer.from(JSON.stringify({title:'工程流程图',elements:boardSceneSignature([])})));
+    const request=this.beginGeneration(draft,crypto.randomUUID(),signature);request.originRunId=run.id;
+    this.store.put('board-generation-request',request.requestId,request);this.store.put('board-generation-active',request.localBoardId,request);
+    return {...this.readGenerationForRun(run,draft,request.requestId),request};
+  }
+  generationRequest(draft:Draft,requestId:string,requireActive=true){
+    const request=this.store.require<BoardGenerationRequest>('board-generation-request',requestId);
+    if(request.draftId!==draft.id||!sameTarget(request.target,draft.target)||request.workItemId!==draft.workItemId)throw Error('BOARD_TARGET_MISMATCH');
+    const active=this.store.get<BoardGenerationRequest>('board-generation-active',request.localBoardId);
+    if(requireActive&&(request.status!=='active'||active?.requestId!==request.requestId||Date.now()-request.createdAt>24*60*60*1000))throw Error('BOARD_GENERATION_EXPIRED: 请重新点击 AI 协作建立当前画板上下文');
+    return request;
+  }
+  readGenerationForRun(run:Run,draft:Draft,requestId:string){
+    const request=this.generationRequest(draft,requestId);
+    if(!sameTarget(run.target,draft.target))throw Error('BOARD_TARGET_MISMATCH');
+    const matched=run.contexts?.some(context=>{if(!sameTarget(context.target,draft.target)||(context.workItemId&&context.workItemId!==draft.workItemId))return false;const lines=context.text.split('\n');if(lines[0]!=='BOARD_GENERATION_CONTEXT')return false;try{const value=JSON.parse(lines[1]??'');return value.requestId===requestId&&value.draftId===draft.id&&value.localBoardId===request.localBoardId&&value.baselineSignature===request.baselineSignature;}catch{return false;}});
+    if(!matched&&request.originRunId!==run.id)throw Error('BOARD_GENERATION_CONTEXT_REQUIRED: 请使用当前画板通过 AI 协作传入的生成上下文');
+    if(draft.revision!==request.revision)throw Error('BOARD_BASELINE_CONFLICT');
+    const read:BoardGenerationRead={id:crypto.randomUUID(),requestId,runId:run.id,draftId:draft.id,revision:draft.revision};
+    this.store.put('board-generation-read',read.id,read);
+    return {...read,localBoardId:request.localBoardId,baselineSignature:request.baselineSignature,limits:'Propose a complete editable diagram using propose_board_generation. Up to 9 nodes (rectangle/diamond/ellipse/text), 12 edges, 2 focal accent nodes. Every diamond has 2–3 outgoing labeled branches, labels are single-line and at most 14 characters. Follow diagram-design; plain text only. Default size=auto chooses a compact landscape or portrait canvas; explicit size=slide-16x9/doc-inline/doc-wide is optional. Avoid sparse oversized nodes and long scrolls. Direction down/right is preferred flow. Optional x/y must be paired and inside the selected frame. If content cannot fit legibly, split overview/detail. No files, images, HTML, URLs, arbitrary Excalidraw source or remote writes. User previews and explicitly applies; later manual changes block application.'};
+  }
+  proposeGeneration(run:Run,draft:Draft,readId:string,input:unknown){
+    const read=this.store.require<BoardGenerationRead>('board-generation-read',readId),request=this.generationRequest(draft,read.requestId);
+    if(read.runId!==run.id||read.draftId!==draft.id||!sameTarget(run.target,draft.target))throw Error('BOARD_TARGET_MISMATCH');
+    if(draft.revision!==read.revision||draft.revision!==request.revision)throw Error('BOARD_BASELINE_CONFLICT');
+    if(this.store.list<BoardGenerationProposal>('board-generation-proposal').filter(p=>p.requestId===request.requestId&&p.status==='pending').length>=5)throw Error('BOARD_PROPOSAL_LIMIT: 请先审阅或拒绝现有草案');
+    const proposalId=crypto.randomUUID(),result=generateBoardDiagram(input,proposalId);
+    const proposal:BoardGenerationProposal={proposalId,requestId:request.requestId,localBoardId:request.localBoardId,runId:run.id,draftId:draft.id,target:draft.target,workItemId:draft.workItemId,revision:draft.revision,baselineSignature:request.baselineSignature,...result,status:'pending',createdAt:Date.now()};
+    this.store.put('board-generation-proposal',proposalId,proposal);this.store.event(run,'board-generation-proposal',{proposalId,draftId:draft.id,requestId:request.requestId,title:result.diagram.title,summary:result.summary,entry:request.originRunId?'requirements':'board'});return proposal;
+  }
+  generationProposals(draft:Draft,requestId:string){
+    const request=this.generationRequest(draft,requestId,false);if(request.status!=='active')return [];
+    return this.store.list<BoardGenerationProposal>('board-generation-proposal').filter(p=>p.requestId===requestId&&p.draftId===draft.id&&p.status==='pending');
+  }
+  decideGeneration(draft:Draft,proposalId:string,action:'apply'|'reject',baselineSignature:string){
+    const proposal=this.store.require<BoardGenerationProposal>('board-generation-proposal',proposalId),request=this.generationRequest(draft,proposal.requestId,action==='apply');
+    if(proposal.draftId!==draft.id||proposal.workItemId!==draft.workItemId||!sameTarget(proposal.target,draft.target))throw Error('BOARD_TARGET_MISMATCH');
+    if(proposal.status!=='pending')throw Error('BOARD_PROPOSAL_EXPIRED');
+    const run=this.store.require<Run>('run',proposal.runId);if(!sameTarget(run.target,draft.target))throw Error('BOARD_TARGET_MISMATCH');
+    if(action==='apply'){
+      if(draft.state==='uncertain'||draft.state==='conflict')throw Error('BOARD_DRAFT_UNAVAILABLE');
+      if(draft.revision!==proposal.revision||proposal.baselineSignature!==baselineSignature||request.baselineSignature!==baselineSignature)throw Error('BOARD_BASELINE_CONFLICT: 画板或正文草稿已变化，请重新生成');
+      // Validate stored payload again before returning editable content to the UI.
+      const generated=generateBoardDiagram(proposal.diagram,proposalId);if(JSON.stringify(generated.elements)!==JSON.stringify(proposal.elements))throw Error('BOARD_GENERATION_CONTENT_MISMATCH');
+      request.status='applied';this.store.put('board-generation-request',request.requestId,request);this.store.put('board-generation-active',request.localBoardId,request);
+    }
+    proposal.status=action==='apply'?'applied':'rejected';this.store.put('board-generation-proposal',proposalId,proposal);return proposal;
   }
   byPreview(id:string){return this.store.list<BoardRecord>('board').find(b=>b.previewId===id);}
   bundle(previewId:string,target:Target,workItemId:string){

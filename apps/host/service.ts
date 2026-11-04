@@ -15,9 +15,10 @@ export class Service {
     try {
       const request = RequestSchema.parse(input); id = request.id; const c = request.command; let value: unknown;
       switch (c.method) {
-        case 'health': value = { protocol: PROTOCOL, version: '0.2.5', pid: process.pid, running: this.engines.active.size, codex: 'account-blocked', writeScope: 'explicit-user-save-with-readback' }; break;
-        case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;value=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);break;}
+        case 'health': value = { protocol: PROTOCOL, version: '0.3.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
+        case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;const capabilities=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);value={...capabilities,connected:!!runtime};break;}
         case 'engine.manage': value=await this.engines.manage(c.sessionId,c.action,c.server);break;
+        case 'engine.context': this.store.require<Session>('session',c.sessionId);value=await this.engines.contextUsage.read(c.sessionId,c.refresh);break;
         case 'settings.read': value = this.store.settings(); break;
         case 'settings.write': this.store.put('settings', 'global', c.settings); value = c.settings; break;
         case 'sessions.list': value = this.store.list<Session>('session').filter(s => s.target.projectId === c.projectId).sort((a, b) => b.updatedAt - a.updatedAt); break;
@@ -33,9 +34,13 @@ export class Service {
         case 'assets.text': { const a=this.assets.require(c.assetId);value={text:a.text??'',extraction:a.extraction,truncated:!!a.truncated};break; }
         case 'images.resolve': {if(!(this.drafts.remote instanceof Polarion))throw Error('IMAGE_READER_UNAVAILABLE');value=await this.drafts.remote.image(c.target,c.workItemId,c.src);break;}
         case 'boards.proposals': value=new Boards(this.store,this.assets).proposals(this.drafts.read(c.draftId),c.objectId,c.snapshotId);break;
+        case 'boards.generation.begin': value=new Boards(this.store,this.assets).beginGeneration(this.drafts.read(c.draftId),c.localBoardId,c.baselineSignature);break;
+        case 'boards.generation.proposals': value=new Boards(this.store,this.assets).generationProposals(this.drafts.read(c.draftId),c.requestId);break;
+        case 'boards.generation.open': {const draft=this.drafts.read(c.draftId),request=new Boards(this.store,this.assets).generationRequest(draft,c.requestId);if(!request.originRunId)throw Error('BOARD_GENERATION_USE_EXISTING_CANVAS');value={draft,request};break;}
+        case 'boards.generation.decide': value=new Boards(this.store,this.assets).decideGeneration(this.drafts.read(c.draftId),c.proposalId,c.action,c.baselineSignature);break;
         case 'boards.decide': value=new Boards(this.store,this.assets).decide(this.drafts.read(c.draftId),c.proposalId,c.action);break;
         case 'boards.create': {const d=this.drafts.read(c.draftId);value=new Boards(this.store,this.assets).create(d.target,d.workItemId,c.title,c.sourceId,c.previewId,c.parentSnapshotId);break;}
-        case 'boards.open': {const d=this.drafts.read(c.draftId);if(!d.html.includes(c.src))throw Error('BOARD_REFERENCE_MISSING');const boards=new Boards(this.store,this.assets);if(c.src.startsWith('polarion-asset:')){value=boards.byPreview(c.src.slice(15));if(!value)throw Error('BOARD_SOURCE_MISSING');}else{if(!(this.drafts.remote instanceof Polarion))throw Error('BOARD_READER_UNAVAILABLE');const result=await this.drafts.remote.call<any>({method:'board',target:d.target,workItemId:d.workItemId,src:c.src});value=boards.import(d.target,d.workItemId,result);}break;}
+        case 'boards.open': {const d=this.drafts.read(c.draftId),boards=new Boards(this.store,this.assets);if(c.src.startsWith('polarion-asset:')){const record=boards.byPreview(c.src.slice(15));if(!record)throw Error('BOARD_SOURCE_MISSING');value=boards.owned(d,record.manifest.objectId,record.manifest.snapshotId);}else{if(!d.html.includes(c.src))throw Error('BOARD_REFERENCE_MISSING');if(!(this.drafts.remote instanceof Polarion))throw Error('BOARD_READER_UNAVAILABLE');const result=await this.drafts.remote.call<any>({method:'board',target:d.target,workItemId:d.workItemId,src:c.src});value=boards.import(d.target,d.workItemId,result);}break;}
         case 'runs.cancel': this.engines.cancel(c.runId); value = { requested: true }; break;
         case 'permissions.answer': this.engines.answer(c.runId, c.permissionId, c.allow); value = { answered: true }; break;
         case 'interactions.answer': this.engines.interactions.answer(c.runId,c.interactionId,{action:c.action,values:c.values});value={answered:true};break;

@@ -1,0 +1,948 @@
+{
+  "date": "2026-11-04",
+  "status": "partial",
+  "scope": "实际已提供的编辑器功能；真实Polarion TEST-729；不包含未来完整飞书规格或AI执行链",
+  "environment": {
+    "tool": "ego-browser 2.2.0 / Ego Lite 0.6.2.7",
+    "space": 5,
+    "pages": [
+      "p1(reference untouched)",
+      "p2(real Polarion)",
+      "p9(diagnostics)"
+    ],
+    "draftId": "c0018417-317e-4aa3-bfd7-186ff85051f0",
+    "initialRevision": 238,
+    "finalRevision": 255,
+    "extensionId": "kmmphepmgnplcejfgiolhpfkgpcolcmp",
+    "hostRestarted": false,
+    "productSourceModified": false,
+    "currentDiagnosticsPage": "p10"
+  },
+  "cases": [
+    {
+      "id": "E01",
+      "feature": "画板原文件打开",
+      "input": "选中原画板→更多插入→继续编辑",
+      "expected": "载入可编辑源与原名称",
+      "actual": "原25°C/持续3s对象与原名称可见",
+      "status": "pass",
+      "evidence": [
+        "round-03.mjs",
+        "round-04.mjs",
+        "round-05.mjs",
+        "board-open-actual.png",
+        "board-original-read.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E02",
+      "feature": "画板本地恢复与返回",
+      "input": "改标题为 RELEASE-BOARD-20261104→返回→重开",
+      "expected": "本地改名保留，正文及远端不变",
+      "actual": "重开恢复标题；revision238 clean，远端未变",
+      "status": "pass",
+      "evidence": [
+        "round-06.mjs",
+        "board-return-read.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E03",
+      "feature": "画板对象编辑",
+      "input": "双击25°C文本→26.5°C · RELEASE",
+      "expected": "对象仍可编辑，预览反映新文本",
+      "actual": "实际canvas文字编辑成功",
+      "status": "pass",
+      "evidence": [
+        "round-08.mjs",
+        "round-09.mjs",
+        "board-edited.png"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E04",
+      "feature": "画板插入的写入边界",
+      "input": "点击插入正文草稿，尚未保存Polarion",
+      "expected": "仅本地dirty，远端不变",
+      "actual": "独立回读remoteUnchanged=true",
+      "status": "pass",
+      "evidence": [
+        "board-local-insert-summary.json",
+        "board-inserted-before-save.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E05",
+      "feature": "画板源/预览保存",
+      "input": "点击保存到Polarion→按钮恢复→独立回读",
+      "expected": "正文、新source、preview和manifest可读取",
+      "actual": "revision240 clean，localRemoteEqual=true，新source5187字节、preview74094字节",
+      "status": "pass",
+      "evidence": [
+        "round-09.mjs",
+        "board-save-summary.json",
+        "board-saved-readback.json",
+        "board-new-source-read.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E06",
+      "feature": "画板保存后立即重开",
+      "input": "保存后在同一编辑器选中新画板→继续编辑",
+      "expected": "重新打开新source",
+      "actual": "初验失败已在候选0.3.0真实复测通过，详情见latestRetest",
+      "status": "pass",
+      "evidence": [
+        "round-10.mjs",
+        "round-12.mjs",
+        "board-reopen-failure.json",
+        "board-reopened-after-save.png"
+      ],
+      "source": "executed-current",
+      "initialStatus": "fail",
+      "initialActual": "界面提示BOARD_REFERENCE_MISSING；同src的独立boards.open成功"
+    },
+    {
+      "id": "E07",
+      "feature": "图片属性取消",
+      "input": "现有图片说明改为RELEASE-CANCEL-ALT→Esc",
+      "expected": "取消改动并关闭弹层",
+      "actual": "原说明混合粘贴图片保留，popupClosed=true",
+      "status": "pass",
+      "evidence": [
+        "round-13.mjs",
+        "image-cancel-result.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E08",
+      "feature": "图片尺寸边界",
+      "input": "宽度填写-1→应用图片属性",
+      "expected": "非法值应拦截并提示",
+      "actual": "初验失败已在候选0.3.0真实复测通过，详情见latestRetest",
+      "status": "pass",
+      "evidence": [
+        "image-negative-width-before-apply.json",
+        "image-negative-width-result.json"
+      ],
+      "source": "executed-current",
+      "initialStatus": "fail",
+      "initialActual": "input.validity=false但应用按钮启用；点击关闭弹层，无提示，显示仍240px"
+    },
+    {
+      "id": "E09",
+      "feature": "图片文件上传",
+      "input": "实际文件选择器选择release-upload.png",
+      "expected": "图片载入正文，显示真实像素",
+      "actual": "新图1695×930 complete=true，原三图保持",
+      "status": "pass",
+      "evidence": [
+        "round-14.mjs",
+        "image-upload-result.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E10",
+      "feature": "图片属性写回",
+      "input": "上传图说明RELEASE-UPLOAD-ALT、宽320、居中→保存",
+      "expected": "服务端附件引用和属性保留",
+      "actual": "revision243 clean，读回width320、center style及alt",
+      "status": "pass",
+      "evidence": [
+        "image-upload-save-summary.json",
+        "image-upload-saved-readback.json",
+        "uploaded-image-saved.png"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E11",
+      "feature": "2×2表格粘贴",
+      "input": "在原4×4表格第2行第2列粘贴2×2 HTML/TSV",
+      "expected": "四值分布在目标四格，不损坏其它格",
+      "actual": "第2行PASTE-A/PASTE-B，第3行PASTE-C/PASTE-D；外侧格保留",
+      "status": "pass",
+      "evidence": [
+        "round-15.mjs",
+        "table-paste-result.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E12",
+      "feature": "表格粘贴撤销",
+      "input": "粘贴后Ctrl+Z",
+      "expected": "恢复25°C/允许请求/3s/稳定后切换",
+      "actual": "后续对照与最终恢复确认原格值",
+      "status": "pass",
+      "evidence": [
+        "round-15.mjs",
+        "mixed-diff.png",
+        "restoration-ui.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E13",
+      "feature": "图文混合剪贴板",
+      "input": "实际paste HTML：粗体首段+dataURI图片+黄底末段",
+      "expected": "文字、图片与格式并存",
+      "actual": "首尾文本、粗体和200px图片均存在，图片naturalWidth640",
+      "status": "pass",
+      "evidence": [
+        "round-15.mjs",
+        "mixed-paste-local.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E14",
+      "feature": "图文混合保存",
+      "input": "混合粘贴后明确保存→独立回读",
+      "expected": "文本和图片写回附件",
+      "actual": "revision246 clean，首尾文本保留，图片为workitemimg",
+      "status": "pass",
+      "evidence": [
+        "round-16.mjs",
+        "mixed-paste-save-summary.json",
+        "mixed-paste-saved-readback.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E15",
+      "feature": "阅读预览与对照",
+      "input": "切换阅读预览/修改对照，等待异步图片加载",
+      "expected": "预览及前后版本图片可见，标记新增块",
+      "actual": "对照两侧共9张图均complete且naturalWidth>0，没有保护占位；新增4处内容标识",
+      "status": "pass",
+      "evidence": [
+        "round-15.mjs",
+        "round-16.mjs",
+        "diff-image-final-state.json",
+        "diff-final-loaded.png"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E16",
+      "feature": "查找无匹配",
+      "input": "输入NO-SUCH-RELEASE-TEXT",
+      "expected": "0匹配并禁用导航/替换",
+      "actual": "显示未找到匹配；上一/下一/当前替换/全部替换均disabled",
+      "status": "pass",
+      "evidence": [
+        "round-17.mjs",
+        "search-boundaries.json",
+        "search-zero.png"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E17",
+      "feature": "查找区分大小写",
+      "input": "查询release-mixed；鼠标点复选框以及focus+Space",
+      "expected": "勾选后不匹配大写RELEASE-MIXED",
+      "actual": "初验失败已在候选0.3.0真实复测通过，详情见latestRetest",
+      "status": "pass",
+      "evidence": [
+        "round-17.mjs",
+        "round-19.mjs",
+        "round-20.mjs",
+        "search-case-toggle.json",
+        "search-case-keyboard.json",
+        "search-case-keyboard.png"
+      ],
+      "source": "executed-current",
+      "initialStatus": "fail",
+      "initialActual": "鼠标两轮与键盘均checked=false，仍2处匹配"
+    },
+    {
+      "id": "E18",
+      "feature": "非法链接拦截",
+      "input": "链接地址javascript:void(0)→应用",
+      "expected": "阻止写入并显示原因",
+      "actual": "提示请输入有效的网页或Polarion链接，弹层保留，无javascript href",
+      "status": "pass",
+      "evidence": [
+        "round-18.mjs",
+        "invalid-link-result.json",
+        "link-validation.png"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E19",
+      "feature": "本地备份下载",
+      "input": "实际点击导出当前编辑备份",
+      "expected": "下载可读的草稿备份",
+      "actual": "文件名TEST-729-local-edit.json，46382字节",
+      "status": "pass",
+      "evidence": [
+        "round-19.mjs",
+        "backup-export.json",
+        "ui-export-backup.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E20",
+      "feature": "空画板验证",
+      "input": "新空画板→插入正文草稿",
+      "expected": "拒绝并保留编辑能力",
+      "actual": "正确提示请先添加图形或文字；可返回正文",
+      "status": "pass",
+      "evidence": [
+        "round-21.mjs",
+        "board-empty-error-stable.png"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E21",
+      "feature": "空画板错误状态一致性",
+      "input": "空画板插入失败后等待",
+      "expected": "顶部状态终止处理提示",
+      "actual": "初验失败已在候选0.3.0真实复测通过，详情见latestRetest",
+      "status": "pass",
+      "evidence": [
+        "round-21.mjs",
+        "round-22.mjs",
+        "board-empty-390.png"
+      ],
+      "source": "executed-current",
+      "initialStatus": "fail",
+      "initialActual": "错误已显示，顶部仍是生成可编辑源文件和阅读预览…；390px挤为4行"
+    },
+    {
+      "id": "E22",
+      "feature": "真实撤销/连续保存与免刷新",
+      "input": "多次保存后实际撤销5步恢复初始正文，再明确保存",
+      "expected": "撤销历史仍可用、无导航、服务端恢复原文",
+      "actual": "revision251 clean；原3050字节HTML完全相等；document/body/iframe/iframeBody/editor/timeOrigin均同一，scrollDelta0",
+      "status": "pass",
+      "evidence": [
+        "round-27.mjs",
+        "round-28.mjs",
+        "round-29.mjs",
+        "restore-undo-sequence.json",
+        "restoration-local-equivalence.json",
+        "restoration-ui.json"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "E23",
+      "feature": "原生页面和画板恢复",
+      "input": "恢复后独立读回、原生正文检查、原画板重开",
+      "expected": "没有测试标记，原图原文字仍可用",
+      "actual": "原生/编辑器均无RELEASE标记；原画板名称及25°C内容恢复；最终3图均加载",
+      "status": "pass",
+      "evidence": [
+        "round-30.mjs",
+        "round-31.mjs",
+        "handoff-final.json",
+        "handoff-final-readback.json",
+        "restored-real-page.png"
+      ],
+      "source": "executed-current"
+    },
+    {
+      "id": "R01",
+      "feature": "字体、字号、行高",
+      "input": "Arial/宋体、18pt、行距2及撤销",
+      "expected": "编辑与原生整数pt默认排版核对",
+      "actual": "编辑与原生整数pt默认排版核对",
+      "status": "pass",
+      "evidence": [
+        "docs/单行工具栏与原生排版验收_20261104.md"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R02",
+      "feature": "文字格式",
+      "input": "删除线、上下标、清除格式及撤销",
+      "expected": "清除格式后撤销精确恢复来源HTML",
+      "actual": "清除格式后撤销精确恢复来源HTML",
+      "status": "pass",
+      "evidence": [
+        ".research/toolbar-typography-20261104/clear-format-regression.json"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R03",
+      "feature": "段落属性",
+      "input": "段前20、段后16、RGB底色",
+      "expected": "服务端HTML保留，原生任意margin/padding像素保真partial",
+      "actual": "服务端HTML保留，原生任意margin/padding像素保真partial",
+      "status": "partial",
+      "evidence": [
+        "docs/整体精修与富文本验收_20261104.md"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R04",
+      "feature": "列表与提示块",
+      "input": "标题4、无序/有序列表、引用、信息/备注/注意",
+      "expected": "逐项实际插入及撤销",
+      "actual": "逐项实际插入及撤销",
+      "status": "pass",
+      "evidence": [
+        "docs/整体精修与富文本验收_20261104.md"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R05",
+      "feature": "待办",
+      "input": "/task、勾选、Enter、Tab/Shift+Tab",
+      "expected": "2项与嵌套/反缩进、保存后原生勾选",
+      "actual": "2项与嵌套/反缩进、保存后原生勾选",
+      "status": "pass",
+      "evidence": [
+        "docs/单行工具栏与原生排版验收_20261104.md"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R06",
+      "feature": "内容块操作与大纲",
+      "input": "复制、上下移动、删除、大纲定位",
+      "expected": "次数1→2→1，标题定位",
+      "actual": "次数1→2→1，标题定位",
+      "status": "pass",
+      "evidence": [
+        "docs/单行工具栏与原生排版验收_20261104.md"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R07",
+      "feature": "链接/代码/分隔线",
+      "input": "插入链接、MATLAB语言代码、分隔线",
+      "expected": "实际插入与语言属性",
+      "actual": "实际插入与语言属性",
+      "status": "pass",
+      "evidence": [
+        "docs/单行工具栏与原生排版验收_20261104.md"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R08",
+      "feature": "查找替换与Esc",
+      "input": "阈值查找、单个/全部替换、撤销、正文焦点Esc",
+      "expected": "匹配2→1→0→2，Esc关闭",
+      "actual": "匹配2→1→0→2，Esc关闭",
+      "status": "pass",
+      "evidence": [
+        "docs/单行工具栏与原生排版验收_20261104.md"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R09",
+      "feature": "表格选区、行列、合并拆分",
+      "input": "行列全选、上下插行/左右插列/移动删除/合并拆分",
+      "expected": "16格全表，colspan4，撤销",
+      "actual": "16格全表，colspan4，撤销",
+      "status": "pass",
+      "evidence": [
+        "docs/单行工具栏与原生排版验收_20261104.md"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R10",
+      "feature": "表格与单元格属性",
+      "input": "RGB底色/无效颜色、表格/单元格属性",
+      "expected": "无效颜色拦截，原生4格同RGB",
+      "actual": "无效颜色拦截，原生4格同RGB",
+      "status": "pass",
+      "evidence": [
+        ".research/toolbar-typography-20261104/table-selection-properties.json"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R11",
+      "feature": "图片拖动与键盘缩放",
+      "input": "760→660拖动，760→750键盘，撤销",
+      "expected": "比例高度约305，撤销回760",
+      "actual": "比例高度约305，撤销回760",
+      "status": "pass",
+      "evidence": [
+        "docs/整体精修与富文本验收_20261104.md"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R12",
+      "feature": "原生交替保存及冲突处理",
+      "input": "侧边栏保存→原生26.5→26.4保存→对照/保留本地/再保存",
+      "expected": "独立回读及无旧基线误报，不整页刷新",
+      "actual": "独立回读及无旧基线误报，不整页刷新",
+      "status": "pass",
+      "evidence": [
+        "docs/整体精修与富文本验收_20261104.md"
+      ],
+      "source": "reused-current-evidence"
+    },
+    {
+      "id": "R13",
+      "feature": "工具栏响应式和键盘",
+      "input": "1440/1366/1024/768/390×3组，容器展开、Esc、End",
+      "expected": "15/15为48px单行，具名容器无溢出",
+      "actual": "15/15为48px单行，具名容器无溢出",
+      "status": "pass",
+      "evidence": [
+        ".research/toolbar-typography-20261104/final-layout-runtime.json"
+      ],
+      "source": "reused-current-evidence"
+    }
+  ],
+  "summary": {
+    "newExecuted": 23,
+    "newPassed": 19,
+    "newFailed": 4,
+    "reused": 13,
+    "initialNewPassed": 19,
+    "initialNewFailed": 4,
+    "currentNewPassed": 23,
+    "currentNewFailed": 0,
+    "fullMatrixRerun": false
+  },
+  "restoration": {
+    "revision": 255,
+    "state": "clean",
+    "equal": true,
+    "exactOriginal": false,
+    "sameDocument": true,
+    "sameBody": true,
+    "sameFrame": true,
+    "sameFrameBody": true,
+    "sameEditor": true,
+    "sameTimeOrigin": true,
+    "scrollDelta": 0,
+    "nativeNoTestMarkers": true,
+    "alerts": [],
+    "domEquivalent": true,
+    "originalLength": 3050,
+    "finalLength": 3050
+  },
+  "defects": [
+    {
+      "id": "D01",
+      "case": "E06",
+      "severity": "P2",
+      "title": "画板保存后同一会话立即重开失败",
+      "status": "fixed-and-real-retest-passed",
+      "initialStatus": "awaiting-fix-and-retest",
+      "retest": {
+        "id": "D01",
+        "status": "pass",
+        "input": "原画板改标题为热管理请求流程 · RETEST-030→插入→明确保存→同会话立即继续编辑",
+        "actual": "revision253 clean 独立回读一致；board overlay、标题与可编辑控件均出现，无BOARD_REFERENCE_MISSING",
+        "evidence": [
+          "retest-09.mjs",
+          "retest-10.mjs",
+          "retest-board-save-summary.json",
+          "retest-board-saved.json",
+          "retest-board-reopened.json",
+          "retest-board-reopened.txt",
+          "retest-board-reopened.png"
+        ]
+      }
+    },
+    {
+      "id": "D02",
+      "case": "E17",
+      "severity": "P2",
+      "title": "区分大小写复选框无法操作",
+      "status": "fixed-and-real-retest-passed",
+      "initialStatus": "awaiting-fix-and-retest",
+      "retest": {
+        "id": "D02",
+        "status": "pass",
+        "input": "查找IF（原文if）→鼠标点role=checkbox→Space",
+        "actual": {
+          "before": {
+            "checked": "false",
+            "status": "— / 1 处匹配"
+          },
+          "mouse": {
+            "checked": "true",
+            "status": "未找到匹配"
+          },
+          "keyboard": {
+            "checked": "false",
+            "status": "— / 1 处匹配"
+          }
+        },
+        "evidence": [
+          "retest-02.mjs",
+          "retest-case-sensitive.json",
+          "retest-case-sensitive.png"
+        ]
+      }
+    },
+    {
+      "id": "D03",
+      "case": "E08",
+      "severity": "P2",
+      "title": "图片非法尺寸缺少应用拦截/反馈",
+      "status": "fixed-and-real-retest-passed",
+      "initialStatus": "awaiting-fix-and-retest",
+      "retest": {
+        "id": "D03",
+        "status": "pass",
+        "input": "图片宽度-1/0/10000/1.5/320，最后Esc取消",
+        "actual": {
+          "results": [
+            {
+              "value": "-1",
+              "applyDisabled": true,
+              "heightPlaceholder": "自动"
+            },
+            {
+              "value": "0",
+              "applyDisabled": true,
+              "heightPlaceholder": "自动"
+            },
+            {
+              "value": "10000",
+              "applyDisabled": true,
+              "heightPlaceholder": "自动"
+            },
+            {
+              "value": "1.5",
+              "applyDisabled": true,
+              "heightPlaceholder": "自动"
+            },
+            {
+              "value": "320",
+              "applyDisabled": false,
+              "heightPlaceholder": "自动"
+            }
+          ]
+        },
+        "message": {
+          "visibleText": "图片属性说明宽度高度左对齐居中右对齐应用图片属性替换图片删除图片图片宽度和高度须为 1–9999 的整数，或留空使用原始比例。"
+        },
+        "evidence": [
+          "retest-04.mjs",
+          "retest-06.mjs",
+          "retest-11.mjs",
+          "retest-image-invalid-final.png"
+        ]
+      }
+    },
+    {
+      "id": "D04",
+      "case": "E21",
+      "severity": "P3",
+      "title": "空画板失败后仍显示生成中",
+      "status": "fixed-and-real-retest-passed",
+      "initialStatus": "awaiting-fix-and-retest",
+      "retest": {
+        "id": "D04",
+        "status": "pass",
+        "input": "空画板点插入正文草稿，390×900再次核对",
+        "actual": {
+          "statusReset": true,
+          "errorShown": true,
+          "noGenerating": true,
+          "viewport": {
+            "width": 390,
+            "height": 900
+          }
+        },
+        "evidence": [
+          "retest-07.mjs",
+          "retest-11.mjs",
+          "retest-empty-board-final-390.txt",
+          "retest-empty-board-final-390.png"
+        ]
+      }
+    }
+  ],
+  "visualReview": {
+    "basis": "taste-skill app-screens review; retained framed-sheet direction and independent floating workspaces; no new draw",
+    "reviewed": [
+      "图片属性",
+      "插入菜单",
+      "搜索/零结果",
+      "非法链接错误",
+      "阅读预览",
+      "修改对照",
+      "画板正常/编辑/空错误/390px"
+    ],
+    "findings": [
+      "画板Excalidraw选中工具、素材库、部分属性仍淡紫，与主深青灰主题不一致",
+      "画板header的◇色块与✦装饰符仍存在",
+      "图片高度输入框60px导致“保持比例”placeholder截断",
+      "空画板错误后生成中状态残留，390px挤成4行"
+    ],
+    "good": [
+      "检查范围内主操作无遮挡",
+      "预览与对照图片异步加载后均正常",
+      "插入菜单、查找、图片属性主次层级清楚",
+      "保持32px控件与48px工具栏；未改双浮窗布局"
+    ],
+    "inspector": "Not run: user requires only Ego; upstream inspector would launch a separate browser. Screenshots reviewed directly.",
+    "resolution": "本节初验发现已在候选0.3.0限定复测关闭；见latestRetest V01。"
+  },
+  "untested": [
+    "新格式的任意Polarion宏与复杂源HTML像素级保真",
+    "二进制系统剪贴板图片粘贴（本轮是实际HTML图文剪贴板）",
+    "图片文件选择器取消与超大/损坏文件",
+    "网络中断/Host重启/浏览器刷新中的保存恢复",
+    "长时负载、多浏览器、其它Polarion版本",
+    "AI提案/执行链，由另一Agent负责"
+  ],
+  "quality": {
+    "requirementAlignment": 5,
+    "coverage": 4,
+    "verifiability": 5,
+    "evidenceChain": 5,
+    "engineeringFit": 5,
+    "riskDisclosure": 5,
+    "handoff": 5
+  },
+  "notes": [
+    "初次读取快照时预览图尚未加载；不能把早期占位截图当作当前失败，最终以diff-image-final-state.json为准",
+    "round-04的错误等待selector及round-10的iframe等待属于自动化定位问题；实际新画板重开失败由独立截图/警报/boards.open回读确认",
+    "round-24/26的清理夹具API被STALE_DRAFT/IMAGE_IMPORT_REQUIRED拒绝，无成功变更；最终完全经UI撤销恢复并保存",
+    "HTML备份的真实格式是JSON，已按下载建议文件扩展名保存为ui-export-backup.json",
+    "测试产生的新远端附件保留于隔离TEST-729的历史中；正文已恢复原有引用，不删除历史附件"
+  ],
+  "latestRetest": {
+    "date": "2026-11-04",
+    "candidate": "0.3.0",
+    "status": "complete",
+    "scope": "仅四个已报告缺陷、画板视觉、恢复及保存连续性；未扩展至新AI整图功能",
+    "tool": "Ego only",
+    "taskSpace": 5,
+    "pages": [
+      "p1 untouched",
+      "p2 real Polarion",
+      "p10 diagnostics"
+    ],
+    "host": "PID62852 / deployment and restart by main agent before retest; tester did not deploy or restart",
+    "checks": [
+      {
+        "id": "D01",
+        "status": "pass",
+        "input": "原画板改标题为热管理请求流程 · RETEST-030→插入→明确保存→同会话立即继续编辑",
+        "actual": "revision253 clean 独立回读一致；board overlay、标题与可编辑控件均出现，无BOARD_REFERENCE_MISSING",
+        "evidence": [
+          "retest-09.mjs",
+          "retest-10.mjs",
+          "retest-board-save-summary.json",
+          "retest-board-saved.json",
+          "retest-board-reopened.json",
+          "retest-board-reopened.txt",
+          "retest-board-reopened.png"
+        ]
+      },
+      {
+        "id": "D02",
+        "status": "pass",
+        "input": "查找IF（原文if）→鼠标点role=checkbox→Space",
+        "actual": {
+          "before": {
+            "checked": "false",
+            "status": "— / 1 处匹配"
+          },
+          "mouse": {
+            "checked": "true",
+            "status": "未找到匹配"
+          },
+          "keyboard": {
+            "checked": "false",
+            "status": "— / 1 处匹配"
+          }
+        },
+        "evidence": [
+          "retest-02.mjs",
+          "retest-case-sensitive.json",
+          "retest-case-sensitive.png"
+        ]
+      },
+      {
+        "id": "D03",
+        "status": "pass",
+        "input": "图片宽度-1/0/10000/1.5/320，最后Esc取消",
+        "actual": {
+          "results": [
+            {
+              "value": "-1",
+              "applyDisabled": true,
+              "heightPlaceholder": "自动"
+            },
+            {
+              "value": "0",
+              "applyDisabled": true,
+              "heightPlaceholder": "自动"
+            },
+            {
+              "value": "10000",
+              "applyDisabled": true,
+              "heightPlaceholder": "自动"
+            },
+            {
+              "value": "1.5",
+              "applyDisabled": true,
+              "heightPlaceholder": "自动"
+            },
+            {
+              "value": "320",
+              "applyDisabled": false,
+              "heightPlaceholder": "自动"
+            }
+          ]
+        },
+        "message": {
+          "visibleText": "图片属性说明宽度高度左对齐居中右对齐应用图片属性替换图片删除图片图片宽度和高度须为 1–9999 的整数，或留空使用原始比例。"
+        },
+        "evidence": [
+          "retest-04.mjs",
+          "retest-06.mjs",
+          "retest-11.mjs",
+          "retest-image-invalid-final.png"
+        ]
+      },
+      {
+        "id": "D04",
+        "status": "pass",
+        "input": "空画板点插入正文草稿，390×900再次核对",
+        "actual": {
+          "statusReset": true,
+          "errorShown": true,
+          "noGenerating": true,
+          "viewport": {
+            "width": 390,
+            "height": 900
+          }
+        },
+        "evidence": [
+          "retest-07.mjs",
+          "retest-11.mjs",
+          "retest-empty-board-final-390.txt",
+          "retest-empty-board-final-390.png"
+        ]
+      },
+      {
+        "id": "V01",
+        "status": "pass",
+        "input": "查看正常画板/390错误状态/图片属性",
+        "actual": "深青/中性灰选中态；原◇和✦改为Lucide SVG图标；高度占位“自动”完整；390状态/按钮无挤压",
+        "evidence": [
+          "retest-board-theme.png",
+          "retest-board-reopened.png",
+          "retest-empty-board-final-390.png",
+          "retest-image-invalid-final.png"
+        ]
+      },
+      {
+        "id": "RESTORE",
+        "status": "pass",
+        "input": "UI撤销画板插入→明确保存→独立回读及原生检查",
+        "actual": {
+          "revision": 255,
+          "state": "clean",
+          "equal": true,
+          "exactOriginal": false,
+          "sameDocument": true,
+          "sameBody": true,
+          "sameFrame": true,
+          "sameFrameBody": true,
+          "sameEditor": true,
+          "sameTimeOrigin": true,
+          "scrollDelta": 0,
+          "nativeNoTestMarkers": true,
+          "alerts": [],
+          "domEquivalent": true,
+          "originalLength": 3050,
+          "finalLength": 3050
+        },
+        "evidence": [
+          "retest-10.mjs",
+          "retest-restored-readback.json",
+          "retest-restoration.json",
+          "retest-restoration-equivalence.json",
+          "retest-handoff-final.json"
+        ]
+      }
+    ],
+    "summary": {
+      "defectsRetested": 4,
+      "defectsPassed": 4,
+      "visualPassed": true,
+      "restorationPassed": true
+    },
+    "remainingKnownDefectsInRetestScope": 0,
+    "restoration": {
+      "revision": 255,
+      "state": "clean",
+      "equal": true,
+      "exactOriginal": false,
+      "sameDocument": true,
+      "sameBody": true,
+      "sameFrame": true,
+      "sameFrameBody": true,
+      "sameEditor": true,
+      "sameTimeOrigin": true,
+      "scrollDelta": 0,
+      "nativeNoTestMarkers": true,
+      "alerts": [],
+      "domEquivalent": true,
+      "originalLength": 3050,
+      "finalLength": 3050
+    },
+    "browserHandoff": {
+      "returned": true,
+      "taskSpaceFinished": false,
+      "newPages": 0,
+      "finalRevision": 255,
+      "state": "clean"
+    },
+    "limitations": [
+      "未执行新AI整图测试",
+      "既有任意宏、任意原生样式像素保真和其它明确未测边界保持；本次6个检查不代表全产品全量重跑"
+    ],
+    "notes": [
+      "第一次截图遇到窗口minimized，后续截图恢复并已补齐；不是最终阻塞",
+      "retest-board-empty-390.png实际为1695px图，不用于390验收；正确证据为retest-empty-board-final-390.png及记录width390的JSON",
+      "恢复HTML因属性次序不同而非逐字相同；3050字符长度相同，html-equivalence.ts判DOM等价true"
+    ]
+  },
+  "restorationInitial": {
+    "exactOriginal": true,
+    "domEquivalent": true,
+    "localRemoteEqual": true,
+    "state": "clean",
+    "revision": 251,
+    "sameDocument": true,
+    "sameBody": true,
+    "sameFrame": true,
+    "sameFrameBody": true,
+    "sameEditor": true,
+    "sameTimeOrigin": true,
+    "scrollDelta": 0,
+    "nativeNoTestMarkers": true,
+    "editorNoTestMarkers": true,
+    "nativeImageCount": 6,
+    "alerts": []
+  }
+}

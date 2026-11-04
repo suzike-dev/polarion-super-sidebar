@@ -1,0 +1,438 @@
+{
+  "date": "2026-11-04",
+  "environment": "ego TaskSpace 4 / real Polarion 21R2 / test01 TEST-729",
+  "automatedTests": {
+    "passed": 112,
+    "failed": 0
+  },
+  "deployment": {
+    "comparedFiles": 437,
+    "mismatches": 0
+  },
+  "cases": {
+    "final-save-evidence": {
+      "sameDocument": true,
+      "sameFrame": true,
+      "sameBody": true,
+      "sameEditor": true,
+      "sameChat": true,
+      "sameNavigation": true,
+      "scrollBefore": 250,
+      "scrollAfter": 250,
+      "nativeExpectedText": true,
+      "sync": "已写入 Polarion · 回读一致",
+      "alerts": []
+    },
+    "final-native-save-evidence": {
+      "nativeSaveAfterSidebar": true,
+      "noConflict": true,
+      "samePage": true,
+      "sameFrame": true
+    },
+    "final-restoration-evidence": {
+      "state": "clean",
+      "revision": 183,
+      "exactLocal": true,
+      "exactRemote": true
+    },
+    "insert-evidence": [
+      {
+        "query": "标题 4",
+        "before": 0,
+        "after": 1,
+        "restored": 0,
+        "pass": true
+      },
+      {
+        "query": "无序列表",
+        "before": 1,
+        "after": 2,
+        "restored": 1,
+        "pass": true
+      },
+      {
+        "query": "有序列表",
+        "before": 0,
+        "after": 1,
+        "restored": 0,
+        "pass": true
+      },
+      {
+        "query": "引用",
+        "before": 0,
+        "after": 1,
+        "restored": 0,
+        "pass": true
+      },
+      {
+        "query": "信息提示",
+        "before": 1,
+        "after": 2,
+        "restored": 1,
+        "pass": true
+      },
+      {
+        "query": "代码块",
+        "before": 1,
+        "after": 2,
+        "restored": 1,
+        "pass": true
+      },
+      {
+        "query": "分隔线",
+        "before": 0,
+        "after": 1,
+        "restored": 0,
+        "pass": true
+      }
+    ],
+    "extra-features-evidence": [
+      {
+        "operation": "备注提示",
+        "count": 1
+      },
+      {
+        "operation": "注意事项",
+        "count": 1
+      },
+      {
+        "operation": "复制内容块",
+        "occurrences": 2,
+        "selection": "协同验收记录：图文、色块与代码块保留可编辑结构。人工复核保留。"
+      },
+      {
+        "operation": "上移",
+        "occurrences": 2,
+        "selection": "协同验收记录：图文、色块与代码块保留可编辑结构。人工复核保留。"
+      },
+      {
+        "operation": "下移",
+        "occurrences": 2,
+        "selection": "协同验收记录：图文、色块与代码块保留可编辑结构。人工复核保留。"
+      },
+      {
+        "operation": "删除内容块",
+        "occurrences": 1,
+        "selection": "正在读取图片…"
+      },
+      {
+        "operation": "search",
+        "count": "— / 3 处匹配"
+      },
+      {
+        "operation": "replace-all",
+        "remaining": 0
+      },
+      {
+        "operation": "CtrlK link after immediate popup close",
+        "href": "https://www.feishu.cn/hc/zh-CN"
+      },
+      {
+        "operation": "task Enter and Tab",
+        "tasks": 2,
+        "nested": 1
+      },
+      {
+        "operation": "task ShiftTab",
+        "nested": 0
+      },
+      {
+        "operation": "task checkbox",
+        "checked": "true"
+      },
+      {
+        "operation": "task undo",
+        "tasks": 0
+      }
+    ],
+    "table-evidence": [
+      {
+        "label": "上方插入行",
+        "changed": {
+          "rows": 5,
+          "cols": 4,
+          "selected": 16,
+          "colspan": 1
+        },
+        "restored": {
+          "rows": 4,
+          "cols": 4,
+          "selected": 16,
+          "colspan": 1
+        }
+      },
+      {
+        "label": "下方插入行",
+        "changed": {
+          "rows": 5,
+          "cols": 4,
+          "selected": 16,
+          "colspan": 1
+        },
+        "restored": {
+          "rows": 4,
+          "cols": 4,
+          "selected": 16,
+          "colspan": 1
+        }
+      },
+      {
+        "label": "左侧插入列",
+        "changed": {
+          "rows": 4,
+          "cols": 5,
+          "selected": 20,
+          "colspan": 1
+        },
+        "restored": {
+          "rows": 4,
+          "cols": 4,
+          "selected": 16,
+          "colspan": 1
+        }
+      },
+      {
+        "label": "右侧插入列",
+        "changed": {
+          "rows": 4,
+          "cols": 5,
+          "selected": 20,
+          "colspan": 1
+        },
+        "restored": {
+          "rows": 4,
+          "cols": 4,
+          "selected": 16,
+          "colspan": 1
+        }
+      },
+      {
+        "label": "选择整行",
+        "rows": 4,
+        "cols": 4,
+        "selected": 4,
+        "colspan": 1
+      },
+      {
+        "label": "选择整列",
+        "rows": 4,
+        "cols": 4,
+        "selected": 4,
+        "colspan": 1
+      },
+      {
+        "label": "选择整张表格",
+        "rows": 4,
+        "cols": 4,
+        "selected": 16,
+        "colspan": 1
+      },
+      {
+        "label": "删除所选行",
+        "changed": {
+          "rows": 3,
+          "cols": 4,
+          "selected": 0,
+          "colspan": 1
+        },
+        "restored": {
+          "rows": 4,
+          "cols": 4,
+          "selected": 1,
+          "colspan": 1
+        }
+      },
+      {
+        "label": "删除所选列",
+        "changed": {
+          "rows": 4,
+          "cols": 3,
+          "selected": 1,
+          "colspan": 1
+        },
+        "restored": {
+          "rows": 4,
+          "cols": 4,
+          "selected": 1,
+          "colspan": 1
+        }
+      },
+      {
+        "label": "merge",
+        "rows": 4,
+        "cols": 1,
+        "selected": 1,
+        "colspan": 4
+      },
+      {
+        "label": "split",
+        "rows": 4,
+        "cols": 4,
+        "selected": 4,
+        "colspan": 1
+      },
+      {
+        "label": "restored",
+        "rows": 4,
+        "cols": 4,
+        "selected": 4,
+        "colspan": 1
+      }
+    ],
+    "color-save-evidence": {
+      "nativeColors": [
+        "rgb(230, 242, 248)",
+        "rgb(230, 242, 248)",
+        "rgb(230, 242, 248)",
+        "rgb(230, 242, 248)"
+      ],
+      "taskVisible": true,
+      "samePage": true,
+      "alerts": []
+    },
+    "paragraph-style-evidence": {
+      "editor": {
+        "fontFamily": "Arial, sans-serif",
+        "fontSize": "18px",
+        "lineHeight": "27px",
+        "paragraph": {
+          "lineHeight": "21px",
+          "marginTop": "20px",
+          "marginBottom": "16px",
+          "background": "rgb(230, 242, 248)"
+        }
+      },
+      "native": {
+        "fontFamily": "Arial, sans-serif",
+        "fontSize": "18.6667px",
+        "lineHeight": "28px",
+        "paragraph": null
+      },
+      "alerts": [],
+      "server": {
+        "exactReadback": true,
+        "font18px": true,
+        "familyArial": true,
+        "margin20": true,
+        "margin16": true,
+        "background": true
+      }
+    },
+    "image-resize-evidence": {
+      "before": {
+        "width": 760,
+        "height": 351.2708435058594,
+        "x": 987.5,
+        "y": 675.5625
+      },
+      "after": {
+        "width": 660,
+        "height": 305,
+        "style": "width: 660px; max-width: 100%; margin-left: auto; margin-right: auto; height: 305px;"
+      },
+      "restored": 760
+    },
+    "image-keyboard-evidence": {
+      "before": 760,
+      "after": 750,
+      "restored": 760
+    },
+    "responsive-evidence": [
+      {
+        "viewport": [
+          1024,
+          720
+        ],
+        "editor": {
+          "x": 18,
+          "y": 18,
+          "width": 519.6771240234375,
+          "height": 684,
+          "right": 537.6771240234375,
+          "bottom": 702,
+          "clientWidth": 518,
+          "scrollWidth": 518
+        },
+        "assistant": {
+          "x": 555.6771240234375,
+          "y": 18,
+          "width": 450.32293701171875,
+          "height": 684,
+          "right": 1006.0000610351562,
+          "bottom": 702,
+          "clientWidth": 449,
+          "scrollWidth": 449
+        },
+        "save": {
+          "x": 388.01043701171875,
+          "y": 660.3333740234375,
+          "width": 135,
+          "height": 34,
+          "right": 523.0104370117188,
+          "bottom": 694.3333740234375,
+          "clientWidth": 134,
+          "scrollWidth": 134
+        },
+        "toolbar": {
+          "x": 18.666667938232422,
+          "y": 146.6666717529297,
+          "width": 518.34375,
+          "height": 118,
+          "right": 537.0104179382324,
+          "bottom": 264.6666717529297,
+          "clientWidth": 518,
+          "scrollWidth": 518
+        }
+      },
+      {
+        "viewport": [
+          1280,
+          800
+        ],
+        "editor": {
+          "x": 18,
+          "y": 18,
+          "width": 775.6771240234375,
+          "height": 764,
+          "right": 793.6771240234375,
+          "bottom": 782,
+          "clientWidth": 774,
+          "scrollWidth": 774
+        },
+        "assistant": {
+          "x": 811.6771240234375,
+          "y": 18,
+          "width": 450.32293701171875,
+          "height": 764,
+          "right": 1262.0000610351562,
+          "bottom": 782,
+          "clientWidth": 449,
+          "scrollWidth": 449
+        },
+        "save": {
+          "x": 644.0104370117188,
+          "y": 736.6666870117188,
+          "width": 135,
+          "height": 34,
+          "right": 779.0104370117188,
+          "bottom": 770.6666870117188,
+          "clientWidth": 134,
+          "scrollWidth": 134
+        },
+        "toolbar": {
+          "x": 18.666667938232422,
+          "y": 154.6666717529297,
+          "width": 774.34375,
+          "height": 81,
+          "right": 793.0104179382324,
+          "bottom": 235.6666717529297,
+          "clientWidth": 774,
+          "scrollWidth": 774
+        }
+      }
+    ],
+    "runtime-evidence": {
+      "extensionRuntimeErrors": []
+    }
+  }
+}

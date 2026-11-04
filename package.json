@@ -1,6 +1,6 @@
 {
   "name": "polarion-super-sidebar",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -13,7 +13,6 @@
     "build:host": "node scripts/build-host.mjs",
     "build:extension": "wxt build apps/extension",
     "probe:richtext": "node scripts/probe-richtext.mjs",
-    "probe:polarion": "node scripts/probe-polarion.mjs",
     "probe:engines": "node scripts/probe-engines.mjs"
   },
   "dependencies": {

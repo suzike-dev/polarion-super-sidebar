@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { probeCli, requireDevelopmentProbe } from './probe-cli-paths.mjs';
+requireDevelopmentProbe();
 const cwd = path.resolve(import.meta.dirname, '..');
 const out = path.join(cwd, '.research/s1');
 await fs.mkdir(out, { recursive: true });
@@ -11,7 +13,8 @@ const secondPrompt = 'What was the exact test phrase in my previous message? Do 
 let summary;try {summary=JSON.parse(await fs.readFile(path.join(out,'engine-resume.json'),'utf8'));}catch {summary={ at: new Date().toISOString(), scope: 'two short inference turns per engine, restart then resume; no file or Polarion actions', engines: {} };}
 
 function startCodex() {
-  const child = spawn('C:/Users/Lenovo/AppData/Local/OpenAI/CodexCLI/0.142.5/codex.exe', ['app-server'], { cwd, windowsHide: true, stdio: ['pipe','pipe','pipe'] });
+  const cli = probeCli('codex');
+  const child = spawn(cli.command, [...cli.prefix, 'app-server'], { cwd, windowsHide: true, stdio: ['pipe','pipe','pipe'] });
   const pending = new Map(); let seq = 0; const messages = []; const watchers = new Set();
   const send = obj => child.stdin.write(JSON.stringify(obj) + '\n');
   const lines = readline.createInterface({ input: child.stdout });
@@ -50,7 +53,8 @@ async function codex() {
 function claudeTurn(prompt,sessionId) {
   return new Promise((resolve,reject)=>{
     const args=['-p',prompt,'--output-format','stream-json','--include-partial-messages','--verbose','--setting-sources','user,project,local'];if(sessionId)args.push('--resume',sessionId);
-    const at=Date.now();const child=spawn('C:/Users/Lenovo/AppData/Roaming/npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe',args,{cwd,windowsHide:true,stdio:['ignore','pipe','pipe']});
+    const cli=probeCli('claude');
+    const at=Date.now();const child=spawn(cli.command,[...cli.prefix,...args],{cwd,windowsHide:true,stdio:['ignore','pipe','pipe']});
     const kinds=new Set();let result;let init;
     const lines=readline.createInterface({input:child.stdout});
     lines.on('line',line=>{let obj;try{obj=JSON.parse(line);}catch{return;}kinds.add(obj.type+(obj.subtype?'/'+obj.subtype:''));if(obj.type==='system'&&obj.subtype==='init')init={session_id:obj.session_id,model:obj.model,tool_count:obj.tools?.length,mcp_count:obj.mcp_servers?.length,skill_count:obj.skills?.length,permission_mode:obj.permissionMode};if(obj.type==='result')result=obj;});

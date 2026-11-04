@@ -1,4 +1,9 @@
 const allowed = /^(?:color|background-color|font-size|font-family|font-weight|font-style|text-decoration|text-align|text-indent|vertical-align|line-height|width|min-width|max-width|height|padding(?:-[a-z]+)?|margin(?:-[a-z]+)?|border(?:-[a-z]+)?|border-collapse|border-spacing|white-space|break-inside|page-break-inside|list-style-type)\s*:/i;
+export function safeColor(value:unknown):string|null {
+  if(typeof value!=='string')return null;
+  const color=value.trim();
+  return /^(?:#(?:[a-f0-9]{3,4}|[a-f0-9]{6}|[a-f0-9]{8})|[a-z]+|(?:rgba?|hsla?)\([-+\d.,%\s/]*(?:deg|grad|rad|turn)?[-+\d.,%\s/]*\))$/i.test(color)?color:null;
+}
 export function safeStyle(input?: string | null) {
   return (input ?? '').split(';').filter(d => allowed.test(d.trim()) && !/[<>\\]|url\s*\(|expression|@|behavior/i.test(d)).join(';');
 }

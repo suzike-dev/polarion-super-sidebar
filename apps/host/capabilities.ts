@@ -2,6 +2,7 @@ import { query, type Query } from '@anthropic-ai/claude-agent-sdk';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CLAUDE, DATA } from './paths.ts';
+import {ensureDiagramDesign} from './diagram-design.ts';
 import { Store } from './store.ts';
 import type { Target, EngineCapabilities } from '../../packages/protocol/index.ts';
 export async function inspectRuntime(runtime: Query): Promise<EngineCapabilities> {
@@ -22,7 +23,7 @@ export class Capabilities {
     const task = this.discover(target).finally(() => this.pending.delete(key)); this.pending.set(key, task); return task;
   }
   private async discover(target: Target) {
-    const cwd = path.join(DATA, 'workspaces', target.projectId); await fs.mkdir(cwd, { recursive: true });
+    const cwd = path.join(DATA, 'workspaces', target.projectId); await fs.mkdir(cwd, { recursive: true });await ensureDiagramDesign(cwd);
     const abort = new AbortController(); let release!: () => void;
     const hold = new Promise<void>(resolve => { release = resolve; }); async function* input() { await hold; }
     const timer = setTimeout(() => { release(); abort.abort(); }, 35000);

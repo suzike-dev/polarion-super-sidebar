@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="440" viewBox="0 0 1280 440" role="img" aria-labelledby="title desc">
+  <title id="title">Polarion 超级侧边栏</title>
+  <desc id="desc">把 AI 带进工程需求现场。阅读、富文本编辑、画板协作、原文写回。Windows 开发版 0.2.6。</desc>
+  <rect width="1280" height="440" rx="16" fill="#f5f3ed"/>
+  <path d="M808 0H1264a16 16 0 0 1 16 16v408a16 16 0 0 1-16 16H808Z" fill="#182c34"/>
+  <g font-family="Segoe UI, Microsoft YaHei, sans-serif">
+    <path d="M58 43h25v5H58z" fill="#d46232"/>
+    <text x="94" y="51" font-size="14" font-weight="600" letter-spacing="2.5" fill="#63706e">NANJU / ENGINEERING TOOLS</text>
+    <text x="58" y="151" font-size="46" font-weight="700" letter-spacing="-1" fill="#182c34">Polarion 超级侧边栏</text>
+    <text x="60" y="212" font-size="28" fill="#40565b">把 AI 带进工程需求现场。</text>
+    <text x="60" y="259" font-size="19" fill="#697773">阅读 · 富文本编辑 · 画板协作 · 原文写回</text>
+    <path d="M60 330H744" stroke="#d5d9cf"/>
+    <text x="60" y="369" font-family="Consolas, monospace" font-size="20" fill="#182c34">v0.2.6</text>
+    <text x="164" y="368" font-size="15" fill="#68766f">DEVELOPMENT</text>
+    <path d="M326 350v25" stroke="#c7cec3"/>
+    <text x="350" y="368" font-size="16" fill="#40565b">Windows</text>
+    <text x="555" y="368" font-size="16" fill="#40565b">101 项自动测试通过</text>
+    <text x="849" y="52" font-size="12" letter-spacing="3" fill="#91a9ac">ONE SHARED WORKSPACE</text>
+    <rect x="868" y="93" width="261" height="228" rx="8" fill="#253e46" stroke="#527078"/>
+    <path d="M893 125h20m-20 8h29" stroke="#e4b18b" stroke-width="3"/>
+    <text x="940" y="134" font-family="Consolas, monospace" font-size="16" fill="#f3f3e9">WORK ITEM</text>
+    <path d="M893 161h208" stroke="#47616a"/>
+    <path d="M893 184h171m-171 20h195m-195 20h138" stroke="#91a9ac" stroke-width="5" opacity=".8"/>
+    <rect x="968" y="251" width="259" height="97" rx="8" fill="#d46232"/>
+    <path d="m995 273 5 10 10 5-10 5-5 10-5-10-10-5 10-5z" fill="#fff4de"/>
+    <text x="1025" y="288" font-size="18" font-weight="700" fill="#fff7ec">本地 AI · 共同编辑</text>
+    <text x="991" y="323" font-size="15" fill="#fff2df">上下文 → 草稿 → 审阅 → 保存</text>
+    <text x="849" y="394" font-size="16" letter-spacing="1" fill="#b5c6c5">工程内容，留在 Polarion。</text>
+  </g>
+</svg>

@@ -4,7 +4,8 @@ $source = Join-Path $root 'apps/extension/.output/chrome-mv3'
 $target = Join-Path $root 'spikes/extension'
 $backup = Join-Path $root 'spikes/s1-probe'
 if (!(Test-Path -LiteralPath (Join-Path $source 'manifest.json'))) { throw 'Build the extension first' }
-if (!(Test-Path -LiteralPath $backup)) { Copy-Item -LiteralPath $target -Destination $backup -Recurse }
+if ((Test-Path -LiteralPath $target) -and !(Test-Path -LiteralPath $backup)) { Copy-Item -LiteralPath $target -Destination $backup -Recurse }
+New-Item -ItemType Directory -Force -Path $target | Out-Null
 foreach ($file in (Get-ChildItem -LiteralPath $source)) { Copy-Item -LiteralPath $file.FullName -Destination $target -Recurse -Force }
 # Only obsolete S1 files; their original source is retained in the verified backup above.
 foreach ($name in @('probe.html','probe.js','context.js')) {

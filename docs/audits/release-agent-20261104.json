@@ -1,0 +1,808 @@
+{
+  "date": "2026-11-04",
+  "status": "partial",
+  "phase": "final-ready-awaiting-explicit-space7-ui-handoff",
+  "scope": "implemented Claude / Agent / Host / sidebar functions; isolated Polarion fixture only",
+  "fixture": {
+    "projectId": "test01",
+    "document": "Requirements/Sidebar_S1_20261103_0a72944c"
+  },
+  "constraints": [
+    "No browser operation before explicit UI handoff",
+    "Reuse Ego TaskSpace5",
+    "No product source writes, version changes, deploys, restarts or global config changes by this agent",
+    "No write to formal requirements",
+    "Only supported known implemented features can pass"
+  ],
+  "cases": [
+    {
+      "id": "AG-01",
+      "requirements": [
+        "AT-01",
+        "AT-37"
+      ],
+      "title": "Native Messaging / 版本",
+      "steps": "诊断页面与既有 Host health 对照 extension、Host、protocol 和连接状态",
+      "expected": "三个版本与协议可核对；安装目录与当前运行版本分开记录",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/final-ui-health.json"
+      ],
+      "result": "p10 Native Messaging真实往返；extension/Host0.3.0，protocol1，PID62852，结束running0。"
+    },
+    {
+      "id": "AG-02",
+      "requirements": [
+        "AT-02"
+      ],
+      "title": "侧栏模式和恢复",
+      "steps": "切大纲/AI/属性，收起重开，固定/取消大纲，拖动宽度",
+      "expected": "原生正文可读、状态保留，无重复常驻侧栏",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/sidebar-layout-settings.json",
+        ".research/release-20261104/agent/ui-handoff.json"
+      ],
+      "result": "大纲/AI/属性切换、固定大纲、原生属性入口恢复正文、收起重开和宽度拖动完成。"
+    },
+    {
+      "id": "AG-03",
+      "requirements": [
+        "AT-06"
+      ],
+      "title": "页面选区与输入区隔离",
+      "steps": "选择隔离文档文字，再选择 AI 输入框文字",
+      "expected": "业务选区生成来源卡片；AI输入框选区不污染业务上下文；不自动发模型请求",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/image-and-native-selection-ui.json",
+        ".research/release-20261104/agent/round-18.mjs",
+        ".research/release-20261104/agent/round-19.mjs"
+      ],
+      "result": "真实鼠标选择TEST729工程参数；输入框Ctrl+A没有污染业务选区。"
+    },
+    {
+      "id": "AG-04",
+      "requirements": [
+        "AT-07"
+      ],
+      "title": "右键选区入口",
+      "steps": "在隔离文档选区上使用右键引用",
+      "expected": "失焦后文字、工作项与目标保持准确",
+      "status": "unverified",
+      "evidence": [
+        ".research/release-20261104/agent/context-menu.png",
+        ".research/release-20261104/agent/round-22.mjs"
+      ],
+      "result": "真实选区右击后Ego未捕获浏览器原生菜单，未完成菜单入口点击；不判通过或产品失败。"
+    },
+    {
+      "id": "AG-05",
+      "requirements": [
+        "AT-08"
+      ],
+      "title": "固定上下文与跨工作项",
+      "steps": "固定 TEST-729 引用，再选择同一隔离文档另一工作项",
+      "expected": "卡片显示精确来源；固定项保留，新选区不串工作项",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json"
+      ],
+      "result": "固定TEST729后选择TEST728，两卡来源、工作项、固定状态均准确。"
+    },
+    {
+      "id": "AG-06",
+      "requirements": [
+        "AT-08"
+      ],
+      "title": "发送快照冻结",
+      "steps": "发送固定 A 与当前 B，运行时选择 C",
+      "expected": "本轮 user/context 记录仍为 A+B；C仅影响下一轮",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json",
+        ".research/release-20261104/agent/round-21.mjs"
+      ],
+      "result": "发送A+B后选second row；实际context工具/user事件仍冻结A+B。"
+    },
+    {
+      "id": "AG-07",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "Claude 冷启动与连续对话",
+      "steps": "新建隔离会话，记忆随机短语，再无工具追问",
+      "expected": "真实模型回答正确，native session ID连续；第二轮可观测 reused",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-continuous.json"
+      ],
+      "result": "冷启动13.146s回复READY；第二轮2.138s复述violet-pine-4791，reused=true且nativeId一致。provider为deepseek-flash[1m]经Claude Code。"
+    },
+    {
+      "id": "AG-08",
+      "requirements": [
+        "AT-26"
+      ],
+      "title": "会话切换与历史恢复",
+      "steps": "新建第二会话，切回首会话，刷新隔离页",
+      "expected": "项目内历史正确恢复，消息不丢、不重复、未运行不误报执行",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-mcp-restored.json",
+        ".research/release-20261104/agent/long-wait-denial-ui.json"
+      ],
+      "result": "两个会话切换；刷新恢复批准卡、清除边界和历史；返回等待15分钟的会话仍能拒绝。"
+    },
+    {
+      "id": "AG-09",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "运行反馈与日志",
+      "steps": "请求只读上下文和 node -p \"1+1\"，查看执行记录",
+      "expected": "连接、工具、结束状态及耗时可见；工具结果与展示一致",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-main.json",
+        ".research/release-20261104/agent/session-final-attachments.json"
+      ],
+      "result": "context、Bash、MCP、Write/Read真实工具/返回事件；UI连接、等待、完成/取消和耗时可见。"
+    },
+    {
+      "id": "AG-10",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "取消与恢复",
+      "steps": "启动受控等待，点击停止，随后发短消息",
+      "expected": "run=cancelled，停止后不继续执行；下一轮可用",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "30秒等待命令运行19.479s后取消，run=cancelled且无result完成事件；后续RECOVERED-20261104成功。"
+    },
+    {
+      "id": "AG-11",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "ask 允许与拒绝",
+      "steps": "请求无害本地命令，先拒绝，再重新请求并允许",
+      "expected": "权限卡与工具匹配；拒绝不执行；允许只执行该次；运行时权限不可改",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/long-wait-denial-ui.json",
+        ".research/release-20261104/agent/session-final-main.json"
+      ],
+      "result": "ask拒绝Bash无执行输出/无重试；MCP和清理测试文件分别允许本次并成功。运行中权限控件禁用。"
+    },
+    {
+      "id": "AG-12",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "auto 权限",
+      "steps": "在项目工作区请求受控文件草稿，再请求无害命令",
+      "expected": "工作区文件可自动批准，命令仍有权限交互；清理测试文件",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json",
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "auto自动批准项目工作区Write，Bash仍请求批准并实际返回2；受控文件经ask清理且独立确认不存在。"
+    },
+    {
+      "id": "AG-13",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "full 权限",
+      "steps": "仅请求 node -p \"1+1\"",
+      "expected": "无权限卡，输出2，工具与运行状态正确；结束恢复ask",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json",
+        ".research/release-20261104/agent/ui-handoff.json"
+      ],
+      "result": "full实际调用一次node -p \"1+1\"，输出2，无权限事件；最终恢复ask。"
+    },
+    {
+      "id": "AG-14",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "原生 AskUserQuestion",
+      "steps": "要求模型使用原生单选/多选问题；回答并观察",
+      "expected": "真实问题卡、必填校验、回答回到同一会话；回答内容不误记为独立任务",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/question-ui.json",
+        ".research/release-20261104/agent/session-final-main.json"
+      ],
+      "result": "真实单选/多选问题，必填空值被阻止；青色及温度+时间送回同会话并正确复述。"
+    },
+    {
+      "id": "AG-15",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "命令目录与键盘补全",
+      "steps": "打开目录、搜索/context，方向键与Tab补全",
+      "expected": "来源为本机；名称、描述、别名与计数正确，键盘可用",
+      "status": "failed-awaiting-retest",
+      "evidence": [
+        ".research/release-20261104/agent/round-04.mjs",
+        ".research/release-20261104/agent/round-05.mjs",
+        ".research/release-20261104/agent/session-context.json"
+      ],
+      "result": "精确/clear排在无关Skill后；/context不在目录，描述模糊匹配doc-coauthoring，Tab误替换并执行。主Agent修复后需重新部署复测。"
+    },
+    {
+      "id": "AG-16",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "原生 /context",
+      "steps": "通过输入框执行/context",
+      "expected": "原生输出可读且正常结束；不被包装为普通模型请求",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-context.json"
+      ],
+      "result": "直接/context（Escape关闭补全后发送）753ms返回真实表，localCommand=context、turns0。"
+    },
+    {
+      "id": "AG-17",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "原生 /clear 与本地输出",
+      "steps": "独立测试会话记录短语后/clear，再追问",
+      "expected": "清除事件/新原生会话ID/界面语义一致；本地命令输出不静默丢失",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/clear-ui.json",
+        ".research/release-20261104/agent/session-clear-after.json",
+        ".research/release-20261104/agent/session-final-main.json"
+      ],
+      "result": "/clear 5.558s产生reset和新nativeId；标题重置，旧4轮折叠保留；下一轮UNKNOWN且不回旧ID。清除后基础系统上下文3%，不是tokens归零。"
+    },
+    {
+      "id": "AG-18",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "Skill 真正执行",
+      "steps": "从目录选择只改写测试短文的human-writing Skill",
+      "expected": "有原生命令扩展/Skill执行证据与文本结果；仅目录出现不算通过",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-main.json"
+      ],
+      "result": "原生/human-writing实际command-expanded，5.017s改写并保留42 °C、3 s和触发条件。"
+    },
+    {
+      "id": "AG-19",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "MCP 状态与真实只读调用",
+      "steps": "查看实际已连接 MCP 及工具，执行可用无副作用只读工具",
+      "expected": "实际状态与工具一致；成功调用有结果；pending/failed不算通过",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/warm-capabilities-ui.json",
+        ".research/release-20261104/agent/session-mcp-restored.json"
+      ],
+      "result": "26个MCP显示21连接、5失败；sequential-thinking实际调用成功。只对该工具判执行通过。"
+    },
+    {
+      "id": "AG-20",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "Skills 重载 / MCP 重连",
+      "steps": "在存活会话执行重载及一个可用 MCP 重连",
+      "expected": "控件可达，实际 runtime动作返回；不改全局配置",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/warm-capabilities-ui.json",
+        ".research/release-20261104/agent/round-09.mjs"
+      ],
+      "result": "无活动run的热会话Skills重载和sequential-thinking重连实际成功；未等待整20分钟idle TTL。"
+    },
+    {
+      "id": "AG-21",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "上下文仪表",
+      "steps": "冷会话观察—，运行后查看明细并刷新",
+      "expected": "有真实tokens/有效窗口/分类/更新时间；未知不显示0；会话切换不串值",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/mcp-and-context-ui.json",
+        ".research/release-20261104/agent/clear-ui.json"
+      ],
+      "result": "冷启动—；运行后39k/1000k=4%，分类/时间可见；clear后基础3%，不显示为订阅额度。"
+    },
+    {
+      "id": "AG-22",
+      "requirements": [
+        "AT-29"
+      ],
+      "title": "文本/CSV附件",
+      "steps": "文件选择加入受控TXT/CSV，预览移除与重新添加，发送读取校验短语及单元格",
+      "expected": "元信息、解析状态、hash和读取事件对应实际内容",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json",
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "TXT/CSV选择、预览、移除和实际read_attachment读取，独有标识/0017保留；源hash未改。"
+    },
+    {
+      "id": "AG-23",
+      "requirements": [
+        "AT-29"
+      ],
+      "title": "图片附件",
+      "steps": "选择/拖入/剪贴板入口加入受控图片并询问可观察图案",
+      "expected": "卡片和预览可用，native-image-block与真实模型观察一致；拒绝需如实显示",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/image-and-native-selection-ui.json",
+        ".research/release-20261104/agent/image-input-methods.json",
+        ".research/release-20261104/agent/session-final-attachments.json"
+      ],
+      "result": "文件选择、CDP文件拖入、Windows图像剪贴板原生Ctrl+V均进入图像卡；选择图native-image-block实际识别红方/蓝圆/ALPHA27。拖入/粘贴仅测试入口。"
+    },
+    {
+      "id": "AG-24",
+      "requirements": [
+        "AT-29"
+      ],
+      "title": "Office/PDF附件",
+      "steps": "受控DOCX/XLSX/PPTX/PDF各一个，读取独有短语",
+      "expected": "区分本地提取与原生Read，解析范围明确，源文件hash不变",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/session-final-attachments.json",
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "DOCX/XLSX/PPTX经提取和read_attachment；PDF原生Read pages1成功；独有标识正确，不将D1缓存43当公式重算证明。源hash不变。"
+    },
+    {
+      "id": "AG-25",
+      "requirements": [
+        "AT-29"
+      ],
+      "title": "附件冻结与失败状态",
+      "steps": "发送后增删附件；加入损坏Office、空文件和越界文件",
+      "expected": "本轮仅发送时附件；失败不称已读取；错误不丢其他附件",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/round-13.mjs",
+        ".research/release-20261104/agent/round-14.mjs",
+        ".research/release-20261104/agent/round-15.mjs",
+        ".research/release-20261104/agent/round-16.mjs",
+        ".research/release-20261104/agent/session-final-attachments.json"
+      ],
+      "result": "损坏DOCX明确需原生解析，空/超过25MB被拒绝；有效附件保留。6文件运行中加PNG仅留下一轮，user事件没有后加附件。"
+    },
+    {
+      "id": "AG-26",
+      "requirements": [
+        "AT-27"
+      ],
+      "title": "设置读取",
+      "steps": "打开设置对照只读 settings.read",
+      "expected": "默认Claude、模型配置与服务端一致；本次不修改全局设置",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/sidebar-layout-settings.json",
+        ".research/release-20261104/agent/final-ui-health.json"
+      ],
+      "result": "UI设置与settings.read一致：defaultEngine=claude、claudeModel空、Codex禁用；未改设置。"
+    },
+    {
+      "id": "AG-27",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "AI共享草稿边界",
+      "steps": "仅对隔离测试短语生成本地草稿，核对原生正文未改",
+      "expected": "草稿可审阅，未点击保存前Polarion原文不变；恢复本地基线",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/ai-draft-before.json",
+        ".research/release-20261104/agent/ai-draft-after.json",
+        ".research/release-20261104/agent/ai-draft-restored.json",
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "TEST728 AI最小改写为revision7 dirty，编辑器可审阅，远端hash不变/原生页面无标记；恢复revision8 clean且原文精确一致，无保存调用。"
+    },
+    {
+      "id": "AG-28",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "原生能力错误与未接入状态",
+      "steps": "查看Codex与不支持原生交互入口",
+      "expected": "缺口明确；不能把硬编码错误、目录数量或未实现能力当通过",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/final-ui-health.json",
+        ".research/release-20261104/agent/sidebar-layout-settings.json"
+      ],
+      "result": "Codex明确not-integrated并禁用新选择，不报账号阻塞；MCP失败可见。URL elicitation未接入、第三方form未测，单列缺口。"
+    },
+    {
+      "id": "AG-29",
+      "requirements": [
+        "AT-37"
+      ],
+      "title": "安装注册与升级方案",
+      "steps": "只读读取注册、launcher、manifest、路径与卸载脚本",
+      "expected": "稳定ID匹配，路径存在，状态目录保留；升级与重启步骤明确",
+      "status": "pass-readonly",
+      "evidence": [
+        ".research/release-20261104/agent/install-readonly-evidence.json",
+        ".research/release-20261104/agent/host-readonly-evidence.json",
+        ".research/release-20261104/agent/final-ui-health.json"
+      ],
+      "result": "开发注册/launcher/manifest只读核验：Chrome有、Edge缺失。主Agent部署后实际p10为0.3.0；不算完整安装/卸载或跨浏览器通过。"
+    },
+    {
+      "id": "AG-30",
+      "requirements": [
+        "AT-38"
+      ],
+      "title": "侧栏键盘与焦点",
+      "steps": "键盘开关面板、选命令、发送、关闭、输入换行",
+      "expected": "功能可达，Escape/Tab行为合理；不触发原生误输入",
+      "status": "partial",
+      "evidence": [
+        ".research/release-20261104/agent/keyboard-ui.json",
+        ".research/release-20261104/agent/round-04.mjs"
+      ],
+      "result": "Enter实际发送，Shift+Enter换行，Escape关闭补全；Tab有AG-15缺陷。其余面板键盘可达性未穷尽。"
+    },
+    {
+      "id": "AG-31",
+      "requirements": [
+        "AT-28"
+      ],
+      "title": "长任务、侧栏隐藏和重载续订",
+      "steps": "受控等待期间收起重开；在等待批准时刷新后响应",
+      "expected": "隐藏不取消；事件完整恢复，原生会话继续；超过10分钟需专门证据",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/long-wait-denial-ui.json",
+        ".research/release-20261104/agent/session-mcp-restored.json",
+        ".research/release-20261104/agent/real-acceptance-evidence.json"
+      ],
+      "result": "图像任务收起重开未取消；批准等待时刷新可恢复；Bash等待14分59秒可答，整轮15分7秒。不是30分钟计算性能或20分钟idle测试。"
+    },
+    {
+      "id": "AG-32",
+      "requirements": [
+        "AT-40"
+      ],
+      "title": "范围与来源约束",
+      "steps": "对本轮固定上下文要求只读说明目标与来源",
+      "expected": "证据指向隔离夹具，不借外部MCP/Shell写Polarion，不伪造验证结论",
+      "status": "pass",
+      "evidence": [
+        ".research/release-20261104/agent/real-acceptance-evidence.json",
+        ".research/release-20261104/agent/ui-handoff.json"
+      ],
+      "result": "context回传固定隔离文档、TEST729/728和选区；未写正式需求或发送任何他人消息。"
+    }
+  ],
+  "findings": [
+    {
+      "id": "AG-F01",
+      "severity": "release-claim-blocker",
+      "status": "resolved-explicit-not-integrated",
+      "title": "Codex adapter short-circuits; current account rejection is not measured",
+      "evidence": [
+        "apps/host/engine.ts:99",
+        "apps/host/service.ts:18"
+      ],
+      "resolution": "Deployed health and UI explicitly show not integrated; no fresh account result inferred."
+    },
+    {
+      "id": "AG-F02",
+      "severity": "high",
+      "status": "repaired-unit-tested-and-real-ui-passed",
+      "title": "SDK local_command_output and conversation_reset frames are not handled",
+      "evidence": [
+        "apps/host/engine.ts message loop",
+        "node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts:5391",
+        "node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts:5544"
+      ],
+      "resolution": "Direct /context, /clear, changed ID/title, retained history and next turn passed. Result-less contracts remain regression coverage."
+    },
+    {
+      "id": "AG-F03",
+      "severity": "medium",
+      "status": "repaired-unit-tested-and-real-ui-passed",
+      "title": "Native capability controls use active run instead of pooled runtime connectivity",
+      "evidence": [
+        "apps/extension/ui/App.tsx passes running={!!active}",
+        "apps/extension/ui/CapabilitiesPanel.tsx disables reload/reconnect when !running",
+        "apps/host/engine.ts retains idle runtime for 20 minutes"
+      ],
+      "resolution": "Idle connected reload/reconnect controls and actual actions passed."
+    },
+    {
+      "id": "AG-F04",
+      "severity": "scope-gap",
+      "status": "confirmed-readonly",
+      "title": "Edge native host registration missing",
+      "evidence": [
+        ".research/release-20261104/agent/install-readonly-evidence.json"
+      ],
+      "resolution": "Three-browser acceptance remains unverified; do not claim six browser/engine combinations."
+    },
+    {
+      "id": "AG-F05",
+      "severity": "high",
+      "status": "confirmed-real-awaiting-deployed-retest",
+      "title": "Exact slash commands displaced by description fuzzy matches",
+      "reproduction": "Input /context then Tab changes to /doc-coauthoring; /clear ranks fourth.",
+      "resolution": "Parent repairing exact name/alias priority and raw Enter protection; new deployment needs real retest.",
+      "evidence": [
+        ".research/release-20261104/agent/round-04.mjs",
+        ".research/release-20261104/agent/session-context.json"
+      ]
+    },
+    {
+      "id": "AG-F06",
+      "severity": "low",
+      "status": "observed-real",
+      "title": "/clear successful empty result uses generic no-answer fallback",
+      "resolution": "Prefer explicit reset success/no-text output message.",
+      "evidence": [
+        ".research/release-20261104/agent/clear-ui.json"
+      ]
+    },
+    {
+      "id": "AG-F07",
+      "severity": "medium",
+      "status": "observed-real",
+      "title": "Session switch displays next-turn permission mode rather than current active-run mode",
+      "reproduction": "Start ask Bash wait in session A, run auto task in session B, switch to waiting A: selector stays auto and disabled although A correctly waits for ask approval.",
+      "resolution": "Display active.permissionMode for an active run or clearly label current versus next-turn permission. No permission bypass observed.",
+      "evidence": [
+        ".research/release-20261104/agent/round-31.mjs",
+        ".research/release-20261104/agent/long-wait-denial-ui.json"
+      ]
+    },
+    {
+      "id": "AG-F08",
+      "severity": "medium",
+      "status": "code-repaired-targeted-tests-pass-real-ui-pending",
+      "title": "Pre-reset context usage can overwrite post-reset usage on the same runtime",
+      "reproduction": "Import actual ContextUsageCache; start deferred read; disconnect while keeping same Query; complete new read(100) then old read(99000); final cache is99000.",
+      "resolution": "Per-session generation/epoch must guard pending refresh writes, including same-runtime conversation_reset.",
+      "evidence": [
+        ".research/release-20261104/agent/review-context-reset-race.mjs",
+        ".research/release-20261104/agent/review-context-reset-race.json",
+        ".research/release-20261104/agent/final-code-repairs-evidence.json"
+      ]
+    },
+    {
+      "id": "AG-F09",
+      "severity": "medium",
+      "status": "code-repaired-targeted-tests-pass-real-ui-pending",
+      "title": "MCP form empty numeric/boolean controls are converted into valid values",
+      "reproduction": "NativeInteraction number input onChange Number(empty string)=0; boolean empty option value is mapped to false. Required validation therefore no longer sees an absent answer.",
+      "resolution": "Delete answer key for empty values; convert only nonempty inputs; add focused regression. Real MCP provider form remains unverified.",
+      "evidence": [
+        "apps/extension/ui/NativeInteraction.tsx",
+        "apps/host/interactions.ts",
+        ".research/release-20261104/agent/final-code-repairs-evidence.json"
+      ]
+    },
+    {
+      "id": "AG-F10",
+      "severity": "medium",
+      "status": "code-repaired-targeted-tests-pass-real-ui-pending",
+      "title": "Explicitly denied tool remains unknown in execution log",
+      "reproduction": "Real run669e0092-6b3b-4a75-8d94-84918c3708df has permission-result allow=false but no tool-result. activitySteps returns unknown and UI says no result received.",
+      "resolution": "Correlate options.toolUseID to explicit rejection/cancellation outcome; retest with the single planned ask-denial task.",
+      "evidence": [
+        ".research/release-20261104/agent/review-existing-results.json",
+        "apps/extension/lib/activity.ts",
+        "apps/host/engine.ts",
+        ".research/release-20261104/agent/final-code-repairs-evidence.json"
+      ]
+    }
+  ],
+  "unimplementedOrSeparate": [
+    "Codex adapter and Codex context statistics: not integrated; account inference not retested",
+    "MCP URL elicitation/login flow: mcpForm returns MCP_URL_DIALOG_NOT_IMPLEMENTED; third-party form elicitation requires real provider fixture",
+    "Session archive/restore management and manually naming existing sessions have no UI entry; first-message auto-title and history switching are implemented",
+    "Cross-project/cross-document navigation is outside this isolated-document-only UI slot; no equivalent pass from same-document cross-work-item test",
+    "All discovered Skills/MCP/terminal commands cannot be equated with end-to-end support; only individually exercised paths pass",
+    "Native full property/workflow editing is not implemented in assistant; current properties panel exposes workspace info, shared drafts and native sidebar restoration",
+    "Official installer/automatic update/uninstall data-selection UI is not delivered; development registration scripts only",
+    "Full 40-case v0.1 product acceptance, electronic workbook, complete LiveDoc operations and three-browser/dual-engine matrix are separate unfinished scope",
+    "15-minute permission wait verified; 30-minute compute/large-table performance and exact idle-pool TTL remain unverified",
+    "Browser native context-menu command entry unverified; ordinary selection is not equivalent",
+    "New diagram-design / complex diagrams handled by parent after UI handoff, not covered here"
+  ],
+  "readonlyEvidence": ".research/release-20261104/agent/host-readonly-evidence.json",
+  "quality": {
+    "requirements": 5,
+    "completeness": 4,
+    "verifiability": 5,
+    "evidenceChain": 5,
+    "engineering": 4,
+    "riskExposure": 5,
+    "handoff": 5,
+    "limits": "Failed, partial, unverified and read-only cases remain; not full-product release approval."
+  },
+  "codeRepairs": {
+    "at": "2026-11-04T00:20:06.378Z",
+    "status": "unit-and-selected-real-ui-passed",
+    "sourceFiles": [
+      "apps/host/engine.ts",
+      "apps/host/engine.test.ts",
+      "apps/extension/ui/App.tsx",
+      "apps/extension/ui/CapabilitiesPanel.tsx",
+      "apps/extension/lib/session-events.ts",
+      "apps/extension/lib/session-events.test.ts",
+      "packages/protocol/index.ts"
+    ],
+    "contracts": [
+      "SDK 0.3.316 local_command_output and conversation_reset declared types",
+      "Installed Claude CLI emits command_lifecycle(command_uuid,state); SDK readMessages passes frames through",
+      "SDK session_state_changed idle is an explicit runtime end signal"
+    ],
+    "behavior": [
+      "Preserve local-command-output and assistant-block answers when result text is empty",
+      "Correlate user uuid=run.id; accept only matching command lifecycle",
+      "Reset nativeId/title and context-usage cache; stale init/result cannot restore the old ID",
+      "Keep SQLite history and collapse pre-reset transcript in UI; remount context meter at reset boundary",
+      "Retire result-less command streams so optional trailing result cannot mix into next turn; resume latest nativeId",
+      "Use capability connected field for idle warm runtime controls; guard stale capability responses on session switches"
+    ],
+    "tests": {
+      "command": "node --test apps/host/engine.test.ts apps/extension/lib/session-events.test.ts",
+      "passed": 14,
+      "failed": 0,
+      "hostTypecheck": "passed",
+      "extensionTypecheck": "passed",
+      "realBrowser": "Direct /context and /clear plus next turn/history; idle reload/reconnect passed"
+    },
+    "limitations": [
+      "No deploy, Host restart or browser interaction in this code-repair step",
+      "Unknown or failed/cancelled command lifecycle is not passed",
+      "No timeout is used to claim command success",
+      "Result-less local command completion releases its runtime; next turn resumes instead of warm reuse"
+    ]
+  },
+  "realEnvironment": {
+    "egoSpace": 5,
+    "pages": [
+      "p2",
+      "p10"
+    ],
+    "version": "0.3.0",
+    "hostPid": 62852,
+    "model": "deepseek-flash[1m] via local Claude Code",
+    "evidence": ".research/release-20261104/agent/real-acceptance-evidence.json",
+    "counts": {
+      "total": 19,
+      "completed": 18,
+      "cancelled": 1,
+      "active": 0
+    }
+  },
+  "summary": {
+    "pass": 28,
+    "unverified": 1,
+    "failed-awaiting-retest": 1,
+    "pass-readonly": 1,
+    "partial": 1
+  },
+  "handoff": {
+    "at": 1793754605072,
+    "active": false,
+    "contextCount": 0,
+    "attachmentCount": 0,
+    "permission": "ask",
+    "input": "",
+    "width": "450.323px",
+    "evidence": ".research/release-20261104/agent/ui-handoff.json",
+    "drafts": [
+      {
+        "id": "c0018417-317e-4aa3-bfd7-186ff85051f0",
+        "workItemId": "TEST-729",
+        "revision": 255,
+        "state": "clean"
+      },
+      {
+        "id": "e9302023-ad07-42d8-b0a7-9c622698e915",
+        "workItemId": "TEST-728",
+        "revision": 8,
+        "state": "clean"
+      }
+    ],
+    "temporaryFileRemoved": true,
+    "uiReturnedToParent": true
+  },
+  "finalReview": {
+    "at": "2026-11-04T01:30:57.970Z",
+    "status": "source-rechecked-ui-handoff-pending",
+    "uiNotTouched": true,
+    "sourceNotModified": true,
+    "plan": ".research/release-20261104/agent/final-ui-retest-plan.md",
+    "existingResultsReview": ".research/release-20261104/agent/review-existing-results.json",
+    "newIssues": [
+      "AG-F08",
+      "AG-F09",
+      "AG-F10"
+    ],
+    "expectedNewRunsAtMost": 5,
+    "portableScopeDelegated": true,
+    "performanceBoundary": "Representative composer and existing 44k-character reply only; full AT-39 stress not covered",
+    "historicalMatrixPreserved": true,
+    "uiSurface": {
+      "space": 7,
+      "polarion": "p1",
+      "diagnostics": "p4",
+      "priorSpace5": "gone; no further operation",
+      "owner": "board_generation until explicit root handoff",
+      "reportedHostPid": 57596,
+      "reportedFullTestsPassed": 163,
+      "independentlyQueriedRuntime": false
+    }
+  },
+  "finalCodeRepairs": {
+    "at": "2026-11-04T01:47:51.111Z",
+    "status": "code-fixed-targeted-tests-pass-real-ui-pending",
+    "issues": [
+      "AG-F08",
+      "AG-F09",
+      "AG-F10"
+    ],
+    "sourceFiles": [
+      "apps/host/context-usage.ts",
+      "apps/host/context-usage.test.ts",
+      "apps/host/engine.ts",
+      "apps/host/engine.test.ts",
+      "apps/extension/ui/NativeInteraction.tsx",
+      "apps/extension/lib/interaction-values.ts",
+      "apps/extension/lib/interaction-values.test.ts"
+    ],
+    "testsPassed": 18,
+    "testsFailed": 0,
+    "hostTypecheck": "passed",
+    "extensionTypecheck": "passed",
+    "diffCheck": "passed",
+    "evidence": ".research/release-20261104/agent/final-code-repairs-evidence.json",
+    "fixture": {
+      "path": ".research/release-20261104/agent/mcp-form-fixture/server.mjs",
+      "transportSmoke": "passed",
+      "globalOrProjectMcpActivated": false
+    },
+    "cleanup": {
+      "status": "blocked-by-automatic-approval",
+      "path": "E:\\Agentic_Engineering\\Codex\\Polarion 超级侧边栏工具开发\\.research\\release-20261104\\agent\\test-runtime",
+      "reason": "blocked by policy; no detailed reason returned",
+      "attempts": "Initial computed-path guarded cleanup and separate literal-path cleanup were both rejected; no workaround attempted.",
+      "globalConfigChanged": false
+    }
+  },
+  "evidenceStorage": {
+    "repositoryAudit": "docs/audits/release-agent-20261104.json",
+    "rawResearch": "local-only, gitignored",
+    "includedInReleasePackage": false
+  }
+}

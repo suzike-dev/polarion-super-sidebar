@@ -3,6 +3,17 @@ import assert from 'node:assert/strict';
 import { Store } from './store.ts';
 import { Drafts, type RemoteItem } from './polarion.ts';
 const target = { origin: 'https://polarion.pufafen.com' as const, projectId: 'test01', document: 'Requirements/Fixture' };
+test('an open rich editor survives normalized save, undo, image alias and a second save',async()=>{
+ const store=new Store(':memory:');let item:RemoteItem={id:'T-1',title:'x',description:'<p>base</p>',updated:'1'},writes=0;
+ const id=crypto.randomUUID();const drafts=new Drafts(store,{read:async()=>({...item}),save:async d=>{writes++;const html=d.html.replaceAll('polarion-asset:'+id,'workitemimg:saved.png');item={...item,description:html,updated:String(writes+1)};return{...item,submittedHtml:html,uploadedAssets:[{localId:id,attachmentId:'saved.png',sha256:'test'}]};}});
+ const d=await drafts.open(target,'T-1'),rich=drafts.richRead(d.id),edited=structuredClone(rich.document);edited.content![0]!.content!.push({type:'image',attrs:{assetId:id,src:'polarion-asset:'+id,alt:'image'}});
+ const applied=drafts.richApply(d.id,rich.editorId,d.revision,edited),saved=await drafts.save(d.id,applied.revision,'clean');
+ assert.equal(drafts.richApply(d.id,rich.editorId,saved.revision,edited).state,'clean');
+ const undo=drafts.richApply(d.id,rich.editorId,saved.revision,rich.document);assert.equal(undo.state,'dirty');
+ const redo=drafts.richApply(d.id,rich.editorId,undo.revision,edited);assert.equal(redo.state,'clean');
+ edited.content![0]!.content![0]!.text='next';const next=drafts.richApply(d.id,rich.editorId,redo.revision,edited);assert.match(next.html,/workitemimg:saved.png/);assert.doesNotMatch(next.html,/polarion-asset:/);
+ const second=await drafts.save(d.id,next.revision,'clean');assert.equal(second.state,'clean');assert.equal(writes,2);store.close();
+});
 test('image container write can reconcile a lost response without a second remote write',async()=>{
  const store=new Store(':memory:');let item={id:'T-1',title:'x',description:'<h2>base</h2><p style="background-color:#fef3c7"><img src="workitemimg:existing.png"></p>',updated:'1'},writes=0;
  const drafts=new Drafts(store,{read:async()=>({...item}),save:async draft=>{writes++;item={...item,description:draft.html,updated:'2'};throw Error('RESPONSE_LOST');}});

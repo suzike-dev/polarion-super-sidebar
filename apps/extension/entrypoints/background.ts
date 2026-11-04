@@ -1,6 +1,7 @@
 import { defineBackground } from 'wxt/utils/define-background';
 import { browser } from 'wxt/browser';
 import { RequestSchema, routeFromUrl, ContextSchema, type Reply } from '../../../packages/protocol/index';
+import {nativeWorkItemRefresh} from '../lib/native-refresh';
 export default defineBackground(() => {
   let port: ReturnType<typeof browser.runtime.connectNative> | undefined;
   const pending = new Map<string, { resolve: (v: Reply) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
@@ -28,6 +29,10 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message, sender) => {
     if (sender.id !== browser.runtime.id) return;
     const target = routeFromUrl(sender.tab?.url ?? '');
+    if(message?.type==='native-workitem-refresh'&&target&&sender.frameId===0&&sender.tab?.id){
+      if(!/^[\w-]+$/.test(message.workItemId)||!['check','refresh'].includes(message.phase)||(message.expectedHtml!==undefined&&(typeof message.expectedHtml!=='string'||message.expectedHtml.length>2_000_000)))return Promise.resolve({ok:false,error:'INVALID_NATIVE_REFRESH'});
+      return browser.scripting.executeScript({target:{tabId:sender.tab.id,frameIds:[0]},world:'MAIN',func:nativeWorkItemRefresh,args:[{href:sender.tab.url!,workItemId:message.workItemId,phase:message.phase,expectedHtml:message.expectedHtml}]}).then(results=>results[0]?.result??{ok:false,error:'NATIVE_REFRESH_FAILED'});
+    }
     if (message?.type === 'selection' && target && sender.tab?.id) {
       const result = ContextSchema.safeParse({ ...message.context, target }); if (!result.success) return;
       const context = result.data; void browser.storage.session.set({ ['selection:' + sender.tab.id]: context });

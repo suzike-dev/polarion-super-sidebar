@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import type { Context, Draft, Run, RunEvent, Session, Target, Asset, PermissionMode } from '../../packages/protocol/index.ts';
-import { sameTarget, SettingsSchema } from '../../packages/protocol/index.ts';
+import { sameTarget, SettingsSchema, DEFAULT_PERMISSION_MODE } from '../../packages/protocol/index.ts';
 
 export class Store {
   readonly db: DatabaseSync;
@@ -36,7 +36,7 @@ export class Store {
   events(sessionId: string, after: number): RunEvent[] {
     return this.db.prepare('SELECT * FROM events WHERE session_id=? AND seq>? ORDER BY seq LIMIT 120').all(sessionId, after).map(r => ({ seq: Number(r.seq), sessionId: String(r.session_id), runId: String(r.run_id), kind: String(r.kind), data: JSON.parse(String(r.data)), at: Number(r.at) }));
   }
-  startRun(sessionId: string, requestId: string, prompt: string, contexts: Context[], selectedTarget?: Target, attachments: string[] = [], permissionMode:PermissionMode = 'ask') {
+  startRun(sessionId: string, requestId: string, prompt: string, contexts: Context[], selectedTarget?: Target, attachments: string[] = [], permissionMode:PermissionMode = DEFAULT_PERMISSION_MODE) {
     const session = this.require<Session>('session', sessionId);
     const target = selectedTarget ?? session.target;
     const prior = this.db.prepare('SELECT run_id FROM requests WHERE id=?').get(requestId);

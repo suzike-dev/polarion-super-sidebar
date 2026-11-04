@@ -35,7 +35,7 @@ export function navigateHeading(index: number) { try { documentFrame()?.contentD
 export function contentFingerprint(body: HTMLElement) {
   const copy = body.cloneNode(true) as HTMLElement;
   // These exact elements are observed Polarion decorations, not requirement content.
-  copy.querySelectorAll('.polarion-dle-workitem-icon-container-decorations').forEach(n => n.remove());
+  copy.querySelectorAll('.polarion-dle-workitem-icon-container-decorations,.polarion-dle-workitem-icon-container').forEach(n => n.remove());
   copy.querySelectorAll('[last_known_index]').forEach(n => n.removeAttribute('last_known_index'));
   copy.querySelectorAll<HTMLElement>('[id^="polarion_wiki macro name=module-workitem;"]').forEach(n => {
     const classes = [...n.classList].filter(c => !c.startsWith('polarion-dle-workitem-'));
@@ -58,9 +58,29 @@ export function contentFingerprint(body: HTMLElement) {
   });
   return copy.innerHTML;
 }
+/** Accept only an observed lazy placeholder becoming the same rendered work item.
+ * Everything else (including already loaded items and interstitial prose) must match.
+ * Called only with no native input and an explicitly disabled native Save button.
+ */
+function matchesLazyLoad(baseline: string, current: string, doc: Document) {
+  const before = doc.createElement('template'), after = doc.createElement('template');
+  before.innerHTML = baseline; after.innerHTML = current;
+  const rendered = new Map([...after.content.querySelectorAll<HTMLElement>('[id^="polarion_wiki macro name=module-workitem;"]')].map(n => [n.id, n]));
+  let loaded = false;
+  for (const placeholder of before.content.querySelectorAll<HTMLElement>('[name="wi-placeholder"][contenteditable="false"]')) {
+    if (!placeholder.id.startsWith('polarion_wiki macro name=module-workitem;')) continue;
+    const item = rendered.get(placeholder.id);
+    if (!item || item.hasAttribute('name') || item.getAttribute('contenteditable') === 'false' ||
+      !item.querySelector('[id="polarion_editor_fields_container_start"]') ||
+      !item.querySelector('[id="polarion_editor_fields_container_end"]')) continue;
+    placeholder.replaceWith(item.cloneNode(true)); loaded = true;
+  }
+  return loaded && before.innerHTML === after.innerHTML;
+}
 export class NativeState {
   private doc?: Document; private baseline?: string; private candidate?: string; private edited = false;
-  private onInput = () => { this.edited = true; };
+  private inputEpoch=0;
+  private onInput = () => { this.edited = true;this.inputEpoch++; };
   bind() {
     const next = documentFrame()?.contentDocument; if (!next) return;
     if (this.doc !== next) {
@@ -74,12 +94,41 @@ export class NativeState {
     }
   }
   state(): 'clean' | 'dirty' | 'unknown' {
-    this.bind(); if (!this.doc || !this.baseline) return 'unknown';
+    this.bind();
     if (this.edited) return 'dirty';
+    if (!this.doc || !this.baseline) return 'unknown';
     // A DOM baseline is supplementary; the server is always reread independently.
-    const save = document.querySelector('[title="保存"]');
-    if (save && !/disabled/i.test(save.className) && save.getAttribute('aria-disabled') !== 'true') return 'unknown';
-    return contentFingerprint(this.doc.body) === this.baseline ? 'clean' : 'unknown';
+    const save = document.querySelector('#gwt-debug-toolbar-save[title="保存"]');
+    const saveDisabled = !!save && (/disabled/i.test(save.className) || save.getAttribute('aria-disabled') === 'true');
+    if (save && !saveDisabled) return 'unknown';
+    const current = contentFingerprint(this.doc.body);
+    if (current === this.baseline) return 'clean';
+    if (saveDisabled && matchesLazyLoad(this.baseline, current, this.doc)) {
+      this.baseline = current;
+      return 'clean';
+    }
+    return 'unknown';
+  }
+  acceptDocumentRefresh(){
+    if(this.edited||!this.doc||!this.baseline)throw Error('NATIVE_EDITOR_DIRTY');
+    if(documentFrame()?.contentDocument!==this.doc)throw Error('NATIVE_DOCUMENT_CHANGED');
+    const save=document.getElementById('gwt-debug-toolbar-save');if(!save?.className.includes('Button-disabled'))throw Error('NATIVE_EDITOR_UNKNOWN');
+    // Called only after the MAIN-world adapter has adopted and verified the
+    // authoritative native model, with native input blocked for the save.
+    this.baseline=contentFingerprint(this.doc.body);
+  }
+  captureVerification(){
+    this.bind();
+    return {doc:this.doc,epoch:this.inputEpoch,html:this.doc?.body?contentFingerprint(this.doc.body):undefined};
+  }
+  acceptVerifiedClean(snapshot:ReturnType<NativeState['captureVerification']>){
+    // Only called after the pinned MAIN-world adapter confirms the native model
+    // is clean. A native Save can finish without replacing the iframe; adopt its
+    // new baseline, but never swallow input or DOM changes made during the check.
+    if(!snapshot.doc||documentFrame()?.contentDocument!==snapshot.doc||this.doc!==snapshot.doc)throw Error('NATIVE_DOCUMENT_CHANGED');
+    if(this.inputEpoch!==snapshot.epoch||contentFingerprint(snapshot.doc.body)!==snapshot.html)throw Error('NATIVE_EDITOR_DIRTY');
+    const save=document.getElementById('gwt-debug-toolbar-save');if(!save?.className.includes('Button-disabled'))throw Error('NATIVE_EDITOR_UNKNOWN');
+    this.baseline=snapshot.html;this.edited=false;
   }
   close() { this.doc?.removeEventListener('input', this.onInput, true); }
 }

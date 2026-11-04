@@ -2,17 +2,25 @@ import {tool} from '@anthropic-ai/claude-agent-sdk';
 import {z} from 'zod';
 import {Boards} from './boards.ts';
 import {BoardPatchesSchema} from '../../packages/core/board-changes.ts';
+import {BoardDiagramSchema} from '../../packages/core/board-generation.ts';
 import type {Run} from '../../packages/protocol/index.ts';
 import type {Store} from './store.ts';
 import type {Drafts} from './polarion.ts';
 import type {Assets} from './assets.ts';
-export type BoardToolTurn={run:Run;controller:AbortController;store:Store;drafts:Drafts;assets:Assets};
-export const boardToolNames=['read_board','propose_board_changes'].map(n=>'mcp__polarion_drafts__'+n);
+import {readDiagramDesignRules,DIAGRAM_DESIGN_COMMIT} from './diagram-design.ts';
+export type BoardToolTurn={run:Run;controller:AbortController;store:Store;drafts:Drafts;assets:Assets;diagramStylePath?:string};
+export const boardToolNames=['read_board','propose_board_changes','read_board_generation_context','read_requirement_diagram_context','propose_board_generation'].map(n=>'mcp__polarion_drafts__'+n);
 export function createBoardTools(getCurrentTurn:()=>BoardToolTurn){
  const current=()=>{const t=getCurrentTurn();if(t.controller.signal.aborted)throw Error('RUN_CANCELLED');return {...t,boards:new Boards(t.store,t.assets)};};
+ const visualType=z.enum(['flowchart','architecture','state','tree']).default('flowchart');
  const text=(value:unknown)=>({content:[{type:'text' as const,text:JSON.stringify(value)}]});
+ const design=async(t:BoardToolTurn,visualType:'flowchart'|'architecture'|'state'|'tree'='flowchart')=>{const rules=await readDiagramDesignRules(visualType,{effectiveStylePath:t.diagramStylePath});if(t.controller.signal.aborted)throw Error('RUN_CANCELLED');const receipt={runId:t.run.id,commit:DIAGRAM_DESIGN_COMMIT,source:rules.source,at:Date.now()};t.store.put('diagram-design-read',t.run.id,receipt);t.store.event(t.run,'diagram-design-read',receipt);return rules;};
+ const requireDesign=(t:BoardToolTurn)=>{if(t.store.get<{commit:string}>('diagram-design-read',t.run.id)?.commit!==DIAGRAM_DESIGN_COMMIT)throw Error('DIAGRAM_DESIGN_REQUIRED: 请先读取本轮图形上下文中的实际规范');};
  return [
-  tool('read_board','读取当前选区已插入草稿的画板对象和绑定连线。必须使用上下文中的 draftId/objectId/snapshotId/selectedIds；新画板须先插入草稿。本工具不编辑、不保存远程。',{draftId:z.string().uuid(),objectId:z.string().uuid(),snapshotId:z.string().uuid(),selectedIds:z.array(z.string().min(1).max(200)).min(1).max(100)},async a=>{const t=current();return text(t.boards.readForRun(t.run,t.drafts.read(a.draftId),a.objectId,a.snapshotId,a.selectedIds));}),
-  tool('propose_board_changes','基于 read_board 的 readId 提交画板对象变更供用户审阅。仅文字、位置、尺寸、颜色；不能增删对象、绑定、源文件或 PNG。用户在画板应用后仍须插入正文草稿与明确保存。',{draftId:z.string().uuid(),readId:z.string().uuid(),title:z.string().min(1).max(160),patches:BoardPatchesSchema},async a=>{const t=current();return text(t.boards.propose(t.run,t.drafts.read(a.draftId),a.readId,a.title,a.patches));}),
+  tool('read_board','读取当前选区已插入草稿的画板对象和绑定连线。必须使用上下文中的 draftId/objectId/snapshotId/selectedIds；新画板整图生成应使用 read_board_generation_context。本工具不编辑、不保存远程。',{draftId:z.string().uuid(),objectId:z.string().uuid(),snapshotId:z.string().uuid(),selectedIds:z.array(z.string().min(1).max(200)).min(1).max(100)},async a=>{const t=current();return text({...t.boards.readForRun(t.run,t.drafts.read(a.draftId),a.objectId,a.snapshotId,a.selectedIds),diagramDesign:await design(t)});}),
+  tool('propose_board_changes','基于 read_board 的 readId 提交画板对象变更供用户审阅。仅文字、位置、尺寸、颜色；不能增删对象、绑定、源文件或 PNG。用户在画板应用后仍须插入正文草稿与明确保存。',{draftId:z.string().uuid(),readId:z.string().uuid(),title:z.string().min(1).max(160),patches:BoardPatchesSchema},async a=>{const t=current();requireDesign(t);return text(t.boards.propose(t.run,t.drafts.read(a.draftId),a.readId,a.title,a.patches));}),
+  tool('read_board_generation_context','读取当前画板的整图生成上下文。使用 BOARD_GENERATION_CONTEXT 中的 draftId/requestId，可从一句描述生成尚未插入正文的新图。返回 readId 与范围；不编辑、不保存。',{draftId:z.string().uuid(),requestId:z.string().uuid(),visualType},async a=>{const t=current();return text({...t.boards.readGenerationForRun(t.run,t.drafts.read(a.draftId),a.requestId),diagramDesign:await design(t,a.visualType)});}),
+  tool('read_requirement_diagram_context','在编写或审阅当前文档需求时直接生成配图，无需用户先打开空画板。先完成正文草稿编辑，再用其draftId读取专属请求、实际diagram-design规范和readId，随后propose_board_generation。配图必须先预览应用；此工具不修改正文或服务端。',{draftId:z.string().uuid(),visualType},async a=>{const t=current();return text({...t.boards.readRequirementGeneration(t.run,t.drafts.read(a.draftId)),diagramDesign:await design(t,a.visualType)});}),
+  tool('propose_board_generation','根据 read_board_generation_context 的 readId 提交完整可编辑图草案。diagram={title,summary,size?:auto|slide-16x9|doc-inline|doc-wide,direction:down|right,nodes:[{id,kind:rectangle|diamond|ellipse|text,text,tone?:neutral|accent,x?,y?,width?,height?}],edges:[{id,from,to,label?}]}。默认size=auto依据结构选择紧凑横向或竖向有界画幅，不能太散。仅明确尺寸要求时指定其它preset。优先自动布局；若显式x/y必须在画幅中，太密须拆概览和详图；遵循diagram-design：最多9节点、12连线、2个强调节点；每个菱形有2–3条带标签的出边，标签单行且最多14字；结构按4px网格。超量应拆成概览和详图，不删工程语义。只用纯文字，禁止文件/图片/HTML/任意源代码。用户会先预览、再明确应用到画板，之后可手工编辑与插入正文草稿；此工具不写正文或Polarion。',{draftId:z.string().uuid(),readId:z.string().uuid(),diagram:BoardDiagramSchema},async a=>{const t=current();requireDesign(t);const p=t.boards.proposeGeneration(t.run,t.drafts.read(a.draftId),a.readId,a.diagram);return text({proposalId:p.proposalId,requestId:p.requestId,title:p.diagram.title,summary:p.summary,status:p.status,message:'草案已提交画板供用户预览与应用，尚未插入正文或保存 Polarion。'});}),
  ];
 }
