@@ -4,9 +4,21 @@ param(
   [string]$Username,
   [Security.SecureString]$Secret,
   [string]$CredentialPath,
-  [switch]$Replace
+  [switch]$Replace,
+  [switch]$FromStdin
 )
 $ErrorActionPreference = 'Stop'
+if ($FromStdin) {
+  [Console]::InputEncoding = New-Object Text.UTF8Encoding($false)
+  try {
+    $inputData = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    if (!$inputData.username -or !$inputData.password) { throw 'invalid' }
+    $Username = [string]$inputData.username
+    $Secret = ConvertTo-SecureString -String ([string]$inputData.password) -AsPlainText -Force
+    $AuthMode = 'password'
+  } catch { throw 'POLARION_CREDENTIAL_INPUT_INVALID' }
+  finally { $inputData = $null }
+}
 if (!$CredentialPath) {
   $data = $env:POLARION_SIDEBAR_DATA
   if (!$data) { $data = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Nanju/PolarionSidebar' }

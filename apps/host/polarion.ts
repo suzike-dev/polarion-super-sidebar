@@ -18,29 +18,52 @@ export type RemoteItem = { id: string; title: string; description?: string; upda
 export interface Remote { read(target: Target, workItemId: string): Promise<RemoteItem>; save(draft: Draft): Promise<RemoteItem> }
 export class Polarion implements Remote {
   assets?: Assets;
-  constructor(assets?: Assets){this.assets=assets;}
+  credentialPath?: string;
+  constructor(assets?: Assets, credentialPath?: string){this.assets=assets;this.credentialPath=credentialPath;}
+  reconfiguring = false;
   child?: ChildProcessWithoutNullStreams;
   pending = new Map<string, { resolve: (value: any) => void; reject: (e: Error) => void; timer: NodeJS.Timeout;progress?:(value:any)=>void }>();
   start() {
+    if (this.reconfiguring) throw Error('POLARION_CONNECTION_BUSY');
     if (this.child) return;
     // PowerShell 7's module search path can break Windows PowerShell's DPAPI cmdlets.
     const env={...process.env};for(const key of Object.keys(env))if(key.toLowerCase()==='psmodulepath')delete env[key];
-    this.child = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'scripts/start-polarion-worker.ps1')], { cwd: ROOT, env, windowsHide: true, stdio: 'pipe' });
-    this.child.stderr.resume();
-    readline.createInterface({ input: this.child.stdout }).on('line', line => {
+    if (this.credentialPath) env.POLARION_SIDEBAR_CREDENTIALS = this.credentialPath;
+    const child = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'scripts/start-polarion-worker.ps1')], { cwd: ROOT, env, windowsHide: true, stdio: 'pipe' });
+    this.child = child;
+    // Only retain explicitly recognized codes, never the raw diagnostic, which
+    // can include paths or other sensitive subprocess output.
+    const startupCodes = new Set(['POLARION_CREDENTIAL_PATH_MUST_BE_ABSOLUTE','POLARION_CREDENTIAL_FILE_MISSING','POLARION_CREDENTIAL_VERSION_UNSUPPORTED','POLARION_AUTH_MODE_UNSUPPORTED','POLARION_CREDENTIAL_FILE_INCOMPLETE','POLARION_CREDENTIAL_DECRYPT_FAILED','POLARION_CREDENTIAL_SECRET_EMPTY','POLARION_WORKER_INSTALLATION_INCOMPLETE']);
+    let startupCode = '';
+    child.stderr.setEncoding('utf8');
+    let stderrTail = '';
+    child.stderr.on('data', (chunk: string) => {
+      stderrTail = (stderrTail + chunk).slice(-4096);
+      for (const code of startupCodes) if (stderrTail.includes(code)) startupCode = code;
+    });
+    readline.createInterface({ input: child.stdout }).on('line', line => {
       try { const reply = JSON.parse(line); const pending = this.pending.get(reply.id); if (!pending) return; if(reply.progress){pending.progress?.(reply.progress);return;}clearTimeout(pending.timer); this.pending.delete(reply.id); reply.ok ? pending.resolve(reply.value) : pending.reject(Error(reply.error)); } catch { /* no raw subprocess output goes to the UI */ }
     });
-    const fail = () => { this.child = undefined; for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(Error('POLARION_WORKER_STOPPED')); } this.pending.clear(); };
-    this.child.once('exit', fail); this.child.once('error', fail);
+    const fail = () => { if (this.child !== child) return; this.child = undefined; for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(Error(startupCode || 'POLARION_WORKER_STOPPED')); } this.pending.clear(); };
+    // close waits for stderr to drain; exit can occur before the error code arrives.
+    child.once('close', fail); child.once('error', fail);
+    // A startup failure can close stdin before a pending request is written.
+    child.stdin.on('error', () => {});
   }
   call<T=RemoteItem>(data: unknown,progress?:(value:any)=>void) {
     this.start(); const id = crypto.randomUUID();
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(Error('POLARION_TIMEOUT_VERIFY_BEFORE_RETRY')); }, 90000);
+      const authentication=(data as {method?:string}).method==='authenticate';
+      const timer = setTimeout(() => { this.pending.delete(id); reject(Error(authentication?'POLARION_CONNECTION_FAILED':'POLARION_TIMEOUT_VERIFY_BEFORE_RETRY')); }, authentication?40000:90000);
       this.pending.set(id, { resolve, reject, timer,progress }); this.child!.stdin.write(JSON.stringify({ ...(data as object), id }) + '\n');
     });
   }
   read(target: Target, workItemId: string) { return this.call({ method: 'read', target, workItemId }); }
+  async stop() {
+    const child = this.child; if (!child) return;
+    if (this.pending.size) throw Error('POLARION_CONNECTION_BUSY');
+    await new Promise<void>(resolve => { child.once('close', () => { clearTimeout(timer); resolve(); }); const timer=setTimeout(() => child.kill(),5000);child.stdin.end(); });
+  }
   async image(target:Target,workItemId:string,src:string){
     if(!this.assets)throw Error('ASSET_STORE_UNAVAILABLE');
     const result=await this.call<{name:string;data:string}>({method:'image',target,workItemId,src});const bytes=Buffer.from(result.data,'base64');

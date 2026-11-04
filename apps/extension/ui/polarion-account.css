@@ -1,0 +1,6 @@
+.polarion-account{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid #e0e4e3}
+.account-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.account-heading span{font-size:11px;color:#687574}
+.account-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.account-success{color:#096754;font-size:12px;line-height:1.6;margin:10px 0 0}
+.polarion-account .muted{line-height:1.6}

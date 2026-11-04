@@ -12,6 +12,11 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
   let request: any;
   try {
     request = JSON.parse(line);
+    if (request.method === 'authenticate') {
+      try { await client.authenticate(); console.log(JSON.stringify({id:request.id,ok:true,value:{connected:true}})); }
+      catch (error) { console.log(JSON.stringify({id:request.id,ok:false,error:error instanceof Error && /AuthenticationFailed/i.test(error.message)?'POLARION_AUTHENTICATION_FAILED':'POLARION_CONNECTION_FAILED'})); }
+      continue;
+    }
     const target = TargetSchema.parse(request.target);
     const item = await client.getWorkItem(target.projectId, request.workItemId);
     const document = await client.getDocument(target.projectId, target.document);
