@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="ref-title ref-desc">
+<title id="ref-title">@ 引用与阅读预览 · 功能示意</title>
+<desc id="ref-desc">纯矢量功能示意，工作项编号与名称为虚构；展示编辑器内 @ 搜索框、本文档候选、插入原生引用和只读阅读预览，非产品截图。</desc>
+<defs>
+  <style>
+    .bg{fill:#f5f6f5}.panel{fill:#ffffff;stroke:#dbe4e8}.ink{fill:#1b272e}.muted{fill:#687176}.faint{fill:#93a0a6}
+    .t{font-family:'Microsoft YaHei UI','Microsoft YaHei','Noto Sans CJK SC',sans-serif}
+    .h{font-size:15px;font-weight:700}.m{font-size:11px}.s{font-size:10px}.xs{font-size:9px;font-weight:600}
+    .accent{fill:#356c7c}
+  </style>
+</defs>
+<rect class="bg" width="1200" height="700"/>
+<text x="44" y="48" class="t h ink">@ 引用工作项，单击即读</text>
+<text x="44" y="70" class="t s muted">编辑器与对话都先列「本文档工作项」，再补本地草稿与 Polarion 搜索；插入的是原生引用标记，保存后仍是 Polarion 工作项链接。</text>
+<!-- editor -->
+<rect x="44" y="92" width="720" height="520" rx="12" class="panel"/>
+<rect x="44" y="92" width="720" height="46" rx="12" fill="#fbfcfc"/><rect x="44" y="126" width="720" height="12" fill="#fbfcfc"/>
+<text x="66" y="121" class="t m ink" font-weight="700">工作项 · TEST-728</text>
+<text x="732" y="121" class="t s faint" text-anchor="end">编辑正文</text>
+<line x1="44" y1="138" x2="764" y2="138" stroke="#edf2f4"/>
+<text x="74" y="174" class="t m ink">4.3 表格与引用示例</text>
+<text x="74" y="202" class="t s" fill="#333">验证条件见 <tspan fill="#356c7c">TEST-729</tspan>；舒适性选择的回显状态跟随用户设定，</text>
+<text x="74" y="220" class="t s" fill="#333">但实际执行状态在一键凉爽功能下依旧为标准模式。</text>
+<text x="74" y="248" class="t s" fill="#333">参考 <tspan fill="#356c7c">@</tspan><tspan fill="#687176">|</tspan></text>
+<!-- popup -->
+<rect x="74" y="262" width="336" height="236" rx="8" fill="#fff" stroke="#cfdde4"/>
+<rect x="82" y="270" width="320" height="30" rx="6" fill="#fff" stroke="#cfdde4"/>
+<circle cx="95" cy="285" r="5" fill="none" stroke="#96a3a9" stroke-width="1.5"/>
+<text x="108" y="289" class="t s muted">搜索编号或标题…</text>
+<text x="390" y="299" class="t xs faint" text-anchor="end">共 258 项</text>
+<line x1="74" y1="308" x2="410" y2="308" stroke="#edf2f4"/>
+<rect x="82" y="316" width="320" height="28" rx="5" fill="#eef4f6"/>
+<text x="92" y="334" class="t xs" fill="#356c7c">TEST-728</text><text x="152" y="334" class="t s ink">fixture A</text><text x="392" y="334" class="t xs faint" text-anchor="end">本文档</text>
+<rect x="82" y="348" width="320" height="28" rx="5" fill="#fff"/>
+<text x="92" y="366" class="t xs" fill="#4f7d8b">TEST-729</text><text x="152" y="366" class="t s ink">fixture B</text><text x="392" y="366" class="t xs faint" text-anchor="end">本文档</text>
+<rect x="82" y="380" width="320" height="28" rx="5" fill="#fff"/>
+<text x="92" y="398" class="t xs" fill="#4f7d8b">TEST-731</text><text x="152" y="398" class="t s ink">图文混合验收</text><text x="392" y="398" class="t xs faint" text-anchor="end">本文档</text>
+<rect x="82" y="412" width="320" height="28" rx="5" fill="#fff"/>
+<text x="92" y="430" class="t xs" fill="#4f7d8b">SPE-711</text><text x="152" y="430" class="t s ink">循环电机电压位置</text><text x="392" y="430" class="t xs faint" text-anchor="end">本地草稿</text>
+<rect x="82" y="444" width="320" height="28" rx="5" fill="#fff"/>
+<text x="92" y="462" class="t xs" fill="#4f7d8b">SPE-818</text><text x="152" y="462" class="t s ink">整车高压</text><text x="392" y="462" class="t xs faint" text-anchor="end">Polarion</text>
+<text x="82" y="490" class="t s faint">↑↓ 选择 · Enter 插入 · Esc 关闭</text>
+<!-- inserted chip -->
+<text x="74" y="536" class="t s muted">插入后：</text>
+<rect x="124" y="518" width="82" height="24" rx="5" fill="#eef4f6" stroke="#c9d8d3"/>
+<text x="165" y="534" class="t xs" fill="#356c7c" text-anchor="middle">TEST-729</text>
+<text x="216" y="536" class="t s muted">保存后即原生引用，往返编辑不丢。</text>
+<!-- preview -->
+<rect x="792" y="92" width="364" height="520" rx="12" class="panel"/>
+<rect x="792" y="92" width="364" height="58" rx="12" fill="#fbfcfc"/><rect x="792" y="138" width="364" height="12" fill="#fbfcfc"/>
+<circle cx="818" cy="120" r="12" fill="#eef4f6"/><text x="818" y="125" class="t s accent" text-anchor="middle">◎</text>
+<text x="838" y="117" class="t xs muted">阅读预览 · 本地草稿</text>
+<text x="838" y="134" class="t m ink" font-weight="700">fixture B</text>
+<line x1="792" y1="150" x2="1156" y2="150" stroke="#edf2f4"/>
+<text x="812" y="178" class="t s faint">TEST-729 · 修订 3</text>
+<rect x="812" y="192" width="324" height="300" rx="6" fill="#fbfcfc" stroke="#e3ebee"/>
+<text x="826" y="216" class="t s ink" font-weight="700">4.3 表格与引用示例</text>
+<text x="826" y="240" class="t s muted">验证条件见 TEST-728；正文、表格和图片只读呈现。</text>
+<rect x="826" y="256" width="296" height="24" fill="#eef4f6"/><text x="834" y="272" class="t xs ink">编号</text><text x="898" y="272" class="t xs ink">条件</text><text x="1050" y="272" class="t xs ink">输出</text>
+<rect x="826" y="280" width="296" height="24" fill="#fff" stroke="#eef2f4"/><text x="834" y="296" class="t xs muted">R01</text><text x="898" y="296" class="t xs muted">环温 25 ℃</text><text x="1050" y="296" class="t xs muted">高</text>
+<rect x="826" y="304" width="296" height="24" fill="#fafcfd" stroke="#eef2f4"/><text x="834" y="320" class="t xs muted">R02</text><text x="898" y="320" class="t xs muted">一键凉爽</text><text x="1050" y="320" class="t xs muted">标准</text>
+<text x="826" y="352" class="t s muted">预览为只读窗口，不修改草稿，也不会写入 Polarion。</text>
+<rect x="826" y="452" width="132" height="30" rx="7" fill="#fff" stroke="#dbe4e8"/><text x="892" y="471" class="t s muted" text-anchor="middle">关闭</text>
+<rect x="968" y="452" width="168" height="30" rx="7" fill="#356c7c"/><text x="1052" y="471" class="t s" fill="#fff" text-anchor="middle">打开编辑工作台</text>
+<text x="812" y="510" class="t s faint">单击编辑器/聊天里的编号，或原生正文里的引用，</text>
+<text x="812" y="526" class="t s faint">都会打开这个完整阅读窗口。</text>
+<!-- arrow between popup and preview -->
+<path d="M414 380 C540 380 620 330 716 330" fill="none" stroke="#356c7c" stroke-width="2" stroke-dasharray="5 5"/>
+<path d="M716 330l-10 -4v8z" fill="#356c7c"/>
+<text x="536" y="360" class="t s accent">单击编号</text>
+</svg>

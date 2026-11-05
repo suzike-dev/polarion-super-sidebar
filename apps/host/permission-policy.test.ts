@@ -11,7 +11,7 @@ test('three permission modes preserve explicit external save and ask-user bounda
  assert.equal(permissionDecision('ask','Write',{file_path:path.join(workspace,'a.txt')},workspace,owned),'ask');
  assert.equal(permissionDecision('auto','Write',{file_path:path.join(workspace,'a.txt')},workspace,owned),'allow');
  assert.equal(permissionDecision('auto','Write',{file_path:path.resolve(workspace,'../outside.txt')},workspace,owned),'ask');
- assert.equal(permissionDecision('auto','Bash',{},workspace,owned),'ask');assert.equal(permissionDecision('full','Bash',{},workspace,owned),'allow');
+ assert.equal(permissionDecision('auto','Bash',{},workspace,owned),'allow');assert.equal(permissionDecision('auto','Task',{},workspace,owned),'allow');assert.equal(permissionDecision('full','Bash',{},workspace,owned),'allow');
 });
 test('permission choice freezes in run and is part of idempotent request identity',()=>{
  const s=new Store(':memory:'),target={origin:'https://polarion.pufafen.com' as const,projectId:'test01',document:'Requirements/Test'},session=s.createSession(target,'test'),id=crypto.randomUUID();

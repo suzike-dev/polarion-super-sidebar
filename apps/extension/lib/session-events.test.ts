@@ -52,3 +52,12 @@ test('history reads return updated native conversation identity and reset title'
  const session={id:'s',nativeId:'fresh-native',title:'新工程会话'} as any;
  const page=await readSessionBatch(async()=>({session,events:[],runs:[]}),0);assert.equal(page.session,session);
 });
+test('long conversations only mount the recent window and expose the hidden count', async () => {
+  const {windowTurns} = await import('./session-events.ts');
+  const runs = Array.from({length: 120}, (_, index) => ({id: 'r' + index}));
+  const windowed = windowTurns(runs, 40);
+  assert.equal(windowed.hidden, 80);
+  assert.equal(windowed.visible.length, 40);
+  assert.equal((windowed.visible[0] as {id:string}).id, 'r80');
+  assert.deepEqual(windowTurns(runs.slice(0, 40), 40), {hidden: 0, visible: runs.slice(0, 40)});
+});

@@ -1,53 +1,78 @@
 # Polarion 超级侧边栏
 
-[![Version 0.4.0](https://img.shields.io/badge/Version-v0.4.0-0F766E?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.4.0)
+[![Version 0.5.0](https://img.shields.io/badge/Version-v0.5.0-0F766E?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.5.0)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-087EA4?style=for-the-badge&logo=react&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-D97757?style=for-the-badge&logo=claude&logoColor=white)
 ![Model Context Protocol](https://img.shields.io/badge/Model_Context_Protocol-7C3AED?style=for-the-badge&logo=modelcontextprotocol&logoColor=white)
 
-**在需求旁边使用本地 AI，在同一份草稿里编辑，审阅后保存回 Polarion。**
+**先看需求全景，再在需求旁边使用本地 AI；在同一份草稿里编辑，审阅后保存回 Polarion。**
 
-面向工程需求编写与评审的 Windows 浏览器扩展。独立富文本窗口与 AI 侧栏并排工作，正文、工程表格和画板保留各自的编辑方式；Claude Code 使用本机已有配置、Skills 与 MCP。
+面向工程需求编写与评审的 Windows 浏览器扩展。需求总览把整份 LiveDoc 铺成章节矩阵；独立富文本窗口与 AI 侧栏并排工作；正文、工程表格和画板保留各自的编辑方式；Claude Code 使用本机已有配置、Skills 与 MCP。
 
-[安装与更新](#安装与更新) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
+[安装与更新](#安装与更新) · [需求总览](#从需求全景开始) · [变体](#同一需求多个变体) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
-**[0.3.1 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.3.1)。** 保留独立编辑窗与 AI 侧栏，提供单行分类工具、紧凑可编辑配图、自动批准和可调回答字号。本版修复大纲滚轮与交互问题、减少重复渲染，默认进入专注编辑，并内置常用工程绘图素材；验收范围与保留边界见下文。
+**[0.5.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.5.0)。** 新增软件需求分析总览、编辑器与对话的 `@` 工作项引用、完整阅读预览、变体管理和可持久化的预设指令；画板扩展到 70 项内置素材、6 个整图模板与 Mermaid 导入。本轮同时修复总览/编辑器遮挡、长分组单列、`@` 候选过少与弹窗不关闭、受保护宏显示、指令删除不生效、Host 草稿目录与 Lucene 查询边界，以及画板长文本标签、素材吸附壳、剪贴板并发等问题。
 
-[![功能示意：独立富文本窗口与 AI 侧栏，文字和段落工具保持单行，使用虚构内容](docs/assets/readme-workbench.svg)](docs/assets/readme-workbench.svg)
+[![功能示意：独立富文本窗口与 AI 侧栏，使用虚构内容](docs/assets/readme-workbench.svg)](docs/assets/readme-workbench.svg)
 
 *按当前产品功能自绘，使用虚构示例；不是产品截图，不含真实项目、需求或对话信息。点击图片可放大。*
 
-## 从当前工作项开始
+## 从需求全景开始
 
-选中正文、打开工作项或选中画板对象，将具体内容带入对话。AI 修改进入本地草稿，与人工编辑使用同一份内容；阅读预览、修改对照和服务端保存都有独立入口。
+侧边栏头部只有一个「总览」按钮。点击后，总览在**左侧文档区**展开，不挤占右侧 AI 侧栏；对话仍可继续使用。
 
-悬浮编辑台打开工作项时默认进入专注编辑，点击右上角“退出专注编辑”可切回普通窗口；关闭后重新打开或切换工作项，仍从专注编辑开始。
+二级章是一条色带，三级分组是色带内的块，条目直接平铺：不做可折叠树，也不要求逐层点开。分组块按体量分配宽度，大分组再按 18 项切块并排；**如果某个大章没有三级分组**（工作项直接挂在章下），整章跨满宽度、多列平铺，不会变成一根超长竖列。
 
-| 工作 | 当前提供的能力 |
+[![功能示意：需求总览的章节色带、分组块与条目平铺，使用虚构编号与名称](docs/assets/readme-overview.svg)](docs/assets/readme-overview.svg)
+
+*自绘功能示意，使用虚构工作项。真实 SWR 文档实测 258 个可导航条目、24 个分组块、零重叠；章节和分组数量随文档变化。*
+
+| 操作 | 行为 |
 |---|---|
-| 阅读与评审 | 文档大纲、工作项与文本选区上下文、上下文固定、附件与截图输入 |
-| 编写正文 | 标题与段落、列表与待办、提示块、代码块、链接、图片、查找替换、内容块移动与复制 |
-| 维护工程表格 | 行列及全表选区、插入与删除、移动、合并与拆分、精确颜色、表格和单元格属性 |
-| 图形协作 | 需求对话配图、画板整图生成、中文文字与绑定连线、源文件与 PNG 预览、AI 对象变更提案 |
-| 使用本地 Agent | Claude Code 持续会话、命令目录、Skills、MCP 状态、执行记录、权限交互与会话历史 |
+| 输入或 `Ctrl+F` | 在面板内搜索编号或名称，结果即时收敛 |
+| 单击条目 | 打开完整**阅读预览**（只读，不修改草稿、不写服务端） |
+| 预览内「打开编辑工作台」 | 进入悬浮编辑器；总览关闭，编辑现场保留 |
+| 编辑中再开总览 | 编辑层暂时隐藏但保持挂载；关闭总览后原样回来 |
+| `Esc` | 关闭当前层的阅读预览或总览，不误关其他弹层 |
 
-界面采用 Windows 系统字体、中性灰白和深青强调色。正文已有的颜色、字号和工程语义由作者内容决定，界面样式不会统一重着色正文。
+总览读取 Host 的文档结构，优先使用本地缓存秒开，再后台刷新；切换文档时旧请求不会回写。条目仍来自同一个 Polarion 文档，跨文档或不在当前文档的工作项会被拒绝。
 
-AI 助手默认选择“自动批准”：读取、文档草稿操作和项目工作区内的文件编辑自动执行，命令及外部操作仍按权限策略确认。可手动切换“请求批准”或“完全访问”；任务开始时固定本轮权限，Polarion 服务端写回仍通过明确保存完成。
+## @ 引用工作项，单击即读
 
-助手内置[编辑能力与操作路径](resources/agent-guide.md)：小范围改字、颜色/粗体、复杂排版和画图分别走对应工具；需要细节时按需读取实际富文本 schema 与写回边界。已知不支持的功能直接说明限制和可用替代，避免重复无效请求或绕到脚本改正文。参数错误与版本冲突有不同恢复路径，未修改的工程数值、单位和受保护对象必须保留。
+编辑器正文和对话输入框都支持 `@`：
 
-回答默认正文 13px，标题、表格和代码采用更紧凑的层级。打开助手设置可调整为 12–18px，即时预览后保存；取消恢复已保存值。字号设置只影响 AI 回答，不改变需求正文。
+- 输入 `@` 立即列出**本文档全部工作项**（读取 Polarion 正文同源 iframe 内的 `module-workitem` 块），继续输入编号或标题即时过滤；中文紧邻 `@`（如「参考@」）也能触发。
+- 候选弹窗自带搜索框，不再只显示十几条；最多展示 300 条并可滚动。`↑↓` 选择、`Enter` 插入、`Esc` 关闭；点击外部、滚动或切换焦点也会自动收起。
+- 插入的是源保留的原生引用标记 `span.polarion-rte-link[data-type="workItem"]`；保存后就是 Polarion 原生工作项链接，往返编辑不丢。
+- 编辑器、聊天回答和原生正文里的引用编号，**单击**打开完整阅读预览；双击不会触发 Polarion 自己的编辑器跳转。
 
-[![功能示意：AI 回答字号设置、即时预览与明确保存，使用虚构示例](docs/assets/readme-settings.svg)](docs/assets/readme-settings.svg)
+[![功能示意：@ 搜索、本文档候选、插入原生引用与阅读预览，使用虚构工作项](docs/assets/readme-references.svg)](docs/assets/readme-references.svg)
 
-在画板里描述整张图，或在编写需求的对话中直接请求配图，两条入口都读取随产品提供的 [Diagram Design 规范](resources/diagram-design/README.md)。生成草案后先预览、再应用到可编辑画板；默认按内容选择紧凑的横向或竖向画幅，也可明确指定演示或文档尺寸。不能容纳时会返回布局提示，需拆成概览和详图，保留正常字号与工程关系。
+*自绘功能示意，候选来源依次为「本文档工作项 → 本地草稿 → Polarion 搜索」，按编号去重。*
 
-画板右侧原生素材库随扩展内置 **36 个原创工程素材**，按流程、系统与接口、控制逻辑、热管理依次编排。插入后可继续编辑文字、形状、颜色与连线。个人素材和对内置项的修改会保留；删除的内置项不会在下次打开时重新出现，需要时可使用“补齐内置工程素材”恢复缺失项。素材加载不需要访问外部素材站点。
+阅读预览是独立只读窗口：标题、修订、完整正文、表格与图片；`Esc` 或遮罩关闭。需要修改时再点「打开编辑工作台」，预览本身不会改动任何内容。
 
-[![内置工程素材：四类共36项，精选8个真实矢量素材的自绘示意，非产品截图](docs/assets/readme-library.svg)](docs/assets/readme-library.svg)
+## 同一需求，多个变体
+
+一个需求可能因客户、项目、车型或配置存在多个版本。主工作项保持文档槽位稳定；变体是 Polarion 项目里的**独立工作项**，通过可配置链接角色关联，需要时再接入主正文。
+
+[![功能示意：主工作项、默认变体、独立变体工作项与接入/撤销流程，使用虚构客户和项目](docs/assets/readme-variants.svg)](docs/assets/readme-variants.svg)
+
+*自绘功能示意，客户、项目与车型均为虚构；真实验收使用隔离测试文档。*
+
+| 能力 | 行为 |
+|---|---|
+| 新建变体 | 同类型独立工作项，可复制主正文；客户/项目/车型/配置/备注存入工作项附件 `sidebar-variant.json` |
+| 默认变体 | 主工作项默认显示为「默认」；首次接入其他变体前先把它捕获成独立默认变体，避免原始正文丢失 |
+| 编辑变体 | 复用悬浮编辑器；保存只写变体工作项，不触碰主工作项 |
+| 接入主工作项 | 差异预览、主工作项并发校验、画板快照复制、图片重新绑定、服务端保存后独立回读 |
+| 撤销 | 保留最近 20 次接入前正文快照；主工作项被再次修改后不再显示必然失败的撤销入口 |
+| 跨机器 | 变体列表、详细配置和当前接入状态都随 Polarion 链接与附件保存，重新同步即可发现 |
+| 解除 | 只删除本地归属与 Polarion 链接，工作项本身保留 |
+
+安全边界：变体必须与主工作项存在指定角色的链接，并通过回读确认；UI 只能操作已登记的变体，不能直接指定任意工作项。Polarion 服务端写入仍通过本地草稿 + 明确保存完成。
 
 ## 把空间留给正文与表格
 
@@ -57,19 +82,29 @@ AI 助手默认选择“自动批准”：读取、文档草稿操作和项目�
 
 *自绘图展示实际功能分组；不同示例状态并列呈现，不代表同时展开。真实布局验收覆盖 1440、1366、1024、768、390px × 三组工具栏，共 15 个场景。*
 
-新增正文与标题已按当前原生编辑器的默认字号、行高对齐；字号选择采用整数 pt 档位。特殊 HTML、宏及自定义段间距仍有原生转换差异，具体范围见[验收与边界](#验收与边界)。
+编辑器提供标题与段落、列表与待办、提示块、代码块、链接、图片、查找替换、内容块移动与复制；工程表格支持行列及全表选区、插入删除、移动、合并拆分、精确颜色与表格/单元格属性。
 
-容器支持键盘定位与 Esc 关闭；窄视口记录属于桌面浏览器布局验证，不代表移动端产品支持。
+正文里的受保护宏在编辑器中显示为紧凑 chip，优先显示宏自身的可见文字；技术名称只保留在悬停提示里，保存仍原样写回原生宏。
 
 ## 从需求描述到可编辑配图
 
 [![功能示意：可编辑的草稿审阅流程，包含条件分支和返回修改回路，全部内容虚构](docs/assets/readme-board.svg)](docs/assets/readme-board.svg)
 
-*自绘的虚构草稿审阅流程，展示真实产品的预览和可编辑图形能力，不采用任何工程现场截图。真实 Agent 验收另使用九节点、十连线的分支回路图，自动选择 960×720 画幅，结果记录在验收报告中。*
+*自绘的虚构草稿审阅流程，展示真实产品的预览和可编辑图形能力，不采用任何工程现场截图。*
 
-预览支持适合窗口、原始尺寸和缩放。应用后可拖动节点、改文字，关联箭头继续绑定；插入正文仍只改变本地草稿。明确保存后，源 JSON、PNG 预览和 manifest 随工作项附件保存，原生页面读取 PNG，安装扩展后继续编辑源文件。
+画板右侧原生素材库随扩展内置 **70 个原创工程素材**，按流程、系统与接口、控制逻辑、热管理、泳道与角色、UML 结构、时序图元、数据流、便签标注与整图模板十类编排；整图模板含评审泳道、分层架构、状态机、时序交互、数据流与 V 模型，插入解组后即可编辑。
 
-当前生成器提供流程、架构、状态和树形图的基本节点与连接，不等于完整支持 Skill 中的所有图形类型。复杂图的生成、人工修改、保存回读、原生免刷新显示和重开实测见[图形验收记录](docs/Agent绘图与规范验收_20261104.md)。
+| 能力 | 行为 |
+|---|---|
+| AI 整图 | `kind=flow`、`swimlane`、`sequence`、`class`、`er`；生成草案先预览、再应用到可编辑画板，插入正文仍只改本地草稿 |
+| 模板中心 | 6 个内置整图模板，缩略图预览后插入当前视口并选中，ID/绑定/分组全部重映射 |
+| Mermaid | 粘贴 flowchart/sequence/class/state/ER 定义转可编辑图形；容器文字展开为绑定文字，`Ctrl+V` 可直接进入导入预览 |
+| 快速连接 | 主菜单或 `C`，点起点→点目标自动生成绑定连线；`Esc` 退出 |
+| 便签与对齐 | 一键便签、四色切换、多选对齐/分布；容器文字与关系标签随容器/箭头移动 |
+| 复制图片 | 主菜单复制 PNG 到系统剪贴板；并发复制不会重复创建离屏文档 |
+| 快捷键 | `?` 打开 27 条分组快捷键帮助；不再同时弹出两套帮助 |
+
+生成器会校验画幅、标题、节点重叠、标签遮挡和关系线穿越；长 class/ER 标签按实际换行高度避让，sequence 长消息/长参与者名动态计算行高。放不下时返回布局提示，要求拆成概览和详图，而不是生成一张坏图。
 
 ## 保存机制
 
@@ -82,6 +117,16 @@ AI 助手默认选择“自动批准”：读取、文档草稿操作和项目�
 发生冲突时进入差异处理；写入结果不确定时保留草稿并要求先核对服务端。SOAP 接口的原子 CAS 保证尚未验证，因此不能把版本检查表述为完整的并发事务保证。
 
 免刷新保存严格匹配已验证的 Polarion 21R2 构建；其他构建在远程保存前停止，需完成适配与验收。[保存与原生交替编辑验收](docs/整体精修与富文本验收_20261104.md) · [大型 LiveDoc 修复记录](docs/v0.2.6大文档保存修复.md)
+
+## 会话效率与指令
+
+- **批准方式**：默认“自动批准”，读取、草稿操作与本地命令自动执行；文件编辑限项目工作区，越界写入仍需确认。可切“请求批准”或“完全访问”；设置中可固定新会话默认值，任务开始时固定本轮权限。
+- **运行中继续输入**：默认“排队”，当前任务结束后自动作为下一轮发送（最多 5 条，可取消）；“引导”优雅打断当前任务并保留对话上下文。两种方式都可在设置中设为默认。
+- **预设指令**：分「随发送附加」与「通用指令库」。前者在输入框下拉选择后随消息发送，每次单独选择、默认不附加；后者由 Agent 按需求内容自动查阅，索引每轮随提示词下发。每条指令可挂多个本地 Markdown/文本文件，内容每次使用时重新读取。
+- **消息操作**：复制回答、复制 Markdown、引用选中片段或整条回答、用同样请求重试；长会话只挂载最近 40 轮，可展开更早记录。
+- **设置持久化**：字号 12–18px、共享草稿文件夹（Windows 原生选择器，保存时迁移为 JSON 文件）、指令增删改、Polarion 账号保存并连接；删除指令后保存会真正删除服务端记录。
+
+[![功能示意：回答字号设置、即时预览与明确保存，使用虚构示例](docs/assets/readme-settings.svg)](docs/assets/readme-settings.svg)
 
 ## 本机与服务端如何协作
 
@@ -102,10 +147,12 @@ AI 助手默认选择“自动批准”：读取、文档草稿操作和项目�
 
 会话、草稿与项目工作目录默认位于 `%LOCALAPPDATA%\Nanju\PolarionSidebar`。Polarion 连接读取已有 Windows DPAPI 凭据存储；凭据只进入独立的 Polarion 进程，不传入 AI 引擎环境。
 
+共享草稿文件夹中的其他 JSON（如 `package.json`）会被忽略，不会被当作草稿；同目录的另一种路径写法不会触发迁移删除；目录暂时不可读时允许切走并保留原文件。
+
 ```text
-apps/extension/          侧栏、富文本与画板
-apps/host/               Agent、草稿与保存服务
-packages/core/           HTML、差异、画板与格式逻辑
+apps/extension/          侧栏、富文本、需求总览与画板
+apps/host/               Agent、草稿、变体与保存服务
+packages/core/           HTML、差异、画板、引用与格式逻辑
 packages/protocol/       校验协议与共享类型
 packages/polarion-soap/  SOAP 适配器与上游许可证
 scripts/                构建、安装、版本与开发探针
@@ -130,12 +177,12 @@ docs/                   规格、验证报告与自绘功能示意图
 
 ### 首次安装
 
-获取有访问权限的私有仓库。以下命令针对 `v0.3.1` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
+获取有访问权限的私有仓库。以下命令针对 `v0.5.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
 
 ```powershell
 git clone https://github.com/suzike-dev/polarion-super-sidebar.git
 cd polarion-super-sidebar
-git switch --detach v0.3.1
+git switch --detach v0.5.0
 node scripts/setup-runtime.mjs
 $node = '.\.runtime\node-v24.22.2-win-x64\node.exe'
 $npmCli = Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -152,7 +199,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-dev-host.ps1
 ```
 
-`setup-runtime.mjs` 下载并校验项目专用 Node 运行时，不修改全局 PATH；`check.ps1` 执行类型检查、测试与构建；`install-dev-host.ps1` 为当前 Windows 用户注册 Native Messaging Host。首次安装尚未在设置中保存账号时，诊断可能报告凭据文件缺失；先完成安装，在设置中保存并连接后，再用 `--strict` 复查。
+`setup-runtime.mjs` 下载并校验项目专用 Node 运行时，不修改全局 PATH；`check.ps1` 执行类型检查、305 项测试与构建；`install-dev-host.ps1` 为当前 Windows 用户注册 Native Messaging Host。首次安装尚未在设置中保存账号时，诊断可能报告凭据文件缺失；先完成安装，在设置中保存并连接后，再用 `--strict` 复查。
 
 `$npmCli` 仅定位用户已安装的 npm，随后由项目私有 Node 执行；上面的定位适用于普通 Windows Node/npm 安装。如果工具管理器提供的是另一层 shim，请把变量设为该 npm 安装中的实际 `npm-cli.js`，无需修改系统 PATH。
 
@@ -168,7 +215,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-polarion-w
 
 1. 在浏览器扩展管理页启用开发者模式，选择“加载已解压的扩展程序”。
 2. 加载仓库中的 `apps/extension/.output/chrome-mv3` 目录。
-3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致。
+3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.5.0）。
 4. 打开已适配的 Polarion 文档，点击侧栏右上角设置，在“Polarion 账号”输入自己的用户名和密码，点击“保存并连接”。成功后即可打开编辑工作台，无需重启 Host。已用终端配置的账号可点“检查已保存的连接”。
 5. 首次写回使用有授权的测试工作项，核对服务端回读与原生正文显示。
 
@@ -202,6 +249,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 | Claude 无法启动 | `./.runtime/node-v24.22.2-win-x64/node.exe scripts/diagnose-install.mjs --check-cli --strict`；另检查 CLI 认证状态，特殊目录用安装器 `-ClaudePath` 指向实际 exe/js |
 | 打开工作台提示 `POLARION_WORKER_STOPPED` 或凭据缺失 | 打开设置 → Polarion 账号，输入自己的账号密码，点击“保存并连接”。缺少凭据的提示提供“配置 Polarion 账号”入口。浏览器登录和 Codex 登录不会自动配置此凭据 |
 | 检查凭据 | 运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-polarion-worker.ps1 -ValidateOnly`；`configured` 和 `decryptable` 为 `true` 仅说明本机可解密，不验证账号或网络。自定义文件加 `-CredentialPath`，并确保与安装器配置一致 |
+| 需求总览读取失败 | 先点总览右上角刷新；仍失败时确认账号可读取该文档，或换一篇文档排除单文档权限问题 |
 | 原生保存适配不匹配 | 当前 Polarion 版本/构建；见[免刷新保存验收记录](docs/整体精修与富文本验收_20261104.md) |
 
 Host 注册名为 `com.nanju.polarion.sidebar`。扩展身份来自 `apps/extension/identity.json` 的公钥，不应在更新时随意重新生成。
@@ -231,22 +279,26 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-dev-host
 
 | 验证范围 | 已有结果 | 证据 |
 |---|---|---|
-| 自动检查 | 199/199 本机自动测试；Host/Extension 类型检查与构建通过；发布提交另经 Windows CI | [0.3.1 验收与边界](docs/0.3.1交互与性能验收_20261104.md) |
-| 滚轮、菜单与窗口 | 194标题真实文档大纲滚轮；短上下文滚动、菜单回焦、390×480底部命令可达；默认专注及正常工作项切换通过 | [0.3.1 真实回归](docs/0.3.1交互与性能验收_20261104.md) |
-| 本轮性能 | 同组真实输入/拖宽/滚轮采样，Long Task 10→1；ScriptDuration约606→282ms；不替代长期压力测试 | [采样与局限](docs/0.3.1交互与性能验收_20261104.md#性能采样) |
-| 内置素材库 | 36 项结构检查、四类实际插入/修改；个人库持久化、删除与补齐；源文件/PNG 服务端回读及再编辑通过 | [素材验收与边界](docs/0.3.1交互与性能验收_20261104.md#默认专注编辑与素材库) |
-| Agent 能力契约 | 真实排版仅 4 次工具调用、0 错误/审批；不支持请求 0 工具调用且未改草稿；原生行距限制明确告知 | [模型行为与保存回读](docs/0.3.1交互与性能验收_20261104.md#agent-编辑能力契约) |
+| 自动检查 | 305/305 本机自动测试；Host/Extension 类型检查与构建通过；发布提交另经 Windows CI | 本轮自检（2026-11-05） |
+| 需求分析总览 | 真实 SWR 文档 258 项、24 个分组块、零重叠；长分组切块、扁平章多列、Ctrl+F、阅读预览→编辑工作台、编辑中隐藏/恢复通过 | [设计方案](docs/软件需求分析总览_设计方案_20261105.md) |
+| @ 引用与阅读预览 | 中文紧邻 `@`、全量列表、弹窗内搜索、Esc/失焦/滚动关闭、插入原生引用、单击引用打开预览通过 | 本轮真实页面自检 |
+| 变体管理 | 创建/链接、默认变体捕获、变体保存、接入/撤销、跨机发现、详细配置往返；并发刷新去重、默认捕获回滚、撤销入口修正由新增测试覆盖 | [变体管理](docs/变体管理_20261105.md) |
+| 编辑器与保存 | TEST-728 真实编辑、保存、独立回读、原生正文同步；撤销修改后再次保存；受保护宏原样写回 | 本轮真实页面自检 |
+| 设置与指令 | 字号 15/13 保存重开；临时指令创建、删除、保存重开确认消失；账号、存储和指令页签可用 | [设置与指令验收](docs/设置与指令验收_20261105.md) |
+| 画板素材与模板 | 70 项素材十类加载、素材库打开；6 个整图模板预览与插入；吸附壳按真实边界；模板 ID/绑定重映射 | [画板对标与提升](docs/画板对标与提升_20261105.md) |
+| Mermaid 与画板交互 | 真实页面粘贴导入、容器文字绑定、快速连接提示、`?` 单套帮助、复制图片到剪贴板通过 | 本轮真实页面自检 |
+| Agent 对话 | 真实 Claude Code 回合“自检通过”完成；流式状态、回答操作、上下文与会话历史正常 | 本轮真实页面自检 |
 | 单行布局与交互 | 5 个视口 × 3 组工具栏；具名容器、键盘、表格、查找、内容块等实测 | [同轮验收记录](docs/单行工具栏与原生排版验收_20261104.md) |
 | 原生排版 | 新增正文、标题、整数 pt 字号及默认行高已核对；作者显式样式保留 | [排版结果与限制](docs/单行工具栏与原生排版验收_20261104.md) |
 | 保存与连续编辑 | 隔离工作项真实保存、独立回读、原生显示；免重载、滚动保留、与原生交替保存通过 | [整体精修与保存验收](docs/整体精修与富文本验收_20261104.md) |
 | Agent 与画板历史闭环 | Claude 修改草稿、人工确认写回；画板源文件与 PNG 回读及再编辑 | [S3 分阶段验证记录](docs/S3运行验证_20261103.md) |
 | 跨目录首次安装 | 隔离 HOME/AppData、空缓存、C 盘中文空格目录，实际下载、构建、Native Messaging 启动与健康通信通过；未冒充第二台设备验收 | [安装证据与边界](docs/跨电脑安装验收_20261104.md) |
-| Agent 复杂图 | 真实 Skill 调用、九节点分支回路、紧凑画幅、放大预览、人工修改、明确保存、源/PNG 独立回读与重开通过；四项实测缺陷已关闭 | [图形验收](docs/Agent绘图与规范验收_20261104.md) |
+| Agent 复杂图 | 真实 Skill 调用、九节点分支回路、紧凑画幅、放大预览、人工修改、明确保存、源/PNG 独立回读与重开通过 | [图形验收](docs/Agent绘图与规范验收_20261104.md) |
 | 回答密度与权限偏好 | 默认自动批准；字号 12–18px、取消回滚、保存重开和默认 13px 已在真实页面验证 | [Agent 与界面验收](docs/发布前Agent验收_20261104.md) |
-| 原生交互与 MCP 表单 | 原生右键菜单带入正确选区；弹窗焦点及 Esc、Tab 循环通过；真实 MCP 必填校验、0/false 回传和取消通过 | [最终验收汇总](docs/0.3.0最终验收汇总_20261104.md) |
 
 **仍为 partial 或未验证：**
 
+- **AI 整图生成：** `swimlane`、`sequence`、`class`、`er` 的 DSL、布局和校验由自动测试覆盖；长文本标签与动态行高已修复，但完整真实生成（含 6 类/6 实体密集关系）仍需逐类浏览器验收。
 - **HTML 与 Office 兼容：** 任意旧 HTML、特殊宏、复杂 Office 粘贴和自定义段间距的像素一致性；服务端 HTML 保留不等于原生画面完全一致。
 - **Codex：** 适配尚未接入，不属于本次可用能力；已有模型配置与会话保留。
 - **外部 Agent 能力：** MCP URL 登录表单尚未接入；本机 Skills、MCP 和终端命令仅对逐项实际执行的路径给出通过结论，不能据目录发现推断全部可用。
@@ -260,6 +312,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-dev-host
 
 | 阅读目的 | 入口 |
 |---|---|
+| 看需求总览的设计与边界 | [软件需求分析总览](docs/软件需求分析总览_设计方案_20261105.md) |
+| 看变体、设置与指令 | [变体管理](docs/变体管理_20261105.md) · [设置与指令验收](docs/设置与指令验收_20261105.md) |
+| 看画板对标 | [画板对标与提升](docs/画板对标与提升_20261105.md) |
 | 看本轮交互与原生差异 | [单行工具栏与原生排版](docs/单行工具栏与原生排版验收_20261104.md) · [整体精修与免刷新保存](docs/整体精修与富文本验收_20261104.md) |
 | 追溯保存修复 | [原生 HTML 写回](docs/v0.2.5原生HTML写回修复.md) · [大型 LiveDoc 保存](docs/v0.2.6大文档保存修复.md) |
 | 理解规划与实施 | [功能规格](docs/Polarion超级侧边栏_功能规格_v0.1.md) · [编辑工作台规格](docs/编辑工作台对标与交付规格_v0.3.md) · [开发进度](docs/开发进度.md) |

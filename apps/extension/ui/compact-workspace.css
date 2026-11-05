@@ -58,11 +58,14 @@
 /* Input actions remain reachable at the minimum 340px assistant width. */
 :host .workspace .composer-wrap { position: relative; padding: 10px 12px 12px; overflow: visible; }
 :host .workspace .composer textarea { display: block; width: 100%; height: 42px; min-height: 42px; max-height: min(140px, 20vh); resize: none; padding: 10px 11px; overflow-y: auto; scrollbar-width: thin; }
-:host .workspace .composer-footer { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto 30px; align-items: center; padding: 4px 7px 7px; gap: 4px; }
-:host .workspace .composer-footer > .icon { margin: 0; }
-:host .workspace .composer-footer > span { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+:host .workspace .composer-footer { display: flex; flex-wrap: wrap; align-items: center; padding: 4px 7px 7px; gap: 4px; }
+:host .workspace .composer-footer > .icon { margin: 0; flex-shrink: 0; }
+:host .workspace .composer-footer > span { display: block; flex: 0 1 auto; min-width: 0; max-width: 46%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 :host .workspace .composer-footer > span .connection { margin-right: 5px; vertical-align: 1px; }
+:host .workspace .composer-footer .footer-selects { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+:host .workspace .composer-footer .send-group { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-shrink: 0; }
 :host .workspace .composer-footer .permission-select { width: 80px; max-width: 80px; min-height: 28px; padding: 4px 2px; }
+:host .workspace .composer-footer .permission-select.guideline-select { width: 92px; max-width: 92px; }
 :host .workspace .context-meter-trigger { padding: 4px 3px; gap: 3px; }
 :host .workspace .send { width: 30px; height: 30px; }
 :host .workspace .context-cards { gap: 5px; margin-bottom: 8px; max-height: min(150px, 20vh); overscroll-behavior: contain; }
@@ -119,8 +122,8 @@
 
 /* Original two-window geometry follows the existing assistant resize control. */
 :host .workspace.floating-assistant { width: var(--assistant-panel-width, 410px) !important; min-width: 0; top: 18px !important; right: 18px; bottom: 18px; left: auto; height: auto; border: 1px solid #c1cfd6; border-radius: 11px; box-shadow: var(--ui-shadow); }
-:host .workspace.floating-assistant > .resize-grip { display: flex; left: 0; width: 7px; color: #8da5b0; touch-action: none; }
-:host .workspace.floating-assistant > .resize-grip:hover { color: #3f7187; background: #23657816; }
+:host .workspace.floating-assistant > .resize-grip { display: flex; left: 0; width: 7px; color: var(--ui-muted); touch-action: none; }
+:host .workspace.floating-assistant > .resize-grip:hover { color: var(--ui-secondary); background: #20272516; }
 :host .workspace.floating-assistant .collaboration-bar { height: 41px; padding: 0 12px; gap: 7px; }
 :host .workspace.floating-assistant .collaboration-bar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :host .workspace.floating-assistant .session-bar { height: 36px; background: #fff; }
@@ -149,7 +152,7 @@
 :host .rich-layer .ribbon-tabs { min-height: 33px; height: auto; padding: 3px 11px; gap: 6px; }
 :host .rich-layer .ribbon-tabs > button { min-height: 26px; padding: 3px 9px; white-space: nowrap; }
 :host .rich-layer .ribbon-tabs > span { overflow: hidden; text-overflow: ellipsis; }
-:host .rich-layer .ribbon { display: flex; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 5px 0; padding: 6px 8px; min-height: 46px; max-height: min(156px, 24vh); overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #b0c5d0 transparent; overscroll-behavior: contain; scroll-padding: 5px; }
+:host .rich-layer .ribbon { display: flex; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 5px 0; padding: 6px 8px; min-height: 46px; max-height: min(156px, 24vh); overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--ui-line) transparent; overscroll-behavior: contain; scroll-padding: 5px; }
 :host .rich-layer .tool-group { flex: 0 1 auto; min-width: 0; max-width: 100%; flex-wrap: wrap; gap: 3px; padding: 1px 8px; }
 :host .rich-layer .tool-group:last-child { border-right: 0; }
 :host .rich-layer .tool-group.labeled { gap: 3px; }
@@ -291,3 +294,6 @@
   :host .rich-layer .rich-workbench > footer { min-height: 48px; padding-top: 7px; padding-bottom: 7px; }
   :host .rich-layer .conflict-review { top: 95px; }
 }
+/* 窄栏：只保留连接点，引擎名让位给操作控件，底栏保持单行紧凑。 */
+:host .workspace .composer-footer > span { gap: 4px; }
+:host .workspace .composer-footer > span .connection { margin-right: 0; }

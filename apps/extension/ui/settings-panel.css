@@ -1,0 +1,103 @@
+/* 助手设置：顶部页签导航 + 卡片分区 + 指令主从列表，避免长表单无限下排。 */
+:host .workspace .settings.sp-panel { padding: 0; display: flex; flex-direction: column; overflow: hidden; max-height: calc(100% - 68px); }
+:host .workspace .sp-header { display: flex; align-items: center; gap: 10px; padding: 13px 14px 11px; border-bottom: 1px solid #eceae6; background: linear-gradient(180deg,#fdfdfc,#faf9f7); flex-shrink: 0; }
+:host .workspace .sp-title { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
+:host .workspace .sp-title-mark { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: #4d6a63; background: #eef3f1; border: 1px solid #dde7e4; flex: none; }
+:host .workspace .sp-title h3 { font-size: 13px; font-weight: 650; color: #3c3d3b; margin: 0; }
+:host .workspace .sp-title small { display: block; font-size: 10.5px; color: #96938d; margin-top: 1px; }
+:host .workspace .sp-nav { display: flex; gap: 2px; padding: 6px 8px; background: #fbfaf8; border-bottom: 1px solid #eceae6; flex-shrink: 0; }
+:host .workspace .sp-nav button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 4px; border-radius: 7px; font-size: 11.5px; color: #85827b; white-space: nowrap; }
+:host .workspace .sp-nav button:hover:not(.on) { background: #f1f0ec; color: #5f5d57; }
+:host .workspace .sp-nav button.on { background: #fff; color: #3f5d55; font-weight: 600; box-shadow: 0 0 0 1px #e4e1db, 0 1px 2px #2027250d; }
+:host .workspace .sp-nav em { font-style: normal; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: #e8e6e1; color: #7c7972; font-size: 9px; display: inline-grid; place-items: center; }
+:host .workspace .sp-nav button.on em { background: #e3ece8; color: #4c6a61; }
+:host .workspace .sp-scroll { overflow-y: auto; padding: 11px 12px 6px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; }
+:host .workspace .sp-loading { padding: 16px 15px; }
+:host .workspace .sp-card { border: 1px solid #e8e5e0; border-radius: 11px; background: #fff; padding: 12px; display: flex; flex-direction: column; gap: 12px; flex: none; }
+:host .workspace .sp-card-head { display: flex; align-items: flex-start; gap: 9px; }
+:host .workspace .sp-card-head .sp-icon { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: #5b6f68; background: #f1f3ef; border: 1px solid #e6e8e2; flex: none; margin-top: 1px; }
+:host .workspace .sp-card-head h4 { margin: 0; font-size: 12.5px; font-weight: 650; color: #454641; }
+:host .workspace .sp-card-head p { margin: 2px 0 0; font-size: 10.5px; line-height: 1.55; color: #96938d; }
+:host .workspace .sp-card .polarion-account { padding: 0; border: 0; background: transparent; }
+:host .workspace .sp-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+:host .workspace .sp-label { font-size: 11px; font-weight: 550; color: #6d6b64; display: flex; align-items: baseline; gap: 6px; }
+:host .workspace .sp-label small { font-weight: 400; color: #a3a099; font-size: 10px; }
+:host .workspace .sp-field :is(input, select, textarea) { width: 100%; border: 1px solid #e2dfd9; border-radius: 7px; background: #fff; color: #4b4c48; font-size: 12px; padding: 7px 9px; height: auto; min-height: 32px; margin: 0; transition: border-color .15s, box-shadow .15s; }
+:host .workspace .sp-field textarea { min-height: 84px; resize: vertical; line-height: 1.65; font-family: inherit; }
+:host .workspace .sp-field :is(input, select, textarea):focus { border-color: #9fb6ae; box-shadow: 0 0 0 3px #6f8f8417; outline: none; }
+:host .workspace .sp-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+:host .workspace .sp-seg { display: inline-flex; padding: 3px; border-radius: 9px; background: #f3f2ef; border: 1px solid #e8e5e0; gap: 2px; }
+:host .workspace .sp-seg button { flex: 1; padding: 6px 8px; border-radius: 6px; font-size: 11.5px; color: #77756f; white-space: nowrap; transition: background .15s, color .15s, box-shadow .15s; }
+:host .workspace .sp-seg button:hover:not(:disabled):not(.on) { background: #ebeae6; color: #565650; }
+:host .workspace .sp-seg button.on { background: #fff; color: #3f5d55; font-weight: 600; box-shadow: 0 0 0 1px #dfdcd6; }
+:host .workspace .sp-font { display: flex; flex-direction: column; gap: 9px; }
+:host .workspace .sp-font-scale { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+:host .workspace .sp-font-scale button { padding: 7px 2px; border-radius: 7px; border: 1px solid #e6e3de; background: #fff; color: #6d6b64; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+:host .workspace .sp-font-scale button small { font-size: 8.5px; color: #a9a69f; margin-left: 1px; }
+:host .workspace .sp-font-scale button:hover:not(:disabled) { border-color: #c9c5bd; }
+:host .workspace .sp-font-scale button.on { background: #eef3f1; border-color: #b9cdc6; color: #3f5d55; font-weight: 650; }
+:host .workspace .sp-font-scale button.on small { color: #6f8f84; }
+:host .workspace .sp-link { align-self: flex-start; font-size: 10.5px; color: #5d7a71; padding: 2px 0; text-decoration: underline; text-decoration-color: #c3d3cd; text-underline-offset: 2px; }
+:host .workspace .sp-link:hover:not(:disabled) { color: #3f5d55; }
+:host .workspace .sp-font-preview { padding: 10px 11px; background: #fbfaf8; border: 1px solid #efede9; border-radius: 8px; }
+:host .workspace .sp-folder-card { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border: 1px solid #e6e3de; border-radius: 9px; background: #fbfaf8; }
+:host .workspace .sp-folder-icon { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: #fff; border: 1px solid #e6e3de; color: #7d7a72; flex: none; }
+:host .workspace .sp-folder-path { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+:host .workspace .sp-folder-path strong { font-size: 11.5px; color: #4b4c48; font-weight: 600; }
+:host .workspace .sp-folder-path span { font-size: 10px; color: #9a978f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:host .workspace .sp-folder-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; }
+:host .workspace .sp-btn { padding: 6px 10px; border-radius: 7px; border: 1px solid #d9d5ce; background: #fff; font-size: 11px; color: #55564f; font-weight: 550; }
+:host .workspace .sp-btn:hover:not(:disabled) { background: #f5f4f1; border-color: #c9c5bd; }
+:host .workspace .sp-note { margin: 0; font-size: 10px; line-height: 1.6; color: #9a978f; }
+:host .workspace .sp-tabs { display: flex; gap: 4px; padding: 3px; background: #f3f2ef; border: 1px solid #e8e5e0; border-radius: 9px; }
+:host .workspace .sp-tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 8px; border-radius: 6px; font-size: 11.5px; color: #77756f; }
+:host .workspace .sp-tabs button.on { background: #fff; color: #3f5d55; font-weight: 600; box-shadow: 0 0 0 1px #dfdcd6; }
+:host .workspace .sp-tabs em { font-style: normal; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #e8e6e1; color: #7c7972; font-size: 9.5px; display: inline-grid; place-items: center; }
+:host .workspace .sp-tabs button.on em { background: #e3ece8; color: #4c6a61; }
+:host .workspace .sp-list { display: flex; flex-direction: column; gap: 6px; }
+:host .workspace .sp-row { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 8px 9px; border: 1px solid #eceae6; border-radius: 9px; background: #fbfaf8; transition: border-color .15s, background .15s, box-shadow .15s; }
+:host .workspace .sp-row:hover { background: #fff; border-color: #cfd8d3; box-shadow: 0 1px 4px #2f3b340d; }
+:host .workspace .sp-row-badge { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; background: #eef3f1; color: #5d7a71; border: 1px solid #e0e9e5; flex: none; }
+:host .workspace .sp-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+:host .workspace .sp-row-text strong { font-size: 12px; font-weight: 600; color: #454641; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:host .workspace .sp-row-text small { font-size: 10px; color: #9a978f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:host .workspace .sp-row-edit { color: #b3afa7; flex: none; }
+:host .workspace .sp-row:hover .sp-row-edit { color: #7c8f88; }
+:host .workspace .sp-row-arrow { color: #c3bfb7; flex: none; }
+:host .workspace .sp-empty { margin: 0; padding: 12px 10px; font-size: 10.5px; color: #a09d96; border: 1px dashed #e6e3de; border-radius: 8px; text-align: center; }
+:host .workspace .sp-add-guide { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 8px; border-radius: 8px; border: 1px dashed #cfd8d3; color: #5d7a71; font-size: 11.5px; background: #fbfcfb; }
+:host .workspace .sp-add-guide:hover:not(:disabled) { background: #eef3f1; border-color: #b9cdc6; }
+:host .workspace .sp-detail { display: flex; flex-direction: column; gap: 11px; }
+:host .workspace .sp-detail-head { display: flex; align-items: center; gap: 8px; }
+:host .workspace .sp-back { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; border-radius: 6px; font-size: 11px; color: #5d7a71; background: #f1f4f2; border: 1px solid #e4eae7; }
+:host .workspace .sp-back:hover { background: #e8efec; }
+:host .workspace .sp-detail-kind { flex: 1; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #96938d; }
+:host .workspace .sp-icon-btn { display: inline-flex; align-items: center; gap: 2px; padding: 5px; border-radius: 6px; color: #8d8a83; }
+:host .workspace .sp-icon-btn:hover:not(:disabled) { background: #f2f1ee; color: #5c5a54; }
+:host .workspace .sp-icon-btn.danger:hover:not(:disabled) { background: #faf0ed; color: #a85641; }
+:host .workspace .sp-files { display: flex; flex-direction: column; gap: 6px; }
+:host .workspace .sp-files-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+:host .workspace .sp-add-file { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 6px; border: 1px dashed #cfd8d3; background: #fbfcfb; font-size: 10.5px; color: #5d7a71; }
+:host .workspace .sp-add-file:hover:not(:disabled) { background: #eef3f1; border-color: #b9cdc6; }
+:host .workspace .sp-filerow { display: flex; align-items: center; gap: 7px; padding: 6px 7px; border: 1px solid #eceae6; border-radius: 8px; background: #fbfaf8; color: #8d8a83; }
+:host .workspace .sp-filedoc { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+:host .workspace .sp-filedoc strong { font-size: 10.5px; color: #55564f; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:host .workspace .sp-filedoc span { font-size: 9px; color: #a5a29a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:host .workspace .sp-filerow .sp-filenote { width: 34%; flex: none; border: 1px solid #e6e3de; border-radius: 6px; padding: 4px 6px; font-size: 10.5px; min-height: 26px; height: auto; margin: 0; background: #fff; }
+:host .workspace .sp-error { margin: 0 12px 8px; font-size: 11px; }
+:host .workspace .sp-footer { padding: 10px 12px 12px; border-top: 1px solid #eceae6; background: #fdfcfb; flex-shrink: 0; }
+:host .workspace .sp-footer .primary { background: #45655c; }
+:host .workspace .sp-footer .primary:hover { background: #3a574f; }
+@media (max-width: 400px) { :host .workspace .sp-grid2 { grid-template-columns: 1fr; } }
+:host .workspace .sp-manual { display: flex; gap: 6px; align-items: center; }
+:host .workspace .sp-manual input { flex: 1; min-width: 0; border: 1px solid #e6e3de; border-radius: 7px; padding: 5px 8px; font-size: 10.5px; color: #55564f; background: #fff; }
+:host .workspace .sp-manual input:focus { border-color: #9fb6ae; outline: none; }
+:host .workspace .sp-manual .sp-btn { flex: none; padding: 5px 9px; font-size: 10.5px; }
+/* 账号卡片由外层标题承载，内部重复标题隐藏，状态徽标右对齐。 */
+:host .workspace .sp-card .polarion-account .account-heading > strong { display: none; }
+:host .workspace .sp-card .polarion-account .account-heading { justify-content: flex-end; margin: 0; }
+:host .workspace .sp-nav em { margin-left: 3px; }
+/* 账号卡片由外层标题承载，内部重复标题隐藏，状态徽标右对齐。 */
+:host .workspace .sp-card .polarion-account .account-heading > strong { display: none; }
+:host .workspace .sp-card .polarion-account .account-heading { justify-content: flex-end; margin: 0; }
+:host .workspace .sp-nav em { margin-left: 3px; }

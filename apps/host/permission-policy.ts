@@ -12,9 +12,15 @@ export function permissionDecision(mode:PermissionMode,name:string,input:Record<
  if(name==='AskUserQuestion')return 'ask';
  if(owned.has(name)||reads.has(name))return 'allow';
  if(mode==='full')return 'allow';
- if(mode==='auto'&&['Write','Edit','MultiEdit','NotebookEdit'].includes(name)){
-  const file=input.file_path??input.notebook_path;
-  if(typeof file==='string'&&path.isAbsolute(file)){try{const relative=path.relative(realDestination(workspace),realDestination(file));if(relative&&!relative.startsWith('..'+path.sep)&&relative!=='..'&&!path.isAbsolute(relative))return 'allow';}catch{return 'ask';}}
+ if(mode==='auto'){
+  // 自动批准面向连续工程作业：命令与工具直接执行（cwd 已锁定项目工作区），
+  // 只有文件编辑仍限制在项目工作区内，越界写入交回用户确认。
+  if(['Write','Edit','MultiEdit','NotebookEdit'].includes(name)){
+   const file=input.file_path??input.notebook_path;
+   if(typeof file==='string'&&path.isAbsolute(file)){try{const relative=path.relative(realDestination(workspace),realDestination(file));if(relative&&!relative.startsWith('..'+path.sep)&&relative!=='..'&&!path.isAbsolute(relative))return 'allow';}catch{return 'ask';}}
+   return 'ask';
+  }
+  return 'allow';
  }
  return 'ask';
 }

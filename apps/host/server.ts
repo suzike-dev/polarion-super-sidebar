@@ -9,6 +9,18 @@ await fs.mkdir(DATA, { recursive: true });
 const secretPath = path.join(DATA, 'ipc-key');
 try { await fs.writeFile(secretPath, crypto.randomUUID(), { flag: 'wx', mode: 0o600 }); } catch (e: any) { if (e.code !== 'EEXIST') throw e; }
 const secret = await fs.readFile(secretPath, 'utf8');
+// 单个后台 Promise 的失败不应该杀死 Host 并中断正在运行的任务。
+const errorLog = path.join(DATA, 'host-errors.log');
+const recordError = (kind: string, error: unknown) => {
+  const message = `[${new Date().toISOString()}] ${kind}: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}
+`;
+  void fs.appendFile(errorLog, message).then(async () => {
+    const stat = await fs.stat(errorLog).catch(() => undefined);
+    if (stat && stat.size > 512 * 1024) await fs.writeFile(errorLog, message);
+  }).catch(() => {});
+};
+process.on('unhandledRejection', error => recordError('unhandledRejection', error));
+process.on('uncaughtException', error => recordError('uncaughtException', error));
 const store = new Store(path.join(DATA, 'state.sqlite'));
 const service = new Service(store);
 const server = net.createServer(socket => {

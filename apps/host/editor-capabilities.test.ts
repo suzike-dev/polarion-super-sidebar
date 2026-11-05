@@ -59,7 +59,7 @@ test('capability tool is read-only, concise by default and routes point to regis
   assert.equal(summary.nodes,undefined);assert.equal(summary.marks,undefined);assert(JSON.stringify(summary).length<1500);assert(EDITOR_AGENT_RULES.length<2000);
   const engine=readFileSync(new URL('./engine.ts',import.meta.url),'utf8');
   const registered=[...engine.matchAll(/\btool\('([^']+)'/g)].map(match=>match[1]!);registered.push(tool.name);
-  assert.deepEqual([...registered].sort(),[...EDITOR_TOOL_NAMES].sort());
+  assert.deepEqual([...registered].sort(),[...EDITOR_TOOL_NAMES,'list_guidelines','read_guideline'].sort());
   const names=new Set([...registered,...boardToolNames.map(name=>name.replace('mcp__polarion_drafts__',''))]);
   const boards=(editorCapabilities('boards') as any).boards;
   for(const route of [...Object.values(summary.routes),...Object.values(boards.routes)] as string[][])for(const name of route)assert(names.has(name),'unregistered route: '+name);

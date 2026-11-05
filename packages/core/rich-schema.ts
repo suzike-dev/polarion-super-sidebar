@@ -41,9 +41,15 @@ export const RichImage = Node.create({ name:'image', group:'inline', inline:true
   addAttributes(){return{sid:{default:null,rendered:false},src:{default:''},assetId:{default:null,parseHTML:el=>el.getAttribute('data-polarion-asset'),renderHTML:a=>a.assetId?{'data-polarion-asset':a.assetId}:{}},alt:{default:''},title:{default:null},width:{default:null},height:{default:null},align:{default:'left'},sourceStyle:{default:null,rendered:false}};},
   parseHTML(){return[{tag:'img[src]'}];},renderHTML({node}){const a=node.attrs;return['img',{src:a.src,alt:a.alt,title:a.title,...(a.width?{width:a.width}:{}),...(a.height?{height:a.height}:{}),...(a.assetId?{'data-polarion-asset':a.assetId}:{}),style:safeStyle(a.sourceStyle)}];},
 });
+/** Polarion 工作项引用：内联原子节点；已有引用按原始 HTML 保真序列化，新插入输出标准引用标记。 */
+export const WorkItemRef = Node.create({ name: 'workItemRef', group: 'inline', inline: true, atom: true, draggable: true, selectable: true,
+  addAttributes() { return { sid: { default: null, rendered: false }, workItemId: { default: '' } }; },
+  parseHTML() { return [{ tag: 'span[data-type="workItem"]', getAttrs: el => ({ workItemId: el.getAttribute('data-item-id') ?? '' }) }, { tag: 'span[data-type="workitem"][data-item-id]' }]; },
+  renderHTML({ node }) { return ['span', { class: 'polarion-rte-link', 'data-type': 'workItem', 'data-item-id': node.attrs.workItemId, 'data-option-id': 'long', contenteditable: 'false', title: `工作项引用 · ${node.attrs.workItemId}` }, node.attrs.workItemId]; },
+});
 function protectedNode(inline: boolean) { return Node.create({ name: inline ? 'protectedInline' : 'protectedBlock', group: inline ? 'inline' : 'block', inline, atom: true, draggable: false, selectable: true,
-  addAttributes() { return { sid: { default: null, rendered: false }, label: { default: '保留对象', rendered: false } }; },
-  renderHTML({ node }) { return [inline ? 'span' : 'div', { class: 'protected-object', contenteditable: 'false', title: '原始内容与身份保留，专用编辑器尚未接入' }, node.attrs.label]; },
+  addAttributes() { return { sid: { default: null, rendered: false }, label: { default: '保留对象', rendered: false }, text: { default: '', rendered: false } }; },
+  renderHTML({ node }) { const visible = node.attrs.text || (String(node.attrs.label).startsWith('图片') ? node.attrs.label : '受保护内容'); return [inline ? 'span' : 'div', { class: 'protected-object', contenteditable: 'false', title: `原始内容与身份保留 · ${node.attrs.label}` }, visible]; },
 }); }
-export function richExtensions() { return [StarterKit.configure({ link: { openOnClick: false, autolink: false }, trailingNode: false }), TaskList,TaskItem,PortablePresentation, SourceAttributes, SourceListItem, SourceText, SourceSpan, Paint, Container, Callout, RichImage, protectedNode(false), protectedNode(true), Table.configure({ resizable: true }), TableRow, TableCell, TableHeader, TextAlign.configure({ types: ['paragraph', 'heading'] }), Subscript, Superscript]; }
+export function richExtensions() { return [StarterKit.configure({ link: { openOnClick: false, autolink: false }, trailingNode: false }), TaskList,TaskItem,PortablePresentation, SourceAttributes, SourceListItem, SourceText, SourceSpan, Paint, Container, Callout, RichImage, WorkItemRef, protectedNode(false), protectedNode(true), Table.configure({ resizable: true }), TableRow, TableCell, TableHeader, TextAlign.configure({ types: ['paragraph', 'heading'] }), Subscript, Superscript]; }
 export const richSchema = getSchema(richExtensions());

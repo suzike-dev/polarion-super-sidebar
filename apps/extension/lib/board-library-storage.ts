@@ -1,4 +1,5 @@
 import type {LibraryItems} from '@excalidraw/excalidraw/types';
+import {elementsBounds} from '../../../packages/core/board-templates.ts';
 
 export const BOARD_LIBRARY_STORAGE_KEY='board-library:v1';
 export const BOARD_LIBRARY_LOCK='polarion-board-library';
@@ -31,8 +32,10 @@ export class BoardLibraryStorage {
       const state=readState((await this.storage.get(BOARD_LIBRARY_STORAGE_KEY))[BOARD_LIBRARY_STORAGE_KEY]);
       const existing=new Set(state.libraryItems.map(item=>item.id)),installed=new Set(state.installedBuiltinIds);
       const additions=builtins.filter(item=>!installed.has(item.id)&&!existing.has(item.id));
-      const next={...state,libraryItems:[...state.libraryItems,...additions],installedBuiltinIds:[...new Set([...installed,...builtins.map(item=>item.id)])]};
-      if(additions.length||next.installedBuiltinIds.length!==state.installedBuiltinIds.length)await this.storage.set({[BOARD_LIBRARY_STORAGE_KEY]:next});
+      const merged=[...state.libraryItems,...additions];
+      const upgraded=upgradeBuiltinShells(merged,builtins);
+      const next={...state,libraryItems:upgraded.items,installedBuiltinIds:[...new Set([...installed,...builtins.map(item=>item.id)])]};
+      if(additions.length||upgraded.upgraded||next.installedBuiltinIds.length!==state.installedBuiltinIds.length)await this.storage.set({[BOARD_LIBRARY_STORAGE_KEY]:next});
       return next.libraryItems;
     });
     this.previous=structuredClone(result);this.loaded=true;return result;
@@ -49,7 +52,13 @@ export class BoardLibraryStorage {
       const state=readState((await this.storage.get(BOARD_LIBRARY_STORAGE_KEY))[BOARD_LIBRARY_STORAGE_KEY]);
       const current=new Map(state.libraryItems.filter(item=>!deleted.has(item.id)).map(item=>[item.id,item]));
       const added:LibraryItems[number][]=[];
-      for(const item of changed){if(current.has(item.id))current.set(item.id,item);else added.push(item);}
+      for(const item of changed){
+        if(current.has(item.id))current.set(item.id,item);
+        // A previous snapshot entry missing from storage was explicitly deleted by
+        // another tab; a stale edit must not resurrect it. Only local additions
+        // (never seen in this tab's previous snapshot) are new material.
+        else if(!beforeMap.has(item.id))added.push(item);
+      }
       await this.storage.set({[BOARD_LIBRARY_STORAGE_KEY]:{...state,libraryItems:[...added,...current.values()]}});
       this.previous=next;
     }));
@@ -62,4 +71,34 @@ export class BoardLibraryStorage {
 export function supplementBoardLibrary(current:LibraryItems,builtins:LibraryItems):LibraryItems {
   const ids=new Set(current.map(item=>item.id));
   return [...current,...builtins.filter(item=>!ids.has(item.id))];
+}
+
+/** Rebuild a shell from the saved (non-deleted) artwork. Older installs may have been
+ * moved, scaled or regrouped before shells existed, so copying today's pristine shell
+ * would misalign it. Existing shells are corrected in place; names, other elements and
+ * explicit deletions are preserved. */
+export function upgradeBuiltinShells(current:LibraryItems,builtins:LibraryItems):{items:LibraryItems;upgraded:number} {
+  const shells=new Map<string,LibraryItems[number]['elements'][number]>();
+  for(const item of builtins){const shell=item.elements.find(element=>element.customData?.role==='bind-shell');if(shell)shells.set(item.id,shell);}
+  let upgraded=0;
+  const items=current.map(item=>{
+    const template=shells.get(item.id);
+    if(!template)return item;
+    const existing=item.elements.find(element=>element.customData?.role==='bind-shell');
+    if(existing?.isDeleted)return item;
+    const artwork=item.elements.filter(element=>!element.isDeleted&&element.customData?.role!=='bind-shell');
+    if(!artwork.length)return item;
+    const bounds=elementsBounds(artwork);
+    const groupId=artwork.flatMap(element=>element.groupIds??[])[0]??existing?.groupIds?.[0]??template.groupIds?.[0]??item.id+'-group';
+    const x=Math.floor(bounds.left)-4,y=Math.floor(bounds.top)-4;
+    const width=Math.ceil(bounds.right)-Math.floor(bounds.left)+8,height=Math.ceil(bounds.bottom)-Math.floor(bounds.top)+8;
+    if(existing&&existing.x===x&&existing.y===y&&existing.width===width&&existing.height===height&&existing.groupIds?.length===1&&existing.groupIds[0]===groupId)return item;
+    const ids=new Set(item.elements.map(element=>element.id));
+    let id=existing?existing.id:template.id;
+    if(!existing&&ids.has(id)){let suffix=2;while(ids.has(id+'-'+suffix))suffix++;id=id+'-'+suffix;}
+    upgraded++;
+    const nextShell={...structuredClone(existing??template),id,x,y,width,height,groupIds:[groupId],isDeleted:false};
+    return {...item,elements:existing?item.elements.map(element=>element===existing?nextShell:element):[nextShell,...item.elements]} as LibraryItems[number];
+  });
+  return {items,upgraded};
 }

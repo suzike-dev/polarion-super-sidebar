@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {PenTool,MessageSquare,LibraryBig} from 'lucide-react';
+import {PenTool,MessageSquare,LibraryBig,Copy,Link2,StickyNote,LayoutTemplate,Keyboard} from 'lucide-react';
 import {browser} from 'wxt/browser';
 import type {ExcalidrawImperativeAPI,LibraryItems} from '@excalidraw/excalidraw/types';
 import {BoardLibraryStorage,BOARD_LIBRARY_LOCK,supplementBoardLibrary} from '../../lib/board-library-storage';
@@ -8,6 +8,10 @@ import {rpc} from '../../lib/client';
 import {uploadAsset,assetBlob} from '../../lib/assets';
 import type {Asset,Target} from '../../../../packages/protocol/index';
 import {applyBoardPatches,boardSceneSignature} from '../../../../packages/core/board-changes';
+import {connectorTargetAt,quickConnectGeometry,alignSelection,distributeSelection,applyStickyColor,applyArrowStyle,STICKY_COLORS} from '../../../../packages/core/board-interactions';
+import {instantiateElements} from '../../../../packages/core/board-templates';
+import {bindDiagramLabels} from '../../../../packages/core/board-labels';
+import {BOARD_SHORTCUTS} from '../../../../packages/core/board-shortcuts';
 import {boardPreviewDimensions,checkBoardCanvas} from '../../../../packages/core/board-generation';
 import type {BoardProposal,BoardGenerationRequest,BoardGenerationProposal} from '../../../host/boards';
 import type {BoardRecord} from '../../../host/boards';
@@ -17,7 +21,8 @@ import './style.css';
 // All fonts are packaged with the extension; the editor never needs its public CDN.
 (window as any).EXCALIDRAW_ASSET_PATH=browser.runtime.getURL('/')+'board-assets/';
 const engine=await import('@excalidraw/excalidraw');
-const {Excalidraw,MainMenu,exportToBlob,serializeAsJSON,hashElementsVersion,restoreElements,CaptureUpdateAction}=engine;
+const {Excalidraw,MainMenu,exportToBlob,serializeAsJSON,hashElementsVersion,restoreElements,CaptureUpdateAction,viewportCoordsToSceneCoords}=engine;
+type BoardElementLike=Parameters<typeof instantiateElements>[0][number];
 const channel=location.hash.slice(1),parentOrigin='https://polarion.pufafen.com';
 const send=(type:string,data:object={})=>parent.postMessage({type,channel,...data},parentOrigin);
 // Native library previews are already rendered in batches by Excalidraw. The artwork
@@ -39,9 +44,37 @@ function GenerationCard({proposal,busy,onDecide}:{proposal:BoardGenerationPropos
   useEffect(()=>{let cancelled=false,url='';setError('');setPreview('');void (async()=>{try{const elements=restoreElements(proposal.elements as any,null,{refreshDimensions:true,repairBindings:true});const blob=await exportToBlob({elements,appState:{viewBackgroundColor:'#ffffff',exportBackground:true,exportWithDarkMode:false},files:{},mimeType:'image/png',exportPadding:scenePadding(elements),getDimensions:(w:number,h:number)=>{const scale=Math.min(1.5,1400/Math.max(w,h));return{width:w*scale,height:h*scale,scale};}});if(cancelled)return;url=URL.createObjectURL(blob);setPreview(url);}catch(e){if(!cancelled)setError('预览生成失败：'+(e as Error).message);}})();return()=>{cancelled=true;if(url)URL.revokeObjectURL(url);};},[proposal.proposalId,attempt]);
   return <article className="generation-card"><div className="generation-image">{preview?<button className="generation-preview-trigger" onClick={()=>setExpanded(true)} title="放大检查文字与连线"><img src={preview} alt={'待应用整图草案：'+proposal.diagram.title}/><span>点击放大预览</span></button>:<span role="status">{error||'正在生成草案预览…'}{error&&<button onClick={()=>setAttempt(v=>v+1)}>重试预览</button>}</span>}</div><div className="generation-detail"><strong>{proposal.diagram.title}</strong><p>{proposal.summary.text}</p><small>{proposal.summary.nodes} 个节点 · {proposal.summary.edges} 条连线 · 可继续编辑</small><small>应用将替换请求时的整张画板；尚未插入正文或保存</small><div><button disabled={busy} onClick={()=>void onDecide(proposal,'reject')}>拒绝草案</button><button className="primary" disabled={busy||!preview} onClick={()=>void onDecide(proposal,'apply')}>应用整图草案</button></div></div>{expanded&&preview&&<DiagramPreview src={preview} title={proposal.diagram.title} onClose={()=>setExpanded(false)}/>}</article>;
 }
+function ShortcutHelp({onClose}:{onClose:()=>void}){
+  const dialog=useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    dialog.current?.focus();
+    const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();onClose();}};
+    window.addEventListener('keydown',onKey);
+    return()=>{window.removeEventListener('keydown',onKey);if(trigger?.isConnected)trigger.focus({preventScroll:true});};
+  },[onClose]);
+  return <div className="board-modal-backdrop" role="presentation" onPointerDown={event=>{if(event.target===event.currentTarget)onClose();}}><div className="board-modal shortcuts-modal" role="dialog" aria-modal="true" aria-label="画板快捷键" tabIndex={-1} ref={dialog}><header><div><strong>画板快捷键</strong><small>按 ? 随时打开；Esc 关闭</small></div><button className="icon" title="关闭" onClick={onClose}>×</button></header><div className="shortcut-grid">{BOARD_SHORTCUTS.map(group=><section key={group.title}><h3>{group.title}</h3>{group.items.map(item=><p key={item.keys}><kbd>{item.keys}</kbd><span>{item.label}</span></p>)}</section>)}</div></div></div>;
+}
+const templateDescriptions:Record<string,string>={'tpl-review':'编写方与评审方职责分离的评审流程','tpl-arch':'应用层、控制逻辑层与驱动层的系统架构','tpl-state':'待机、运行与故障之间的状态迁移','tpl-sequence':'用户、界面与服务之间的交互时序','tpl-dfd':'需求方、解析与排期的数据流','tpl-vmodel':'需求、设计、实现与测试的 V 模型'};
+const templateThumbCache=new Map<string,string>();
+function TemplateCenter({items,onClose,onUse}:{items:any[];onClose:()=>void;onUse:(item:any)=>void}){
+  const [previews,setPreviews]=useState<Record<string,string>>({}),dialog=useRef<HTMLDivElement>(null);
+  useEffect(()=>{const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null;dialog.current?.focus();const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();onClose();}};window.addEventListener('keydown',onKey);return()=>{window.removeEventListener('keydown',onKey);if(trigger?.isConnected)trigger.focus({preventScroll:true});};},[onClose]);
+  useEffect(()=>{let cancelled=false;void(async()=>{for(const item of items){const cached=templateThumbCache.get(item.id);if(cached){if(!cancelled)setPreviews(current=>current[item.id]?current:{...current,[item.id]:cached});continue;}try{const elements=restoreElements(item.elements as any,null,{refreshDimensions:true,repairBindings:true});const blob=await exportToBlob({elements,appState:{viewBackgroundColor:'#ffffff',exportBackground:true,exportWithDarkMode:false},files:{},mimeType:'image/png',exportPadding:16,getDimensions:(width:number,height:number)=>{const scale=Math.min(1,260/Math.max(width,height));return{width:width*scale,height:height*scale,scale};}});const url=URL.createObjectURL(blob);templateThumbCache.set(item.id,url);if(!cancelled)setPreviews(current=>({...current,[item.id]:url}));}catch{/* 预览失败仍可插入 */}if(cancelled)return;}})();return()=>{cancelled=true;};},[items]);
+  return <div className="board-modal-backdrop" role="presentation" onPointerDown={event=>{if(event.target===event.currentTarget)onClose();}}><div className="board-modal" role="dialog" aria-modal="true" aria-label="模板中心" tabIndex={-1} ref={dialog}><header><div><strong>模板中心</strong><small>选择模板插入画板中心；插入后可继续编辑每个对象</small></div><button className="icon" title="关闭模板中心" onClick={onClose}>×</button></header><div className="template-grid">{items.map(item=>{const key=String(item.id).replace('pss-builtin-v1-','');const title=String(item.name??'').split(' · ')[1]??item.name;return <article className="template-card" key={item.id}><div className="template-thumb">{previews[item.id]?<img src={previews[item.id]} alt={title}/>:<span role="status">正在生成预览…</span>}</div><div className="template-meta"><strong>{title}</strong><p>{templateDescriptions[key]??'可编辑的工程图模板'}</p><button className="primary" onClick={()=>onUse(item)}>使用模板</button></div></article>;})}</div></div></div>;
+}
 function Board(){
   const [input,setInput]=useState<Input|null>(null),[initial,setInitial]=useState<any>(null),[title,setTitle]=useState('工程流程图'),[status,setStatus]=useState('正在准备画板'),[issue,setIssue]=useState(''),[busy,setBusy]=useState(false);
   const [fitRequest,setFitRequest]=useState(0),baseline=useRef('');
+  // Connector snapping is an Excalidraw gesture, not a persistent anchor dot. Show how it
+  // works while the arrow tool is active, and warn when a plain line cannot bind at all.
+  const [hint,setHint]=useState(''),hintRef=useRef('');
+  const [quickConnect,setQuickConnect]=useState(false),[selectedCount,setSelectedCount]=useState(0),[selectedKinds,setSelectedKinds]=useState({sticky:false,arrow:false});
+  const [templateItems,setTemplateItems]=useState<any[]|null>(null);
+  const [mermaidOpen,setMermaidOpen]=useState(false),[mermaidText,setMermaidText]=useState(''),[mermaidBusy,setMermaidBusy]=useState(false),[mermaidError,setMermaidError]=useState('');
+  const [shortcutsOpen,setShortcutsOpen]=useState(false);
+  const modalOpenRef=useRef(false);modalOpenRef.current=!!(shortcutsOpen||templateItems||mermaidOpen);
+  const connectFrom=useRef<string|null>(null),selectedCountRef=useRef(0),selectedKindsRef=useRef({sticky:false,arrow:false});
   const [proposals,setProposals]=useState<BoardProposal[]>([]),[aiPreview,setAiPreview]=useState('');
   const [generation,setGeneration]=useState<BoardGenerationRequest|null>(null),[generated,setGenerated]=useState<BoardGenerationProposal[]>([]),[generationRestored,setGenerationRestored]=useState(false);
   const requestRef=useRef<BoardGenerationRequest|null>(null),localBoardId=useRef<string>(crypto.randomUUID());
@@ -53,6 +86,151 @@ function Board(){
   useEffect(()=>{if(!input?.record)return;let stopped=false;let timer:ReturnType<typeof setTimeout>;const poll=async()=>{try{const rows=await rpc<BoardProposal[]>({method:'boards.proposals',draftId:input.draftId,objectId:input.record!.manifest.objectId,snapshotId:input.record!.manifest.snapshotId});if(!stopped)setProposals(old=>JSON.stringify(old)===JSON.stringify(rows)?old:rows);}catch(e){if(!stopped)setIssue((e as Error).message);}finally{if(!stopped)timer=setTimeout(poll,1500);}};void poll();return()=>{stopped=true;clearTimeout(timer);};},[input]);
   useEffect(()=>{if(!input||!generation)return;let stopped=false;let pollTimer:ReturnType<typeof setTimeout>;const poll=async()=>{try{const rows=await rpc<BoardGenerationProposal[]>({method:'boards.generation.proposals',draftId:input.draftId,requestId:generation.requestId});if(!stopped)setGenerated(old=>JSON.stringify(old)===JSON.stringify(rows)?old:rows);}catch(e){if(!stopped)setIssue((e as Error).message);}finally{if(!stopped)pollTimer=setTimeout(poll,1500);}};void poll();return()=>{stopped=true;clearTimeout(pollTimer);};},[input,generation]);
   useEffect(()=>()=>{if(timer.current)clearTimeout(timer.current);},[]);
+  // Feishu-style grid toggle: the native Excalidraw binding is Ctrl+', engineering
+  // reviewers expect Shift+G. Never trigger while typing in the title or a text shape.
+  useEffect(()=>{
+    const onKey=(event:KeyboardEvent)=>{
+      const instance=api.current;
+      if(!instance||modalOpenRef.current||!event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return;
+      const key=event.key.toLowerCase();
+      if(key!=='g')return;
+      const target=event.target as HTMLElement|null;
+      if(target&&(target.tagName==='INPUT'||target.tagName==='TEXTAREA'||target.isContentEditable))return;
+      event.preventDefault();
+      instance.updateScene({appState:{gridModeEnabled:!instance.getAppState().gridModeEnabled}});
+    };
+    window.addEventListener('keydown',onKey);
+    return()=>window.removeEventListener('keydown',onKey);
+  },[]);
+  useEffect(()=>{
+    const onKey=(event:KeyboardEvent)=>{
+      const target=event.target as HTMLElement|null;
+      if(target&&(target.tagName==='INPUT'||target.tagName==='TEXTAREA'||target.isContentEditable))return;
+      if(!modalOpenRef.current&&event.key==='?'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();event.stopImmediatePropagation();setShortcutsOpen(true);return;}
+      if(event.key==='Escape'&&quickConnect&&!modalOpenRef.current){event.preventDefault();event.stopImmediatePropagation();connectFrom.current=null;setQuickConnect(false);setStatus('已退出快速连接');return;}
+      if(event.ctrlKey||event.metaKey||event.altKey||event.shiftKey||modalOpenRef.current)return;
+      const key=event.key.toLowerCase();
+      if(key==='c'){event.preventDefault();event.stopImmediatePropagation();connectFrom.current=null;setQuickConnect(value=>!value);setStatus(quickConnect?'已退出快速连接':'快速连接：请点击起点形状');}
+      if(key==='n'){event.preventDefault();event.stopImmediatePropagation();addSticky();}
+    };
+    // 捕获阶段先于 Excalidraw 自己的快捷键处理，避免 ? 同时弹出两套帮助。
+    document.addEventListener('keydown',onKey,true);
+    return()=>document.removeEventListener('keydown',onKey,true);
+  },[quickConnect]);
+  // 在画布上粘贴 Mermaid 文本时直接进入导入预览，而不是当作普通文字粘到画布。
+  useEffect(()=>{
+    const onPaste=(event:ClipboardEvent)=>{
+      const target=event.target as HTMLElement|null;
+      if(target&&(target.tagName==='INPUT'||target.tagName==='TEXTAREA'||target.isContentEditable))return;
+      const text=event.clipboardData?.getData('text/plain')?.trim()??'';
+      if(!/^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram)\b/i.test(text))return;
+      event.preventDefault();event.stopImmediatePropagation();setMermaidError('');setMermaidText(text);setMermaidOpen(true);
+    };
+    document.addEventListener('paste',onPaste,true);
+    return()=>document.removeEventListener('paste',onPaste,true);
+  },[]);
+  useEffect(()=>{
+    if(!quickConnect)return;
+    const handler=(event:PointerEvent)=>{
+      const instance=api.current;if(!instance)return;
+      const target=event.target as HTMLElement|null;
+      if(target?.closest('header,footer,.board-align,.App-menu,.Island,.layer-ui__wrapper,.App-toolbar,.dropdown-menu,.context-menu,.help-button'))return;
+      event.preventDefault();event.stopPropagation();
+      const state=instance.getAppState(),scene=viewportCoordsToSceneCoords({clientX:event.clientX,clientY:event.clientY},state),elements=instance.getSceneElements();
+      const hit=connectorTargetAt(elements as any,scene);
+      if(!hit){setIssue('请点击一个形状作为连接目标（直线不能作为连接端点）。');return;}
+      if(!connectFrom.current){connectFrom.current=hit.element.id;setStatus('已选起点，请点击目标形状完成连接');return;}
+      if(connectFrom.current===hit.element.id){setIssue('起点与终点相同，请选择另一个形状。');return;}
+      const from=elements.find(element=>element.id===connectFrom.current);
+      if(!from){connectFrom.current=null;setIssue('起点已不存在，请重新选择。');return;}
+      const geometry=quickConnectGeometry(from as any,hit.element as any);
+      const arrow:any={id:crypto.randomUUID(),type:'arrow',x:geometry.x,y:geometry.y,width:geometry.width,height:geometry.height,angle:0,strokeColor:'#356c7c',backgroundColor:'transparent',fillStyle:'solid',strokeWidth:2,strokeStyle:'solid',roughness:0,opacity:100,groupIds:[],frameId:null,index:null,roundness:{type:2},seed:Math.floor(Math.random()*2147483646)+1,version:1,versionNonce:Math.floor(Math.random()*2147483646)+1,isDeleted:false,boundElements:null,updated:Date.now(),link:null,locked:false,points:geometry.points,lastCommittedPoint:null,startBinding:{elementId:from.id,focus:0,gap:8,fixedPoint:geometry.startFixedPoint},endBinding:{elementId:hit.element.id,focus:0,gap:8,fixedPoint:geometry.endFixedPoint},startArrowhead:null,endArrowhead:'arrow',elbowed:true,fixedSegments:geometry.points.slice(2,-1).map((end,index)=>({index:index+2,start:geometry.points[index+1],end})),startIsSpecial:false,endIsSpecial:false};
+      const updated=elements.map(element=>element.id===from.id||element.id===hit.element.id?{...element,boundElements:[...(element.boundElements??[]),{id:arrow.id,type:'arrow'}]}:element);
+      instance.updateScene({elements:[...updated,arrow] as any,captureUpdate:CaptureUpdateAction.IMMEDIATELY});
+      connectFrom.current=null;setQuickConnect(false);setStatus('已建立绑定连线；拖动任一形状时连线跟随');
+    };
+    document.addEventListener('pointerdown',handler,true);
+    return()=>document.removeEventListener('pointerdown',handler,true);
+  },[quickConnect]);
+  const addSticky=()=>{
+    const instance=api.current;if(!instance)return;
+    const state=instance.getAppState(),center=viewportCoordsToSceneCoords({clientX:window.innerWidth/2,clientY:window.innerHeight/2},state);
+    const width=200,height=132,rectId=crypto.randomUUID(),textId=crypto.randomUUID(),group=crypto.randomUUID(),x=Math.round(center.x-width/2),y=Math.round(center.y-height/2);
+    const common=(id:string,type:string,extra:object)=>({id,type,x,y,width,height,angle:0,strokeColor:'#c2a35e',backgroundColor:'transparent',fillStyle:'solid',strokeWidth:2,strokeStyle:'solid',roughness:0,opacity:100,groupIds:[group],frameId:null,index:null,roundness:null,seed:Math.floor(Math.random()*2147483646)+1,version:1,versionNonce:Math.floor(Math.random()*2147483646)+1,isDeleted:false,boundElements:[] as {id:string;type:string}[],updated:Date.now(),link:null,locked:false,...extra});
+    const rect:any={...common(rectId,'rectangle',{}),backgroundColor:STICKY_COLORS[0].value,roundness:{type:3,value:8},boundElements:[{id:textId,type:'text'}],customData:{boardRole:'sticky'}};
+    const text:any={...common(textId,'text',{}),customData:{boardRole:'sticky-text'},x:x+12,y:y+height/2-10,width:width-24,height:20,text:'记录要点',originalText:'记录要点',fontSize:14,fontFamily:2,textAlign:'center',verticalAlign:'middle',containerId:rectId,autoResize:false,lineHeight:1.25,strokeWidth:1,strokeColor:'#292f32'};
+    instance.updateScene({elements:[...instance.getSceneElements(),rect,text],appState:{selectedElementIds:{[rectId]:true,[textId]:true}},captureUpdate:CaptureUpdateAction.IMMEDIATELY});
+    setStatus('已插入便签：双击便签文字即可编辑');
+  };
+  const selectionIds=()=>{const instance=api.current;if(!instance)return[];const state=instance.getAppState();return Object.keys(state.selectedElementIds).filter(id=>state.selectedElementIds[id]);};
+  const applySelectionColor=(color:string)=>{
+    const instance=api.current;if(!instance)return;const ids=selectionIds();if(!ids.length)return;
+    instance.updateScene({elements:applyStickyColor(instance.getSceneElements() as any,ids,color) as any,captureUpdate:CaptureUpdateAction.IMMEDIATELY});
+    setStatus('已更新便签颜色');
+  };
+  const applySelectionArrow=(style:'solid'|'dashed'|'plain')=>{
+    const instance=api.current;if(!instance)return;const ids=selectionIds();if(!ids.length)return;
+    instance.updateScene({elements:applyArrowStyle(instance.getSceneElements() as any,ids,style) as any,captureUpdate:CaptureUpdateAction.IMMEDIATELY});
+    setStatus(style==='plain'?'已改为无箭头连线':style==='dashed'?'已改为虚线连线':'已改为实线箭头');
+  };
+  const applySelectionChange=(edge:'left'|'centerX'|'right'|'top'|'centerY'|'bottom'|'distributeX'|'distributeY')=>{
+    const instance=api.current;if(!instance)return;
+    const state=instance.getAppState(),ids=Object.keys(state.selectedElementIds).filter(id=>state.selectedElementIds[id]);
+    if(ids.length<2){setIssue('请先选择至少两个对象。');return;}
+    const elements=instance.getSceneElements() as any;
+    const next=edge==='distributeX'?distributeSelection(elements,ids,'x'):edge==='distributeY'?distributeSelection(elements,ids,'y'):alignSelection(elements,ids,edge);
+    instance.updateScene({elements:next as any,captureUpdate:CaptureUpdateAction.IMMEDIATELY});
+    setStatus(edge.startsWith('distribute')?'已均匀分布所选对象':'已对齐所选对象；连线保持绑定');
+  };
+  const importMermaid=async()=>{
+    const instance=api.current;if(!instance||mermaidBusy)return;
+    setMermaidBusy(true);setMermaidError('');
+    try{
+      if(mermaidText.length>20000)throw Error('Mermaid 定义过长（最多 20000 字符），请拆成多张图。');
+      // 动态分包：mermaid 只在首次导入时加载，不进入常规画板链路。
+      const {parseMermaidToExcalidraw}=await import('@excalidraw/mermaid-to-excalidraw');
+      const {elements,files}=(await parseMermaidToExcalidraw(mermaidText)) as {elements:any[];files?:any};
+      if(!elements?.length)throw Error('未能从这段 Mermaid 生成图形，请检查语法。');
+      if(elements.length>2000)throw Error('这段 Mermaid 生成的对象过多（超过 2000 个），请拆成多张图。');
+      // Mermaid 原始元素缺少 seed/version 等运行时字段，直接入画会令渲染崩溃；先走原生 restore 规范化。
+      const restored=restoreElements(bindDiagramLabels(elements) as any[],null,{refreshDimensions:true,repairBindings:true}) as unknown as BoardElementLike[];
+      const state=instance.getAppState(),center=viewportCoordsToSceneCoords({clientX:window.innerWidth/2,clientY:window.innerHeight/2},state);
+      const inserted=instantiateElements(restored,{centerX:center.x,centerY:center.y});
+      // updateScene 不接收二进制文件，图片/图标必须先通过 addFiles 注册，否则 fileId 指向不存在的资源。
+      if(files&&Object.keys(files).length)(instance as any).addFiles?.(Object.values(files));
+      instance.updateScene({elements:[...instance.getSceneElements(),...inserted.elements] as any,appState:{selectedElementIds:Object.fromEntries(inserted.ids.map(id=>[id,true]))},captureUpdate:CaptureUpdateAction.IMMEDIATELY});
+      setMermaidOpen(false);setMermaidText('');setStatus('已按 Mermaid 导入 '+inserted.elements.length+' 个可编辑对象');
+    }catch(e){setMermaidError((e as Error).message||String(e));}
+    finally{setMermaidBusy(false);}
+  };
+  const openTemplates=async()=>{
+    try{const builtins=await builtinLibrary();const items=builtins.filter((item:any)=>item.elements[0]?.customData?.boardLibrary?.category==='整图模板');if(!items.length)throw Error('没有可用的整图模板');setTemplateItems(items);}catch(e){setIssue('模板中心打开失败：'+(e as Error).message);}
+  };
+  const useTemplate=(item:any)=>{
+    const instance=api.current;if(!instance)return;
+    const state=instance.getAppState(),center=viewportCoordsToSceneCoords({clientX:window.innerWidth/2,clientY:window.innerHeight/2},state);
+    const inserted=instantiateElements(item.elements as any,{centerX:center.x,centerY:center.y});
+    instance.updateScene({elements:[...instance.getSceneElements(),...inserted.elements] as any,appState:{selectedElementIds:Object.fromEntries(inserted.ids.map(id=>[id,true]))},captureUpdate:CaptureUpdateAction.IMMEDIATELY});
+    setTemplateItems(null);setStatus('已插入模板「'+(String(item.name??'').split(' · ')[1]??'工程图')+'」，可直接编辑');
+  };
+  const copyImage=async()=>{
+    if(!api.current)return;setIssue('');
+    try{
+      const elements=api.current.getSceneElements();
+      if(!elements.length)throw Error('请先添加图形或文字。');
+      const blob=await exportToBlob({elements,appState:{...api.current.getAppState(),exportBackground:true,exportWithDarkMode:false},files:api.current.getFiles(),mimeType:'image/png',exportPadding:scenePadding(elements),getDimensions:boardPreviewDimensions});
+      try{
+        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+      }catch{
+        // Cross-origin iframes can be denied by the embedding page's permissions
+        // policy; fall back to the extension's offscreen clipboard document.
+        const dataUrl=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(Error('PNG_READ_FAILED'));reader.readAsDataURL(blob);});
+        const reply=await browser.runtime.sendMessage({type:'copy-board-image',dataUrl}) as {ok?:boolean;error?:string}|undefined;
+        if(!reply?.ok)throw Error(reply?.error||'剪贴板暂不可用');
+      }
+      setStatus('画板图片已复制到剪贴板');
+    }catch(e){setIssue('复制失败：'+(e as Error).message);}
+  };
   const api=useRef<ExcalidrawImperativeAPI|null>(null),data=useRef<{elements:readonly any[];appState:any;files:any}|null>(null),timer=useRef<ReturnType<typeof setTimeout>|null>(null),version=useRef(''),key=useRef(''),write=useRef(Promise.resolve()),lastContext=useRef(''),name=useRef(title);name.current=title;
   useEffect(()=>{let frame=0,attempts=0,previous='',stable=0;const fit=()=>{const instance=api.current,state=instance?.getAppState(),elements=instance?.getSceneElements();if(instance&&state&&state.width>100&&state.height>100&&elements?.length){const dimensions=state.width+':'+state.height;stable=dimensions===previous?stable+1:0;previous=dimensions;if(stable>=2){instance.scrollToContent(elements,{fitToContent:true,viewportZoomFactor:checkBoardCanvas(elements as any).canvas ? .9 : .65,animate:false});return;}}if(++attempts<120)frame=requestAnimationFrame(fit);};frame=requestAnimationFrame(fit);return()=>cancelAnimationFrame(frame);},[initial,fitRequest]);
   const persist=()=>{if(!data.current||!key.current)return write.current;const scene=serializeAsJSON(data.current.elements,data.current.appState,data.current.files,'local'),checkpoint={scene,title:name.current,localBoardId:localBoardId.current,generation:requestRef.current,at:Date.now()};write.current=write.current.catch(()=>{}).then(()=>browser.storage.local.set({[key.current]:checkpoint}));return write.current;};
@@ -63,27 +241,43 @@ function Board(){
       loaded=true;
       try{
         const value=event.data as Input;setInput(value);key.current='board-recovery:'+value.draftId+':'+(value.record?.manifest.snapshotId??(value.generationRequest?'generated:'+value.generationRequest.localBoardId:'new'));
-        const stored=(await browser.storage.local.get(key.current))[key.current] as any;let scene:any,recoveredRequest:BoardGenerationRequest|null=null;
-        if(value.record){const originalAsset=await rpc<Asset>({method:'assets.metadata',assetId:value.record.sourceId});const original=validateBoardSource(await(await assetBlob(originalAsset)).text());baseline.current=boardSceneSignature(restoreElements(original.elements,null,{refreshDimensions:false}) as any);}
+        const stored=(await browser.storage.local.get(key.current))[key.current] as any;let scene:any=null,recoveredRequest:BoardGenerationRequest|null=null;
+        if(value.record){try{const originalAsset=await rpc<Asset>({method:'assets.metadata',assetId:value.record.sourceId});const original=validateBoardSource(await(await assetBlob(originalAsset)).text());baseline.current=boardSceneSignature(restoreElements(original.elements,null,{refreshDimensions:false}) as any);}catch(e){setIssue('画板基线读取失败：'+(e as Error).message);}}
         if(stored){
-          scene=validateBoardSource(stored.scene);
-          if(typeof stored.localBoardId==='string'&&/^[a-f0-9-]{36}$/i.test(stored.localBoardId))localBoardId.current=stored.localBoardId;
-          if(!value.record&&stored.generation?.localBoardId===localBoardId.current&&stored.generation?.draftId===value.draftId){
-            recoveredRequest=stored.generation;requestRef.current=recoveredRequest;setGeneration(recoveredRequest);setGenerationRestored(true);
-          }
-          setTitle(stored.title);setStatus(recoveredRequest?'已恢复画板和原生成请求；若请求过期，请重新生成':'已恢复上次未插入的画板');
-        }else if(value.record){
-          const asset=await rpc<Asset>({method:'assets.metadata',assetId:value.record.sourceId});scene=validateBoardSource(await(await assetBlob(asset)).text());setTitle(value.record.manifest.title);setStatus('已读取可编辑源文件');
-        }else{scene={elements:[],files:{},appState:{}};if(value.generationRequest){localBoardId.current=value.generationRequest.localBoardId;requestRef.current=value.generationRequest;setGeneration(value.generationRequest);setStatus('需求配图草案 · 请预览后应用');}else setStatus('新画板 · 本地自动保存');}
+          try{
+            scene=validateBoardSource(stored.scene);
+            if(typeof stored.localBoardId==='string'&&/^[a-f0-9-]{36}$/i.test(stored.localBoardId))localBoardId.current=stored.localBoardId;
+            if(!value.record&&stored.generation?.localBoardId===localBoardId.current&&stored.generation?.draftId===value.draftId){
+              recoveredRequest=stored.generation;requestRef.current=recoveredRequest;setGeneration(recoveredRequest);setGenerationRestored(true);
+            }
+            setTitle(stored.title);setStatus(recoveredRequest?'已恢复画板和原生成请求；若请求过期，请重新生成':'已恢复上次未插入的画板');
+          }catch(e){setIssue('本地恢复快照无法读取，已改用服务端源文件或空画板：'+(e as Error).message);}
+        }
+        if(!scene&&value.record){
+          try{const asset=await rpc<Asset>({method:'assets.metadata',assetId:value.record.sourceId});scene=validateBoardSource(await(await assetBlob(asset)).text());setTitle(value.record.manifest.title);setStatus('已读取可编辑源文件');}
+          catch(e){setIssue('画板源文件读取失败，已打开空画板：'+(e as Error).message);}
+        }
+        if(!scene){
+          scene={elements:[],files:{},appState:{}};
+          if(!value.record&&!stored&&value.generationRequest){localBoardId.current=value.generationRequest.localBoardId;requestRef.current=value.generationRequest;setGeneration(value.generationRequest);setStatus('需求配图草案 · 请预览后应用');}
+          else setStatus('新画板 · 本地自动保存');
+        }
         let libraryItems:LibraryItems|undefined;
         try{libraryItems=await library.current!.load(await builtinLibrary());}catch(e){setIssue('素材库未载入：'+(e as Error).message);}
-        setInitial({...scene,libraryItems,scrollToContent:true,appState:{...scene.appState,viewBackgroundColor:'#ffffff',currentItemRoughness:0,currentItemFontFamily:2,currentItemStrokeColor:'#334640',currentItemBackgroundColor:'#f5f6f5',currentItemFillStyle:'solid',currentItemStrokeWidth:2}});
+        setInitial({...scene,libraryItems,scrollToContent:true,appState:{...scene.appState,viewBackgroundColor:'#ffffff',currentItemRoughness:0,currentItemFontFamily:2,currentItemStrokeColor:'#334640',currentItemBackgroundColor:'#f5f6f5',currentItemFillStyle:'solid',currentItemStrokeWidth:2,objectsSnapModeEnabled:true}});
         // Republish the original identity only after the stored scene has been read successfully.
         // Creating a replacement request here would invalidate the user's pending proposals.
         if(recoveredRequest)publishGenerationContext(recoveredRequest,stored.title,true);else if(value.generationRequest)publishGenerationContext(value.generationRequest,'工程流程图',true);
-      }catch(e){setIssue((e as Error).message);}
+      }catch(e){setIssue((e as Error).message);setInitial({elements:[],files:{},appState:{viewBackgroundColor:'#ffffff',objectsSnapModeEnabled:true},scrollToContent:false});setStatus('画板载入失败 · 已打开空画板，请关闭后重试');}
     };
-    window.addEventListener('message',listener);send('ready');return()=>window.removeEventListener('message',listener);
+    window.addEventListener('message',listener);send('ready');
+    // ?demo lets the standalone board.html mount an empty scene without a host message,
+    // so board features stay verifiable outside the Polarion workbench.
+    const demo=new URLSearchParams(location.search).has('demo')?setTimeout(async()=>{
+      if(loaded)return;
+      try{const libraryItems=await library.current!.load(await builtinLibrary());setInitial({elements:[],files:{},appState:{viewBackgroundColor:'#ffffff',currentItemRoughness:0,currentItemFontFamily:2,currentItemStrokeColor:'#334640',currentItemBackgroundColor:'#f5f6f5',currentItemFillStyle:'solid',currentItemStrokeWidth:2,objectsSnapModeEnabled:true},libraryItems,scrollToContent:false});setStatus('演示画板 · 本地自动保存');}catch(e){setIssue((e as Error).message);}
+    },1200):0;
+    return()=>{window.removeEventListener('message',listener);clearTimeout(demo);};
   },[]);
   const decide=async(proposal:BoardProposal,action:'apply'|'reject')=>{
     if(!input?.record||!api.current)return;setBusy(true);setIssue('');
@@ -145,6 +339,6 @@ function Board(){
   };
   const save=async()=>{if(!input||!api.current||!data.current)return;if(timer.current)clearTimeout(timer.current);setBusy(true);setIssue('');try{await persist();await library.current!.flush();setStatus('生成可编辑源文件和阅读预览…');const elements=api.current.getSceneElements();if(!elements.length)throw Error('请先添加图形或文字。');const files=api.current.getFiles(),appState=api.current.getAppState();const source=serializeAsJSON(elements,appState,files,'local');validateBoardSource(source);const preview=await exportToBlob({elements,appState:{...appState,exportBackground:true,exportWithDarkMode:false},files,mimeType:'image/png',exportPadding:scenePadding(elements),getDimensions:(w:number,h:number)=>{const scale=Math.min(2,2400/Math.max(w,h));return{width:w*scale,height:h*scale,scale};}});const s=await uploadAsset(new File([source],'board.excalidraw.json',{type:'application/json'}),input.target),p=await uploadAsset(new File([preview],'board.png',{type:'image/png'}),input.target);const record=await rpc<BoardRecord>({method:'boards.create',draftId:input.draftId,title:title.trim()||'工程画板',sourceId:s.id,previewId:p.id,parentSnapshotId:input.record?.manifest.snapshotId});send('saved',{record});setStatus('已生成画板版本，正在写入正文草稿');}catch(e){setIssue((e as Error).message);setStatus('画板尚未插入 · 可继续编辑');setBusy(false);}};
   const close=async()=>{setBusy(true);try{if(timer.current)clearTimeout(timer.current);await persist();await library.current!.flush();send('close');}catch(e){setIssue(String(e));setBusy(false);}};
-  return <main><header><div className="board-mark"><PenTool size={21}/></div><div className="board-title"><small>Polarion · 工程画板</small><input aria-label="画板名称" disabled={busy} value={title} maxLength={160} onChange={e=>setTitle(e.target.value)} onBlur={()=>void persist()}/></div><div className="board-actions"><span role="status">{status}</span><button disabled={!initial||busy} onClick={()=>void openAI()}><MessageSquare size={15}/>{input?.record?'AI 协作':'AI 生成整图'}</button><button disabled={busy} onClick={()=>void close()}>返回正文</button><button className="primary" disabled={!initial||busy} onClick={()=>void save()}>{busy?'正在处理…':'插入正文草稿'}</button></div></header>{issue&&<div role="alert" className="board-error">{issue}</div>}{generated.length>0&&<aside className="board-proposals generation-proposals" aria-label="AI 整图草案预览">{generated.map(p=><GenerationCard key={p.proposalId} proposal={p} busy={busy} onDecide={decideGeneration}/>)}</aside>}{!input?.record&&initial&&generated.length===0&&<div className="generation-hint">{generation?(generationRestored?'已恢复原生成请求和待审草案。可继续在 AI 对话中描述；若请求已过期，请点击「AI 生成整图」重新生成。':'已建立当前画板的生成请求。请在 AI 对话中描述图形，生成后先预览再应用。'):'点击「AI 生成整图」，用一句描述创建可编辑图形，也可以直接手工绘制。'}</div>}{proposals.length>0&&<aside className="board-proposals" aria-label="AI 待应用变更">{proposals.map(p=><article key={p.proposalId}><strong>{p.title}</strong><small>基于草稿版本 {p.revision} · 尚未应用或保存</small><ul>{p.summary.map(change=><li key={change.id}><code>{change.id}</code>{Object.entries(change.after).filter(([key])=>key!=='id').map(([key,value])=><span key={key}>{({text:'文字',x:'水平位置',y:'垂直位置',width:'宽度',height:'高度',strokeColor:'线条颜色',backgroundColor:'填充颜色',points:'连线路径'} as Record<string,string>)[key]}：{typeof change.before[key]==='object'?JSON.stringify(change.before[key]):String(change.before[key]??'')} → {typeof value==='object'?JSON.stringify(value):String(value)}</span>)}</li>)}</ul><button disabled={busy} onClick={()=>void decide(p,'reject')}>拒绝</button><button className="primary" disabled={busy} onClick={()=>void decide(p,'apply')}>应用到画板</button></article>)}</aside>}{aiPreview&&<div className="ai-preview"><img src={aiPreview} alt="应用 AI 变更后的真实画板预览"/><span>预览已刷新 · 尚未插入正文草稿</span><button onClick={()=>setAiPreview('')}>收起</button></div>}<section className={'canvas '+(busy?'saving':'')}>{initial?<Excalidraw initialData={initial} onLibraryChange={saveLibrary} excalidrawAPI={instance=>{api.current=instance;}} langCode="zh-CN" theme="light" name={title} aiEnabled={false} UIOptions={{canvasActions:{loadScene:true,saveAsImage:true,export:{saveFileToDisk:true},toggleTheme:false}}} onChange={(elements,appState,files)=>{data.current={elements,appState,files};const stamp=hashElementsVersion(elements)+':'+Object.keys(files).join(',');if(stamp!==version.current){version.current=stamp;if(timer.current)clearTimeout(timer.current);timer.current=setTimeout(()=>void persist().then(()=>setStatus('画板已保存到本地')).catch(()=>setIssue('本地备份未写入，请保持窗口打开。')),350);}const selectedElements=elements.filter(e=>appState.selectedElementIds[e.id]||('containerId'in e&&e.containerId&&appState.selectedElementIds[e.containerId]));const selected=selectedElements.length?JSON.stringify(selectedElements.map(e=>({id:e.id,type:e.type,...('text'in e?{text:e.text}:{}),x:e.x,y:e.y,width:e.width,height:e.height,...('startBinding'in e?{startBinding:e.startBinding,endBinding:e.endBinding}:{})}))):'';if(input?.record&&selected&&selected!==lastContext.current){lastContext.current=selected;send('context',{text:'画板对象协作上下文（必须先 read_board 再 propose_board_changes，用户审阅应用）：'+JSON.stringify({draftId:input.draftId,objectId:input.record.manifest.objectId,snapshotId:input.record.manifest.snapshotId,sourceHash:input.record.manifest.source.sha256,selectedIds:selectedElements.map(e=>e.id)})+'\n画板「'+name.current+'」选区：\n'+selected});}}}><MainMenu><MainMenu.DefaultItems.LoadScene/><MainMenu.DefaultItems.SaveToActiveFile/><MainMenu.DefaultItems.Export/><MainMenu.DefaultItems.SaveAsImage/><MainMenu.DefaultItems.SearchMenu/><MainMenu.DefaultItems.ClearCanvas/><MainMenu.Separator/><MainMenu.Item icon={<LibraryBig size={16}/>} onSelect={()=>void supplementLibrary()}>补齐内置工程素材</MainMenu.Item></MainMenu></Excalidraw>:<div className="board-loading">正在载入画板引擎…</div>}</section><footer><span>图形、文字、连线和图片均可继续编辑</span><span>插入正文后，点击「保存到 Polarion」同步源文件与预览</span></footer></main>;
+return <main><header><div className="board-mark"><PenTool size={21}/></div><div className="board-title"><small>Polarion · 工程画板</small><input aria-label="画板名称" disabled={busy} value={title} maxLength={160} onChange={e=>setTitle(e.target.value)} onBlur={()=>void persist()}/></div><div className="board-actions"><button className="board-ghost" disabled={busy} onClick={()=>void close()}>返回正文</button><button className="primary" disabled={!initial||busy} onClick={()=>void save()}>{busy?'正在处理…':'插入正文草稿'}</button></div></header>{issue&&<div role="alert" className="board-error">{issue}</div>}{generated.length>0&&<aside className="board-proposals generation-proposals" aria-label="AI 整图草案预览">{generated.map(p=><GenerationCard key={p.proposalId} proposal={p} busy={busy} onDecide={decideGeneration}/>)}</aside>}{!input?.record&&initial&&generated.length===0&&<div className="generation-hint">{generation?(generationRestored?'已恢复原生成请求和待审草案。可继续在 AI 对话中描述；若请求已过期，请点击「AI 生成整图」重新生成。':'已建立当前画板的生成请求。请在 AI 对话中描述图形，生成后先预览再应用。'):'点击「AI 生成整图」，用一句描述创建可编辑图形，也可以直接手工绘制。'}</div>}{proposals.length>0&&<aside className="board-proposals" aria-label="AI 待应用变更">{proposals.map(p=><article key={p.proposalId}><strong>{p.title}</strong><small>基于草稿版本 {p.revision} · 尚未应用或保存</small><ul>{p.summary.map(change=><li key={change.id}><code>{change.id}</code>{Object.entries(change.after).filter(([key])=>key!=='id').map(([key,value])=><span key={key}>{({text:'文字',x:'水平位置',y:'垂直位置',width:'宽度',height:'高度',strokeColor:'线条颜色',backgroundColor:'填充颜色',points:'连线路径'} as Record<string,string>)[key]}：{typeof change.before[key]==='object'?JSON.stringify(change.before[key]):String(change.before[key]??'')} → {typeof value==='object'?JSON.stringify(value):String(value)}</span>)}</li>)}</ul><button disabled={busy} onClick={()=>void decide(p,'reject')}>拒绝</button><button className="primary" disabled={busy} onClick={()=>void decide(p,'apply')}>应用到画板</button></article>)}</aside>}{aiPreview&&<div className="ai-preview"><img src={aiPreview} alt="应用 AI 变更后的真实画板预览"/><span>预览已刷新 · 尚未插入正文草稿</span><button onClick={()=>setAiPreview('')}>收起</button></div>}<section className={'canvas '+(busy?'saving':'')}>{initial?<Excalidraw initialData={initial} onLibraryChange={saveLibrary} excalidrawAPI={instance=>{api.current=instance;}} langCode="zh-CN" theme="light" name={title} aiEnabled={false} UIOptions={{canvasActions:{loadScene:true,saveAsImage:true,export:{saveFileToDisk:true},toggleTheme:false}}} onChange={(elements,appState,files)=>{data.current={elements,appState,files};const stamp=hashElementsVersion(elements)+':'+Object.keys(files).join(',');if(stamp!==version.current){version.current=stamp;if(timer.current)clearTimeout(timer.current);timer.current=setTimeout(()=>void persist().then(()=>setStatus('画板已保存到本地')).catch(()=>setIssue('本地备份未写入，请保持窗口打开。')),350);}const selectedElements=elements.filter(e=>appState.selectedElementIds[e.id]||('containerId'in e&&e.containerId&&appState.selectedElementIds[e.containerId]));if(selectedElements.length!==selectedCountRef.current){selectedCountRef.current=selectedElements.length;setSelectedCount(selectedElements.length);}const hasSticky=selectedElements.some((e:any)=>e.customData?.boardRole==='sticky'),hasArrow=selectedElements.some((e:any)=>e.type==='arrow');if(hasSticky!==selectedKindsRef.current.sticky||hasArrow!==selectedKindsRef.current.arrow){selectedKindsRef.current={sticky:hasSticky,arrow:hasArrow};setSelectedKinds({sticky:hasSticky,arrow:hasArrow});}const toolType=String((appState as any).activeTool?.type??'');const nextHint=selectedElements.some((e:any)=>e.type==='line')?'直线不参与吸附。连接形状请改用箭头工具（快捷键 5）：把端点拖入形状内部，形状出现描边高亮后松开。':toolType==='arrow'?'吸附提示：把箭头端点拖进形状内部，形状出现描边高亮时松开即完成连接；之后拖动形状，连线会自动跟随。':'';if(nextHint!==hintRef.current){hintRef.current=nextHint;setHint(nextHint);}const selected=selectedElements.length?JSON.stringify(selectedElements.map(e=>({id:e.id,type:e.type,...('text'in e?{text:e.text}:{}),x:e.x,y:e.y,width:e.width,height:e.height,...('startBinding'in e?{startBinding:e.startBinding,endBinding:e.endBinding}:{})}))):'';if(input?.record&&selected&&selected!==lastContext.current){lastContext.current=selected;send('context',{text:'画板对象协作上下文（必须先 read_board 再 propose_board_changes，用户审阅应用）：'+JSON.stringify({draftId:input.draftId,objectId:input.record.manifest.objectId,snapshotId:input.record.manifest.snapshotId,sourceHash:input.record.manifest.source.sha256,selectedIds:selectedElements.map(e=>e.id)})+'\n画板「'+name.current+'」选区：\n'+selected});}}}><MainMenu><MainMenu.DefaultItems.LoadScene/><MainMenu.DefaultItems.SaveToActiveFile/><MainMenu.DefaultItems.Export/><MainMenu.DefaultItems.SaveAsImage/><MainMenu.Item icon={<Copy size={16}/>} onSelect={()=>void copyImage()}>复制图片到剪贴板</MainMenu.Item><MainMenu.DefaultItems.SearchMenu/><MainMenu.DefaultItems.ClearCanvas/><MainMenu.Separator/><MainMenu.Item icon={<LayoutTemplate size={16}/>} onSelect={()=>void openTemplates()}>模板中心…</MainMenu.Item><MainMenu.Item icon={<Copy size={16}/>} onSelect={()=>{setMermaidError('');setMermaidOpen(true);}}>导入 Mermaid…</MainMenu.Item><MainMenu.Item icon={<Keyboard size={16}/>} onSelect={()=>setShortcutsOpen(true)}>快捷键帮助（?）</MainMenu.Item><MainMenu.Item icon={<MessageSquare size={16}/>} onSelect={()=>void openAI()}>{input?.record?'AI 协作':'AI 生成整图'}</MainMenu.Item><MainMenu.Item icon={<Link2 size={16}/>} onSelect={()=>{connectFrom.current=null;setQuickConnect(true);setStatus('快速连接：请点击起点形状');}}>快速连接（C）</MainMenu.Item><MainMenu.Item icon={<StickyNote size={16}/>} onSelect={()=>addSticky()}>插入便签（N）</MainMenu.Item><MainMenu.Item icon={<LibraryBig size={16}/>} onSelect={()=>void supplementLibrary()}>补齐内置工程素材</MainMenu.Item></MainMenu></Excalidraw>:<div className="board-loading">正在载入画板引擎…</div>}</section>{shortcutsOpen&&<ShortcutHelp onClose={()=>setShortcutsOpen(false)}/>}{mermaidOpen&&<div className="board-modal-backdrop" role="presentation" onPointerDown={event=>{if(event.target===event.currentTarget)setMermaidOpen(false);}}><div className="board-modal mermaid-modal" role="dialog" aria-modal="true" aria-label="导入 Mermaid"><header><div><strong>导入 Mermaid</strong><small>粘贴 flowchart / sequence / class / state / ER 等 Mermaid 定义，转换为可编辑图形</small></div><button className="icon" title="关闭" onClick={()=>setMermaidOpen(false)}>×</button></header><div className="mermaid-body"><textarea aria-label="Mermaid 定义" value={mermaidText} placeholder={'flowchart TD A[开始] --> B{条件?} B -->|是| C[处理] B -->|否| A'} onChange={event=>setMermaidText(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();setMermaidOpen(false);}}} spellCheck={false}/>{mermaidError&&<p className="mermaid-error" role="alert">{mermaidError}</p>}<div className="mermaid-actions"><button disabled={mermaidBusy||!mermaidText.trim()} onClick={()=>void importMermaid()}>{mermaidBusy?'正在转换…':'转换为可编辑图形'}</button></div></div></div></div>}{templateItems&&<TemplateCenter items={templateItems} onClose={()=>setTemplateItems(null)} onUse={useTemplate}/>}{(selectedCount>=2||selectedKinds.sticky||selectedKinds.arrow)&&<div className="board-align" role="toolbar" aria-label="所选对象工具">{selectedKinds.sticky&&<><span>便签颜色</span>{STICKY_COLORS.map(color=><button key={color.value} className="board-swatch" style={{background:color.value}} aria-label={'便签颜色 '+color.name} title={color.name} disabled={busy} onClick={()=>applySelectionColor(color.value)}/>)}</>}{selectedKinds.arrow&&<><span>连线</span><button disabled={busy} onClick={()=>applySelectionArrow('solid')}>实线</button><button disabled={busy} onClick={()=>applySelectionArrow('dashed')}>虚线</button><button disabled={busy} onClick={()=>applySelectionArrow('plain')}>无箭头</button></>}{selectedCount>=2&&<><span>对齐</span>{([['left','左'],['centerX','水平居中'],['right','右'],['top','上'],['centerY','垂直居中'],['bottom','下']] as const).map(([edge,label])=><button key={edge} disabled={busy} onClick={()=>applySelectionChange(edge)}>{label}</button>)}<span>分布</span><button disabled={busy} onClick={()=>applySelectionChange('distributeX')}>水平</button><button disabled={busy} onClick={()=>applySelectionChange('distributeY')}>垂直</button></>}</div>}{quickConnect?<div className="board-hint" role="status">快速连接：先点击起点形状，再点击目标形状，会自动生成绑定连线；Esc 或再次点击按钮退出。</div>:hint&&<div className="board-hint" role="status">{hint}</div>}<footer><span className="board-status" role="status" title={status}>{status||'图形、文字、连线和图片均可继续编辑'}</span><span>插入正文后，点击「保存到 Polarion」同步源文件与预览</span></footer></main>;
 }
 createRoot(document.querySelector('#root')!).render(<Board/>);

@@ -58,6 +58,11 @@ export function turnResponseText(events:RunEvent[]):string{
 }
 
 // Reuse unchanged run objects, so adding an event in one turn does not repaint all turns.
+/** 只渲染最近 N 轮，更早的按需展开：长会话控制 DOM 规模，不做复杂虚拟滚动。 */
+export function windowTurns<T>(runs: T[], limit = 40) {
+  if (runs.length <= limit) return { hidden: 0, visible: runs };
+  return { hidden: runs.length - limit, visible: runs.slice(-limit) };
+}
 export function reconcileRuns(previous: Run[], incoming: Run[]): Run[] {
   const byId = new Map(previous.map(run => [run.id, run]));
   const next = incoming.map(run => {

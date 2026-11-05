@@ -119,3 +119,76 @@ test('board proposals are bound to run, target, draft revision, snapshot and sou
   const tampered={...r,manifest:{...r.manifest,source:{...r.manifest.source,sha256:'0'.repeat(64)}}};store.put('board',r.manifest.snapshotId,tampered);assert.throws(()=>boards.readForRun(run,draft,r.manifest.objectId,r.manifest.snapshotId,['a']),/HASH_MISMATCH/);
  }finally{store.close();for(const file of fs.readdirSync(dir))fs.unlinkSync(path.join(dir,file));fs.rmdirSync(dir);}
 });
+test('sequence diagrams pass the real generate tool as editable lifelines with bound messages',async()=>generationFixture(async({boards,store,draft,run,request})=>{
+ const controller=new AbortController(),sdkTools=createBoardTools(()=>({run,controller,store,assets:boards.assets,drafts:{read:()=>draft} as any}));
+ const readTool=sdkTools.find(t=>t.name==='read_board_generation_context')!,proposeTool=sdkTools.find(t=>t.name==='propose_board_generation')!;
+ const prepared=await readTool.handler({draftId:draft.id,requestId:request.requestId,visualType:'sequence'} as any,{}),read=JSON.parse((prepared.content[0] as any).text);
+ assert.equal(read.diagramDesign?.visualType ?? 'sequence','sequence');
+ const sequence={title:'评审交互时序',summary:'用户提交请求，评审服务受理并返回结果。',kind:'sequence',participants:[{id:'user',name:'用户'},{id:'ui',name:'界面'},{id:'svc',name:'评审服务'}],messages:[{id:'m1',from:'user',to:'ui',text:'提交评审请求'},{id:'m2',from:'ui',to:'svc',text:'调用评审接口'},{id:'m3',from:'svc',to:'svc',text:'校验并记录',kind:'self'},{id:'m4',from:'svc',to:'ui',text:'返回结果',kind:'return'}]};
+ const proposed=await proposeTool.handler({draftId:draft.id,readId:read.id,diagram:sequence} as any,{}),receipt=JSON.parse((proposed.content[0] as any).text);
+ assert.equal(receipt.status,'pending');assert.equal(receipt.summary.participants??receipt.summary.nodes,3);
+ const [p]=boards.generationProposals(draft,request.requestId);assert.ok(p);
+ assert.equal(p.summary.nodes,3);assert.equal(p.summary.edges,4);assert.equal(p.summary.checks.participants,3);
+ validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:p.elements,files:{}}));
+ const roles=p.elements.map(e=>e.customData?.boardRole as string);
+ assert.equal(roles.filter(r=>r==='participant').length,3);assert.equal(roles.filter(r=>r==='lifeline').length,3);assert.equal(roles.filter(r=>r==='message').length,4);
+ const lifelines=new Set(p.elements.filter(e=>e.customData?.boardRole==='lifeline').map(e=>e.id));
+ for(const arrow of p.elements.filter(e=>e.type==='arrow')){assert.ok(lifelines.has(arrow.startBinding!.elementId));assert.ok(lifelines.has(arrow.endBinding!.elementId));}
+ assert.equal(boards.decideGeneration(draft,p.proposalId,'apply','a'.repeat(64)).status,'applied');
+ assert.equal(store.list('asset').length,0);assert.equal(store.list('board').length,0);
+ controller.abort();
+}));
+test('class diagrams pass the real generate tool as UML compartments with typed relations',async()=>generationFixture(async({boards,store,draft,run,request})=>{
+ const controller=new AbortController(),sdkTools=createBoardTools(()=>({run,controller,store,assets:boards.assets,drafts:{read:()=>draft} as any}));
+ const readTool=sdkTools.find(t=>t.name==='read_board_generation_context')!,proposeTool=sdkTools.find(t=>t.name==='propose_board_generation')!;
+ const prepared=await readTool.handler({draftId:draft.id,requestId:request.requestId,visualType:'uml-class'} as any,{}),read=JSON.parse((prepared.content[0] as any).text);
+ assert.equal(read.diagramDesign?.visualType??'uml-class','uml-class');
+ const classDiagram={title:'评审服务类图',summary:'结构示例。',kind:'class',classes:[{id:'user',name:'User',attributes:['+ id: String'],methods:['+ submit(): void']},{id:'review',name:'Review',attributes:['+ state: State'],methods:['+ approve(): void']},{id:'service',name:'ReviewService',attributes:['- repo: Repository'],methods:['+ handle(): void']}],relations:[{id:'r1',from:'user',to:'review',kind:'association',label:'1..*'},{id:'r2',from:'service',to:'review',kind:'dependency'},{id:'r3',from:'review',to:'user',kind:'aggregation'}]};
+ const proposed=await proposeTool.handler({draftId:draft.id,readId:read.id,diagram:classDiagram} as any,{}),receipt=JSON.parse((proposed.content[0] as any).text);
+ assert.equal(receipt.status,'pending');
+ const [p]=boards.generationProposals(draft,request.requestId);assert.ok(p);
+ assert.equal(p.summary.nodes,3);assert.equal(p.summary.edges,3);assert.equal(p.summary.checks.classes,3);
+ validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:p.elements,files:{}}));
+ const roles=p.elements.map(e=>e.customData?.boardRole as string);
+ assert.equal(roles.filter(r=>r==='class').length,3);assert.equal(roles.filter(r=>r==='relation').length,3);
+ const heads=p.elements.filter(e=>e.type==='arrow').map(e=>[e.customData?.relationKind,e.endArrowhead]);
+ assert.ok(heads.some(([kind,head])=>kind==='aggregation'&&head==='diamond_outline'));
+ assert.ok(heads.some(([kind,head])=>kind==='dependency'&&head==='arrow'));
+ assert.equal(boards.decideGeneration(draft,p.proposalId,'apply','a'.repeat(64)).status,'applied');
+ assert.equal(store.list('asset').length,0);assert.equal(store.list('board').length,0);
+ controller.abort();
+}));
+test('er diagrams pass the real generate tool with crowfoot cardinality and typed fields',async()=>generationFixture(async({boards,store,draft,run,request})=>{
+ const controller=new AbortController(),sdkTools=createBoardTools(()=>({run,controller,store,assets:boards.assets,drafts:{read:()=>draft} as any}));
+ const readTool=sdkTools.find(t=>t.name==='read_board_generation_context')!,proposeTool=sdkTools.find(t=>t.name==='propose_board_generation')!;
+ const prepared=await readTool.handler({draftId:draft.id,requestId:request.requestId,visualType:'er'} as any,{}),read=JSON.parse((prepared.content[0] as any).text);
+ assert.equal(read.diagramDesign?.visualType??'er','er');
+ const erDiagram={title:'车辆数据 ER 图',summary:'车辆与传感器读数。',kind:'er',entities:[{id:'vehicle',name:'Vehicle',fields:[{name:'vin',type:'String',pk:true},{name:'model',type:'String'}]},{id:'sensor',name:'Sensor',fields:[{name:'id',type:'String',pk:true}]},{id:'reading',name:'Reading',fields:[{name:'id',type:'String',pk:true},{name:'value',type:'Float'}]}],entityRelations:[{id:'r1',from:'vehicle',to:'sensor',cardinality:'one-many',label:'安装'},{id:'r2',from:'sensor',to:'reading',cardinality:'one-many'}]};
+ const proposed=await proposeTool.handler({draftId:draft.id,readId:read.id,diagram:erDiagram} as any,{}),receipt=JSON.parse((proposed.content[0] as any).text);
+ assert.equal(receipt.status,'pending');
+ const [p]=boards.generationProposals(draft,request.requestId);assert.ok(p);
+ assert.equal(p.summary.nodes,3);assert.equal(p.summary.edges,2);assert.equal(p.summary.checks.entities,3);
+ validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:p.elements,files:{}}));
+ const arrows=p.elements.filter(e=>e.type==='arrow');
+ assert.equal(arrows.length,2);assert.ok(arrows.every(arrow=>arrow.startArrowhead==='crowfoot_one'&&arrow.endArrowhead==='crowfoot_many'));
+ assert.ok(p.elements.some(e=>e.originalText==='PK · vin : String'));
+ assert.equal(boards.decideGeneration(draft,p.proposalId,'apply','a'.repeat(64)).status,'applied');
+ assert.equal(store.list('asset').length,0);assert.equal(store.list('board').length,0);
+ controller.abort();
+}));
+test('board snapshot copy rebinds a new snapshot to another work item and keeps the logical object id',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'polarion-board-copy-')),store=new Store(':memory:');
+ try{
+  const assets=new Assets(store,dir),boards=new Boards(store,assets);
+  const s=boards.putBytes(target,'source.json','application/json',Buffer.from(source)),p=boards.putBytes(target,'preview.png','image/png',png),r=boards.create(target,'T-1','控制流程',s.id,p.id);
+  const copy=boards.copy(r,target,'T-2');
+  assert.equal(copy.manifest.workItemId,'T-2');
+  assert.equal(copy.manifest.objectId,r.manifest.objectId);
+  assert.equal(copy.manifest.parentSnapshotId,r.manifest.snapshotId);
+  assert.notEqual(copy.manifest.snapshotId,r.manifest.snapshotId);
+  assert.notEqual(copy.previewId,r.previewId);
+  assert.equal(boards.bundle(copy.previewId,target,'T-2')!.length,3);
+  assert.throws(()=>boards.bundle(copy.previewId,target,'T-1'),/TARGET_MISMATCH/);
+  assert.equal(boards.bundle(r.previewId,target,'T-1')!.length,3);
+ }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}
+});

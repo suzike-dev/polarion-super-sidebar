@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Store } from './store.ts';
 import { Engines } from './engine.ts';
 import { Drafts } from './polarion.ts';
+import type { Run } from '../../packages/protocol/index.ts';
 import type {query,Query} from '@anthropic-ai/claude-agent-sdk';
 test('sequential turns reuse native runtime, bind fresh target, and reconnect only after configuration change',async()=>{
  const store=new Store(':memory:'),drafts=new Drafts(store,{read:async()=>{throw Error('unused');},save:async()=>{throw Error('unused');}});let starts=0,closed=0;const prompts:string[]=[];
@@ -89,7 +90,7 @@ function permissionFixture(script:(context:{input:any;options:any;engines:Engine
   return stream;
  };
  const engines=new Engines(store,drafts,undefined,factory),session=store.createSession({origin:'https://polarion.pufafen.com',projectId:'test01',document:'Requirements/permission-fixture'},'permissions');
- return{engines,store,session,async turn(){const run=store.startRun(session.id,crypto.randomUUID(),'controlled permission fixture',[]).run;await engines.execute(run);return run;},close(){engines.close();store.close();}};
+ return{engines,store,session,async turn(){const run=store.startRun(session.id,crypto.randomUUID(),'controlled permission fixture',[],undefined,[],'ask').run;await engines.execute(run);return run;},close(){engines.close();store.close();}};
 }
 const hook=(options:any,name:string,input:any)=>options.hooks[name][0].hooks[0]({hook_event_name:name,...input},input.tool_use_id,{signal:new AbortController().signal});
 
@@ -144,4 +145,119 @@ test('cancelling an already started tool cannot be turned into success by a late
   const events=f.store.events(f.session.id,0),outcomes=events.filter(e=>e.kind==='tool-result');assert.equal(outcomes.length,1);
   assert.equal((outcomes[0]!.data as any).outcome,'cancelled');assert.ok(!events.some(e=>e.kind==='result'));
  }finally{f.close();}
+});
+
+const waitUntil=async(check:()=>boolean)=>{for(let i=0;i<400&&!check();i++)await new Promise(resolve=>setTimeout(resolve,5));if(!check())throw Error('TEST_CONDITION_TIMEOUT');};
+
+function deliveryFixture(interruptible:'graceful'|'reject'|'none'){
+ const store=new Store(':memory:'),drafts=new Drafts(store,{read:async()=>{throw Error('unused');},save:async()=>{throw Error('unused');}});
+ let starts=0,consumed=0,interrupted=false;let releaseFirst!:(value:void)=>void;const gate=new Promise<void>(resolve=>{releaseFirst=resolve;});
+ const factory:typeof query=({prompt})=>{
+  starts++;const nativeId='native-delivery';
+  async function* messages(){
+   yield{type:'system',subtype:'init',session_id:nativeId,model:'test',tools:[],mcp_servers:[]};
+   for await(const value of prompt as AsyncIterable<any>){
+    consumed++;
+    if(consumed===1)await gate;
+    if(interrupted){interrupted=false;yield{type:'result',subtype:'error_during_execution',is_error:true,errors:['prompt_check: the turn was stopped before its prompt was checked'],session_id:nativeId,user_message_uuid:value.uuid,result:'已停止',duration_ms:1,num_turns:1};continue;}
+    yield result(value,nativeId,'answer '+consumed);
+   }
+  }
+  const stream=messages() as unknown as Query;stream.close=()=>{void stream.return();};stream.supportedCommands=async()=>[];stream.supportedAgents=async()=>[];stream.supportedModels=async()=>[];stream.mcpServerStatus=async()=>[];
+  if(interruptible==='graceful')stream.interrupt=async()=>{interrupted=true;releaseFirst();return undefined as any;};
+  if(interruptible==='reject')stream.interrupt=async()=>{throw Error('INTERRUPT_UNSUPPORTED');};
+  return stream;
+ };
+ const engines=new Engines(store,drafts,undefined,factory),target={origin:'https://polarion.pufafen.com' as const,projectId:'test01',document:'Requirements/Delivery'},session=store.createSession(target,'delivery session');
+ return {store,engines,session,get starts(){return starts;},get consumed(){return consumed;},releaseFirst,
+  close(){engines.close();store.close();}};
+}
+
+test('queued input starts after the active turn on the same warm runtime',async()=>{
+ const f=deliveryFixture('none');
+ try{
+  const first=f.store.startRun(f.session.id,crypto.randomUUID(),'first turn',[]).run;
+  const firstDone=f.engines.execute(first);
+  const queued=f.store.startRun(f.session.id,crypto.randomUUID(),'queued turn',[],undefined,[],'auto','queue');
+  assert.equal(queued.run.status,'queued');
+  f.releaseFirst();
+  await firstDone;assert.equal(first.status,'completed');
+  await waitUntil(()=>f.store.require<Run>('run',queued.run.id).status==='completed');
+  assert.equal(f.starts,1,'queued turn reuses the warm runtime');
+  assert.equal(f.consumed,2);
+  assert.equal(f.engines.active.size,0);
+ }finally{f.close();}
+});
+
+test('steer interrupts the active turn gracefully and the steered message continues the conversation',async()=>{
+ const f=deliveryFixture('graceful');
+ try{
+  const first=f.store.startRun(f.session.id,crypto.randomUUID(),'long turn',[]).run;
+  const firstDone=f.engines.execute(first);
+  const steered=f.store.startRun(f.session.id,crypto.randomUUID(),'steer me',[],undefined,[],'auto','steer');
+  assert.equal(steered.run.status,'queued');
+  await waitUntil(()=>f.engines.runtimes.has(f.session.id)); // 等 SDK 会话建立后再引导，走优雅打断路径
+  assert.equal(f.engines.steer(f.session.id,steered.run.id),true);
+  await firstDone;
+  assert.equal(first.status,'interrupted');assert.ok(!first.error,'a steered turn is not a failure');
+  assert.ok(f.store.events(f.session.id,0).some(e=>e.runId===first.id&&e.kind==='steer'));
+  assert.equal((f.store.events(f.session.id,0).find(e=>e.runId===first.id&&e.kind==='result')!.data as any).text,'已停止','interrupted turn keeps the CLI result text');
+  await waitUntil(()=>f.store.require<Run>('run',steered.run.id).status==='completed');
+  assert.equal(f.starts,1,'the steered message continues the same native conversation');
+ }finally{f.close();}
+});
+
+test('a rejected interrupt is reported honestly and the queued input still continues after the run',async()=>{
+ const f=deliveryFixture('reject');
+ try{
+  const first=f.store.startRun(f.session.id,crypto.randomUUID(),'long turn',[]).run;
+  const firstDone=f.engines.execute(first);
+  const steered=f.store.startRun(f.session.id,crypto.randomUUID(),'steer me',[],undefined,[],'auto','steer').run;
+  await waitUntil(()=>f.engines.runtimes.has(f.session.id));
+  assert.equal(f.engines.steer(f.session.id,steered.id),true);
+  await waitUntil(()=>f.store.events(f.session.id,0).some(e=>e.runId===first.id&&e.kind==='steer-failed'));
+  f.releaseFirst();
+  await firstDone;assert.equal(first.status,'completed','interrupt 失败时本轮正常完成，不误标 interrupted');
+  await waitUntil(()=>f.store.require<Run>('run',steered.id).status==='completed');
+  assert.equal(f.starts,1);assert.equal(f.consumed,2);
+ }finally{f.releaseFirst();f.close();}
+});
+
+test('cancelling a queued input skips it and later turns still run',async()=>{
+ const f=deliveryFixture('none');
+ try{
+  const first=f.store.startRun(f.session.id,crypto.randomUUID(),'first turn',[]).run;
+  const firstDone=f.engines.execute(first);
+  const queued=f.store.startRun(f.session.id,crypto.randomUUID(),'never runs',[],undefined,[],'auto','queue').run;
+  f.engines.cancel(queued.id);
+  assert.equal(f.store.require<Run>('run',queued.id).status,'cancelled');
+  f.releaseFirst();
+  await firstDone;
+  await new Promise(resolve=>setTimeout(resolve,25));
+  assert.equal(f.engines.active.size,0);assert.equal(f.consumed,1);assert.equal(f.starts,1);
+  const after=f.store.startRun(f.session.id,crypto.randomUUID(),'after cancel',[]).run;
+  await f.engines.execute(after);assert.equal(after.status,'completed');
+ }finally{f.close();}
+});
+
+test('run-scoped allowance lets later calls of the same tool through without a new prompt',async()=>{
+ const f=permissionFixture(async({input,options,engines})=>{
+  await hook(options,'PreToolUse',{tool_use_id:'scope-1',tool_name:'Bash',tool_input:{command:'echo one'}});
+  const first=options.canUseTool('Bash',{command:'echo one'},{toolUseID:'scope-1',signal:new AbortController().signal});
+  const [id]=[...engines.permissions].find(([,p])=>p.runId===input.uuid)!;
+  engines.answer(input.uuid,id,true,'run');
+  assert.equal((await first).behavior,'allow');
+  await hook(options,'PreToolUse',{tool_use_id:'scope-2',tool_name:'Bash',tool_input:{command:'echo two'}});
+  const second=options.canUseTool('Bash',{command:'echo two'},{toolUseID:'scope-2',signal:new AbortController().signal});
+  assert.equal((await second).behavior,'allow','same tool passes without prompting');
+  assert.equal(engines.permissions.size,0,'no second permission was created');
+  await hook(options,'PreToolUse',{tool_use_id:'scope-3',tool_name:'Ftp',tool_input:{host:'example.com'}});
+  const third=options.canUseTool('Ftp',{host:'example.com'},{toolUseID:'scope-3',signal:new AbortController().signal});
+  const [readId]=[...engines.permissions].find(([,p])=>p.runId===input.uuid)!;
+  engines.answer(input.uuid,readId,false);
+  assert.equal((await third).behavior,'deny','other tools still ask');
+  return[result(input,'permission-fixture','done')];
+ });
+ try{const run=await f.turn();assert.equal(run.status,'completed','error: '+run.error);assert.equal(f.engines.runAllows.size,0,'allowance cleared after the run');}
+ finally{f.close();}
 });

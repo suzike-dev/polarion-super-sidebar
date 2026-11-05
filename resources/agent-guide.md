@@ -14,6 +14,6 @@ rich JSON 中保留来源 `sid`、`sourceText`、`sourceSpan`、所有 protected
 
 任意 HTML/CSS 执行、直接远程写入、任意图片 URL 导入和 Mermaid 自动渲染写回不属于 rich JSON 能力。用户明确需要的 Mermaid/HTML 代码示例可作为普通 codeBlock 文本保留，不能冒充可编辑图。新增普通图片可使用已经导入、同 origin/project、state=ready、extraction=image 的有效资产；符合这些条件的对话图片附件也可使用，并不要求绑定单一草稿。不能编造资产 ID 或任意图片 URL；尚未导入的图片可走编辑器导入。画板预览资产仍遵守独立的画板归属规则。表格 colwidth 的 null 表示未设置/保留，不承诺清除原有 data-colwidth 或 width。
 
-图形继续遵循 diagram-design Skill 及当前图形上下文返回的实际规范、profile 和产品限制。现有对象走 `read_board` → `propose_board_changes`；新图走 `read_board_generation_context` → `propose_board_generation`；需求配图走 `read_requirement_diagram_context` → `propose_board_generation`。预览提案、应用画板、插入正文草稿和保存服务端是不同状态。
+图形继续遵循 diagram-design Skill 及当前图形上下文返回的实际规范、profile 和产品限制。现有对象走 `read_board` → `propose_board_changes`；新图走 `read_board_generation_context` → `propose_board_generation`；需求配图走 `read_requirement_diagram_context` → `propose_board_generation`。整图 DSL 支持 kind=flow、kind=swimlane（按角色 2–4 条纵向泳道、节点用 lane 归属，自动布局，不提供 x/y）、kind=sequence（2–6 个参与者、1–14 条消息，用 participants/messages 代替 nodes/edges，消息绑定到生命线）、kind=class（2–6 个类、≤10 条关系，用 classes/relations 代替 nodes/edges，继承 child→parent、组合/聚合 owner→part、依赖 client→supplier）与 kind=er（2–6 个实体、≤10 条实体关系，用 entities/entityRelations 代替 nodes/edges，基数以 crowfoot 端点表达，PK 字段自动加前缀）；职责分离的流程优先泳道，交互时序优先时序图，结构模型优先类图，数据模型优先 ER 图。预览提案、应用画板、插入正文草稿和保存服务端是不同状态。
 
 参数或能力错误先检查一次对应能力 topic，再修正参数或给出可用替代；不能用相同参数无限重试。`STALE_DRAFT` 应读取新基线并保留并发修改；选区找不到或不唯一时重新定位，不偷偷扩大范围。`REMOTE_CONFLICT` 与 `READBACK_REQUIRED` 留在产品明确的审阅和回读流程中处理。

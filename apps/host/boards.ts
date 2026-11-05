@@ -30,6 +30,19 @@ export class Boards{
     const a=this.putBytes(target,names.manifest,'application/json',Buffer.from(JSON.stringify(manifest)));
     const record={manifest,sourceId,previewId,manifestId:a.id};this.store.put('board',snapshotId,record);return record;
   }
+  /** 复制画板快照到另一个工作项：保留 objectId（同一逻辑画板），生成新 snapshotId 并绑定目标工作项。 */
+  copy(record:BoardRecord,target:Target,workItemId:string){
+    const sourceBytes=this.assets.bytes(record.sourceId),previewBytes=this.assets.bytes(record.previewId);
+    validateBoardSource(sourceBytes.toString('utf8'));
+    const snapshotId=crypto.randomUUID(),names=boardFileNames(snapshotId);
+    const source=this.putBytes(target,record.manifest.source.name,'application/json',sourceBytes);
+    const preview=this.putBytes(target,record.manifest.preview.name,'image/png',previewBytes);
+    if(preview.mime!=='image/png')throw Error('BOARD_PNG_REQUIRED');
+    const manifest=BoardManifestSchema.parse({...record.manifest,snapshotId,parentSnapshotId:record.manifest.snapshotId,workItemId,target,createdAt:Date.now(),source:{name:names.source,sha256:record.manifest.source.sha256,size:record.manifest.source.size},preview:{name:names.preview,sha256:record.manifest.preview.sha256,size:record.manifest.preview.size}});
+    const manifestAsset=this.putBytes(target,names.manifest,'application/json',Buffer.from(JSON.stringify(manifest)));
+    const copied={manifest,sourceId:source.id,previewId:preview.id,manifestId:manifestAsset.id};
+    this.store.put('board',snapshotId,copied);return copied;
+  }
   owned(draft:Draft,objectId:string,snapshotId:string){
     const r=this.store.require<BoardRecord>('board',snapshotId),m=r.manifest;
     if(!sameTarget(draft.target,m.target)||draft.workItemId!==m.workItemId||m.objectId!==objectId)throw Error('BOARD_TARGET_MISMATCH');
@@ -94,7 +107,7 @@ export class Boards{
     if(draft.revision!==request.revision)throw Error('BOARD_BASELINE_CONFLICT');
     const read:BoardGenerationRead={id:crypto.randomUUID(),requestId,runId:run.id,draftId:draft.id,revision:draft.revision};
     this.store.put('board-generation-read',read.id,read);
-    return {...read,localBoardId:request.localBoardId,baselineSignature:request.baselineSignature,limits:'Propose a complete editable diagram using propose_board_generation. Up to 9 nodes (rectangle/diamond/ellipse/text), 12 edges, 2 focal accent nodes. Every diamond has 2–3 outgoing labeled branches, labels are single-line and at most 14 characters. Follow diagram-design; plain text only. Default size=auto chooses a compact landscape or portrait canvas; explicit size=slide-16x9/doc-inline/doc-wide is optional. Avoid sparse oversized nodes and long scrolls. Direction down/right is preferred flow. Optional x/y must be paired and inside the selected frame. If content cannot fit legibly, split overview/detail. No files, images, HTML, URLs, arbitrary Excalidraw source or remote writes. User previews and explicitly applies; later manual changes block application.'};
+    return {...read,localBoardId:request.localBoardId,baselineSignature:request.baselineSignature,limits:'Propose a complete editable diagram using propose_board_generation. Up to 9 nodes (rectangle/diamond/ellipse/text), 12 edges, 2 focal accent nodes. Every diamond has 2–3 outgoing labeled branches, labels are single-line and at most 14 characters. Follow diagram-design; plain text only. Default size=auto chooses a compact landscape or portrait canvas; explicit size=slide-16x9/doc-inline/doc-wide is optional. Avoid sparse oversized nodes and long scrolls. Direction down/right is preferred flow. Optional x/y must be paired and inside the selected frame. For responsibility-separated processes use kind=swimlane with 2–4 named lanes; every node carries its lane, lanes are vertical and flow runs top-down without x/y. For interaction ordering use kind=sequence with 2–6 participants and 1–14 messages (kind=sync/return/self, text ≤120 chars); sequence diagrams take participants/messages instead of nodes/edges and bind messages to lifelines. For structural models use kind=class with 2–6 classes (name ≤40 chars; up to 8 attributes and 8 methods each, ≤60 chars per line) and up to 10 relations (association/aggregation/composition/inheritance/dependency, optional label ≤14 chars); class diagrams take classes/relations instead of nodes/edges. Inheritance goes child→parent, composition/aggregation owner→part, dependency client→supplier. For data models use kind=er with 2–6 entities (name ≤40 chars, 1–10 fields each with name/optional type/optional pk) and up to 10 entityRelations (one-one/one-many/many-many with optional label ≤14 chars); ER diagrams take entities/entityRelations instead of nodes/edges and express cardinality with native crowfoot arrowheads. If content cannot fit legibly, split overview/detail. No files, images, HTML, URLs, arbitrary Excalidraw source or remote writes. User previews and explicitly applies; later manual changes block application.'};
   }
   proposeGeneration(run:Run,draft:Draft,readId:string,input:unknown){
     const read=this.store.require<BoardGenerationRead>('board-generation-read',readId),request=this.generationRequest(draft,read.requestId);

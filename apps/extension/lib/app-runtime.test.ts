@@ -63,7 +63,7 @@ test('App keeps asynchronous replies bound to the submitted input and document',
     const navigate=async(project:string,documentName='Other')=>{await act(async()=>{dom.window.history.replaceState(null,'',`#/project/${project}/wiki/Requirements/${documentName}`);window.dispatchEvent(new dom.window.HashChangeEvent('hashchange'));});};
     const sessionTitle=()=>document.querySelector('.session-bar > button span')?.textContent;
 
-    async function mount(withSession=true){
+    async function mount(withSession=true,options:{runs?:unknown[];settings?:unknown;guidelines?:unknown[]}={}){
       dom.window.history.replaceState(null,'','#/project/test01/wiki/Requirements/Synthetic');sessionStorage.clear();
       const calls:Command[]=[],send=deferred(),create=deferred(),rename=deferred(),uploaded=deferred(),nativeCheck=deferred(),nativeRefresh=deferred();
       const nativeCalls:{phase:string;workItemId:string}[]=[];
@@ -74,10 +74,12 @@ test('App keeps asynchronous replies bound to the submitted input and document',
         if(message.type==='native-workitem-refresh'){nativeCalls.push({phase:message.phase,workItemId:message.workItemId});return message.phase==='check'?nativeCheck.promise:nativeRefresh.promise;}
         const command=message.request.command;calls.push(command);let value:unknown;
         switch(command.method){
-          case 'health':case 'settings.read':value={};break;
+          case 'health':value={};break;
+          case 'settings.read':value=options.settings??{};break;
+          case 'guidelines.list':value=options.guidelines??[];break;
           case 'engine.context':value={connected:false};break;
           case 'sessions.list':value=withSession&&command.projectId===target.projectId?[session]:[];break;
-          case 'sessions.read':value={session,runs:[],events:[]};break;
+          case 'sessions.read':value={session,runs:options.runs??[],events:[]};break;
           case 'drafts.list':value=['A','B','C'].map(draft);break;
           case 'runs.start':value=await send.promise;break;
           case 'sessions.create':value=await create.promise;break;
@@ -96,8 +98,8 @@ test('App keeps asynchronous replies bound to the submitted input and document',
       assert(input());assert.equal(sessionTitle(),withSession?'Existing session':'新工程会话');
       return {calls,send,create,rename,uploaded,drafts,editors,nativeCalls,nativeCheck,nativeRefresh};
     }
-    async function run(name:string,check:(fixture:Awaited<ReturnType<typeof mount>>)=>Promise<void>,withSession=true){
-      await t.test(name,async()=>{try{await check(await mount(withSession));}finally{await cleanupRoot?.();cleanupRoot=undefined;}});
+    async function run(name:string,check:(fixture:Awaited<ReturnType<typeof mount>>)=>Promise<void>,withSession=true,options:{runs?:unknown[];settings?:unknown;guidelines?:unknown[]}={}){
+      await t.test(name,async()=>{try{await check(await mount(withSession,options));}finally{await cleanupRoot?.();cleanupRoot=undefined;}});
     }
 
     await run('sending preserves edits and newly added attachments made before the reply',async fixture=>{
@@ -115,9 +117,39 @@ test('App keeps asynchronous replies bound to the submitted input and document',
       assert.equal(fixture.calls.filter(command=>command.method==='runs.cancel').length,0);
     });
 
+    await run('guideline entry stays available when none are configured and opens the guideline settings tab',async fixture=>{
+      const entry=document.querySelector('.guideline-add');assert(entry,'empty state must keep a guideline entry');
+      await click(entry);
+      await act(async()=>{await new Promise(resolve=>setTimeout(resolve,400));});
+      assert(document.querySelector('.settings.sp-panel'));
+      const activeTab=[...document.querySelectorAll<HTMLButtonElement>('.sp-nav button')].find(button=>button.className.includes('on'));
+      assert.equal(activeTab?.textContent?.startsWith('指令'),true,'entry should deep-link to the guideline tab');
+    },true,{settings:{defaultEngine:'claude',claudeModel:'',codexModel:'gpt-6.1-sol'}});
+    const activeRun={id:'active-run',sessionId:'s',requestId:'r1',target,prompt:'busy',contexts:[],attachments:[],status:'waiting',startedAt:1,permissionMode:'auto',delivery:'queue'};
+    const guideline={id:'11111111-1111-4111-8111-111111111111',kind:'send',name:'写标准需求',description:'按标准模板写需求',content:'模板',file:''};
+    await run('sending during an active run applies settings defaults, delivery choice and attached guideline',async fixture=>{
+      await act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
+      const permission=document.querySelector<HTMLSelectElement>('select[aria-label="智能体权限"]')!;
+      assert.equal(permission.value,'auto','运行中显示本轮冻结的权限，输入框不可切换');
+      assert.equal(permission.disabled,true);
+      const delivery=document.querySelector<HTMLSelectElement>('.delivery-select')!;
+      assert.equal(delivery.value,'steer');
+      const guidelineSelect=document.querySelector<HTMLSelectElement>('.guideline-select');
+      assert(guidelineSelect);assert.equal(guidelineSelect.value,'');
+      assert(document.querySelector('.send.stop'),'stop stays available while sending is possible');
+      await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype,'value')!.set!.call(guidelineSelect,guideline.id);guidelineSelect.dispatchEvent(new dom.window.Event('change',{bubbles:true}));});
+      await type('queued message');
+      await click([...document.querySelectorAll('button.send')].find(element=>!element.classList.contains('stop')));
+      const request=fixture.calls.find(command=>command.method==='runs.start');assert(request&&request.method==='runs.start');
+      assert.equal(request.delivery,'steer');assert.equal(request.permissionMode,'ask');assert.equal(request.guidelineId,guideline.id);
+      await act(async()=>{fixture.send.resolve({id:'queued-run',status:'queued'});});
+      assert.equal(input().value,'');
+      assert.equal(guidelineSelect.value,'','附加指令每次发送后重置');
+    },true,{runs:[activeRun],settings:{defaultEngine:'claude',claudeModel:'',codexModel:'gpt-6.1-sol',defaultPermissionMode:'ask',defaultTurnDelivery:'steer'},guidelines:[guideline]});
+
     await run('newer draft selection wins and a late draft cannot reopen after navigation',async fixture=>{
       await tab('属性');
-      const row=(id:string)=>[...document.querySelectorAll<HTMLButtonElement>('.draft-row')].find(element=>element.textContent?.includes(id));
+      const row=(id:string)=>[...document.querySelectorAll<HTMLButtonElement>('.draft-open')].find(element=>element.textContent?.includes(id));
       await click(row('A'));await click(row('B'));assert(fixture.drafts.has('A'));assert(fixture.drafts.has('B'));
       await act(async()=>{fixture.drafts.get('B')!.resolve(draft('B'));});
       await act(async()=>{fixture.drafts.get('A')!.resolve(draft('A'));});
@@ -143,7 +175,7 @@ test('App keeps asynchronous replies bound to the submitted input and document',
       assert.equal(sessionTitle(),'新工程会话');assert.equal(fixture.calls.filter(command=>command.method==='runs.start').length,0);
     },false);
 
-    const open=async(fixture:Awaited<ReturnType<typeof mount>>,id:string)=>{await tab('属性');await click([...document.querySelectorAll<HTMLButtonElement>('.draft-row')].find(element=>element.textContent?.includes(id)));await act(async()=>{fixture.drafts.get(id)!.resolve(draft(id));});return fixture.editors.get(id)!;};
+    const open=async(fixture:Awaited<ReturnType<typeof mount>>,id:string)=>{await tab('属性');await click([...document.querySelectorAll<HTMLButtonElement>('.draft-open')].find(element=>element.textContent?.includes(id)));await act(async()=>{fixture.drafts.get(id)!.resolve(draft(id));});return fixture.editors.get(id)!;};
     for(const change of ['close','replace','navigate'] as const)await run(`late editor update cannot reopen or replace the current editor after ${change}`,async fixture=>{
       const old=await open(fixture,'A');
       if(change==='close')await click(document.querySelector('[data-test-close]'));

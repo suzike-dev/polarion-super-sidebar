@@ -11,6 +11,15 @@ test('rich preview keeps nested and merged table geometry without changing sourc
   assert.equal(preview.querySelectorAll('table').length, 2); assert.equal(preview.querySelector('td')!.rowSpan, 2);
   assert.equal(preview.querySelectorAll('[data-source-node]').length, 3); assert.equal(original.source, source); dom.window.close();
 });
+test('empty work item reference spans stay visible and clickable in the local preview', () => {
+  const source = '<p>见 <span onclick="attack()" class="polarion-rte-link" data-type="workItem" id="fake" data-item-id="TEST-728" data-option-id="long"></span> 的说明</p>';
+  const original = new LosslessHtml(source); const dom = new JSDOM();
+  const preview = new JSDOM(richPreview(source, original.nodes, target, dom.window.DOMParser)).window.document;
+  const chip = preview.querySelector('[data-workitem-ref]')!;
+  assert.equal(chip.textContent, 'TEST-728'); assert.equal(chip.getAttribute('data-workitem-ref'), 'TEST-728');
+  assert.equal(chip.getAttribute('class'), 'preview-workitem-ref'); assert.equal(chip.hasAttribute('onclick'), false);
+  assert.equal(original.source, source); dom.window.close();
+});
 test('display sanitization blocks executable content and external resource requests, while source stays intact', () => {
   const source = '<p onclick="attack()" style="position:fixed;background:url(https://bad.test/x)">hello</p><script>attack()</script><img src="https://bad.test/x" onerror="attack()"><span id="polarion_wiki macro name=unknown;params=x">opaque</span>';
   const original = new LosslessHtml(source); const dom = new JSDOM();

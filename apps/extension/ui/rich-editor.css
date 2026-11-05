@@ -13,8 +13,8 @@
 .rich-tabs{padding:0 16px;height:36px;flex-shrink:0;background:#fff}
 .rich-tabs>div{display:flex;height:100%;gap:12px}
 .rich-tabs button{padding:0 9px;position:relative;font-size:12px;color:#52657d}
-.rich-tabs button.selected{background:none;border-radius:0;color:#2d5c9d;font-weight:600}
-.rich-tabs button.selected:after{content:'';position:absolute;bottom:0;left:6px;right:6px;height:2px;background:#3e72ba}
+.rich-tabs button.selected{background:none;border-radius:0;color:var(--ui-accent);font-weight:600}
+.rich-tabs button.selected:after{content:'';position:absolute;bottom:0;left:6px;right:6px;height:2px;background:var(--ui-accent);border-radius:2px 2px 0 0}
 .rich-tabs>span{color:#607187;font-size:11px}
 .rich-tabs b,.rich-statusbar b{font-weight:400;margin:0 6px;color:#b6c0ce}
 .rich-controls{position:relative;flex-shrink:0;border-bottom:1px solid #dce4ed;background:#f9fbfd}
@@ -31,8 +31,8 @@
 .tool-group small{color:#65778d;font-size:11px;margin-right:4px}
 .rt-button{height:30px;min-width:29px;display:flex;align-items:center;justify-content:center;gap:3px;color:#435b78;border-radius:4px;padding:0 6px;white-space:nowrap}
 .rt-button span{font-size:12px}
-.rt-button:hover{background:#e8eff8;color:#2d5d9b}
-.rt-button.active{background:#dfeafb;color:#2c5e9d}
+.rt-button:hover{background:var(--ui-accent-soft);color:var(--ui-accent-ink)}
+.rt-button.active{background:var(--ui-accent-soft);color:var(--ui-accent)}
 .rt-button:disabled{opacity:.4}
 .ribbon select{height:29px;padding:0 6px;border:1px solid #dce4ee;border-radius:4px;color:#435b78;background:#fff;font-size:12px;max-width:96px}
 .rich-workbench .rich-canvas{padding:16px;background:#eef2f6;overflow:auto;min-height:0;min-width:0;flex:1;scrollbar-width:thin;scrollbar-color:#c6d0de transparent;position:relative}
@@ -65,7 +65,7 @@
 .tiptap .selectedCell:after{z-index:2;position:absolute;content:'';inset:0;background:#6293d52a;pointer-events:none;outline:1px solid #6895cf;outline-offset:-1px}
 .tiptap .column-resize-handle{position:absolute;right:-2px;top:0;bottom:0;width:4px;background:#5b8fce;pointer-events:none}
 .tiptap.resize-cursor{cursor:col-resize}
-.tiptap .protected-object{font-size:11px;background:repeating-linear-gradient(135deg,#f5f7fa,#f5f7fa 8px,#eff3f8 8px,#eff3f8 16px);border:1px dashed #c6d3e2;border-radius:5px;padding:8px 12px;color:#5b6e85;display:inline-block;margin:6px 3px;line-height:1.6;user-select:none}
+.tiptap .protected-object{font-size:10.5px;background:#f4f7f9;border:1px solid #dbe4ea;border-radius:4px;padding:2px 7px;color:#5b6e85;display:inline-block;margin:2px 3px;line-height:1.5;user-select:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:baseline}
 .tiptap .ProseMirror-selectednode{outline:2px solid #7ba3d4}
 .rich-statusbar{height:26px;flex-shrink:0;border-top:1px solid #e0e6ee;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:11px;color:#5d6f85;background:#fafbfd;gap:8px;white-space:nowrap;overflow:hidden}
 .rich-workbench footer{padding:8px 16px;flex-shrink:0;min-height:50px;background:#fff}
@@ -141,8 +141,8 @@
 .rich-loading.failed h3{font-size:16px;color:#3c4f66}
 .rich-loading.failed p{color:#8a4b3a;overflow-wrap:anywhere;max-width:100%}
 .rich-loading.failed>div{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px}
-.rich-loading.failed button,.review-empty button{padding:7px 13px;border:1px solid #c6d5e7;border-radius:5px;color:#315e96;background:#fff;font-size:12px}
-.rich-loading.failed button:first-child,.review-empty button{background:#2e619f;border-color:#2e619f;color:white}
+.rich-loading.failed button,.review-empty button{padding:7px 13px;border:1px solid var(--ui-line);border-radius:var(--ui-radius-sm);color:var(--ui-accent);background:var(--ui-surface);font-size:12px}
+.rich-loading.failed button:first-child,.review-empty button{background:var(--ui-accent);border-color:var(--ui-accent);color:#fff}
 .rich-loading.failed button:hover,.review-empty button:hover{filter:brightness(.95)}
 .document-review{display:flex;flex-direction:column;flex:1;gap:10px;min-height:0;min-width:0}
 .review-summary{display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px;padding:3px 4px;color:#4c617b;font-size:12px;flex-shrink:0}

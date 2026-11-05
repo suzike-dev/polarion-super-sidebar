@@ -17,6 +17,20 @@ export const segmentHitsBox=(a:Point,b:Point,r:Rect)=>{
   if(Math.abs(a[1]-b[1])<EPS)return a[1]>r.y+EPS&&a[1]<r.y+r.height-EPS&&Math.max(a[0],b[0])>r.x+EPS&&Math.min(a[0],b[0])<r.x+r.width-EPS;
   return true;
 };
+/** True only when the segment actually crosses the rectangle (Liang–Barsky).
+ * segmentHitsBox is the router's conservative shortcut and cannot be used for
+ * validating user-visible diagonal connectors. */
+export const segmentIntersectsBox=(a:Point,b:Point,r:Rect)=>{
+  let t0=0,t1=1;const dx=b[0]-a[0],dy=b[1]-a[1];
+  const clip=(p:number,q:number)=>{
+    if(Math.abs(p)<EPS)return q>=0;
+    const t=q/p;
+    if(p<0){if(t>t1)return false;if(t>t0)t0=t;}
+    else{if(t<t0)return false;if(t<t1)t1=t;}
+    return true;
+  };
+  return clip(-dx,a[0]-r.x)&&clip(dx,r.x+r.width-a[0])&&clip(-dy,a[1]-r.y)&&clip(dy,r.y+r.height-a[1]);
+};
 const lineBox=(a:Point,b:Point,pad=12)=>inflate({x:Math.min(a[0],b[0]),y:Math.min(a[1],b[1]),width:Math.abs(a[0]-b[0]),height:Math.abs(a[1]-b[1])},pad);
 const segments=(points:Point[])=>points.slice(1).map((p,i)=>[points[i]!,p] as [Point,Point]);
 const distance=(a:Point,b:Point)=>Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1]);

@@ -3,7 +3,7 @@ import type { Draft } from '../../../packages/protocol/index';
 import type { SourceNode } from '../../../packages/core/lossless-html';
 import { richPreview } from '../lib/rich-preview';
 import {imageResolver} from '../lib/editor-images';
-export function RichSurface({ draft, onSelect, onContext,title='工作项富文本正文',onReady }: { draft: Draft & { nodes: SourceNode[] }; onSelect: (node: SourceNode) => void; onContext: (text: string) => void;title?:string;onReady?:(doc:Document)=>void }) {
+export function RichSurface({ draft, onSelect, onContext,title='工作项富文本正文',onReady,onWorkItem }: { draft: Draft & { nodes: SourceNode[] }; onSelect: (node: SourceNode) => void; onContext: (text: string) => void;title?:string;onReady?:(doc:Document)=>void;onWorkItem?:(workItemId:string)=>void }) {
   const frame = useRef<HTMLIFrameElement>(null); const cleanup = useRef<() => void>(() => {});
   const html = useMemo(() => richPreview(draft.html, draft.nodes, draft.target), [draft.html, draft.revision]);
   useEffect(() => () => cleanup.current(), []);
@@ -15,6 +15,8 @@ export function RichSurface({ draft, onSelect, onContext,title='工作项富文�
     }
     const clicked = (event: MouseEvent) => {
       const element = event.target as Element; if (element.closest('a')) event.preventDefault();
+      const reference = element.closest('[data-workitem-ref]'); const referenceId = reference?.getAttribute('data-workitem-ref');
+      if (referenceId) { event.preventDefault(); onWorkItem?.(referenceId); return; }
       const leaf = element.closest('[data-source-node]'); const node = draft.nodes.find(n => n.id === leaf?.getAttribute('data-source-node'));
       if (node) { onSelect(node); const selected = d.getSelection()?.toString().trim(); onContext(selected || node.text || ''); }
     };

@@ -27,3 +27,7 @@ ipc-key
 .DS_Store
 Thumbs.db
 docs/assets/screenshots/
+
+# local tool state / test artifacts
+.spec-workflow/
+.app-runtime-test-*/

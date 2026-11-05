@@ -65,7 +65,9 @@ export class RichDocument {
   private opaque(node: H, inline: boolean): J {
     const attrs = 'attrs' in node ? Object.fromEntries(node.attrs.map(a => [a.name, a.value])) : {};
     const macro = attrs.id?.match(/macro name=([^;]+)/)?.[1];
-    const j: J = { type: inline ? 'protectedInline' : 'protectedBlock', attrs: { label: node.nodeName === 'img' ? '图片 · 保留原始引用' : macro ? `Polarion 宏 · ${macro}` : `保留对象 · ${node.nodeName}` } };
+    const textOf = (value: any): string => 'value' in value ? String(value.value) : (value.childNodes ?? []).map(textOf).join('');
+    const text = textOf(node).replace(/\s+/g, ' ').trim().slice(0, 120);
+    const j: J = { type: inline ? 'protectedInline' : 'protectedBlock', attrs: { label: node.nodeName === 'img' ? '图片 · 保留原始引用' : macro ? `Polarion 宏 · ${macro}` : `保留对象 · ${node.nodeName}`, text } };
     this.protectedIds.add(this.record(node, j).id); return j;
   }
   private blocks(nodes: H[]): J[] {
@@ -100,6 +102,9 @@ export class RichDocument {
       const local=attrs.src?.match(/^polarion-asset:([0-9a-f-]{36})$/i)?.[1];
       const style=attrs.style??'',align=/margin-left\s*:\s*auto/i.test(style)?(/margin-right\s*:\s*auto/i.test(style)?'center':'right'):'left';
       const j:J={type:'image',attrs:{src:attrs.src??'',assetId:local??null,alt:attrs.alt??'',title:attrs.title??null,width:attrs.width?Number(attrs.width):null,height:attrs.height?Number(attrs.height):null,align,sourceStyle:safeStyle(style)||null},marks:parentMarks};this.record(n,j);return[j];
+    }
+    if(n.nodeName==='span'&&(attrs['data-type']?.toLowerCase()==='workitem'||attrs['data-item-id'])&&attrs['data-item-id']?.trim()){
+      const j:J={type:'workItemRef',attrs:{workItemId:attrs['data-item-id'].trim()},marks:parentMarks};this.record(n,j);return[j];
     }
     // Native Polarion can nest a div inside a span. Preserve its wrapper as an
     // inline source mark, exposing its text instead of hiding an editable clause.
@@ -276,6 +281,11 @@ export class RichDocument {
       if (r && equal(j, r.original)) return r.raw;
       if (j.type === 'doc') return children(j.content ?? [], this.rootRecord);
       if (j.type?.startsWith('protected')) return r!.raw;
+      if (j.type === 'workItemRef') {
+        const id = String(j.attrs?.workItemId ?? '');
+        if (!/^[A-Za-z][A-Za-z0-9_]{0,23}-\d{1,7}$/.test(id)) throw Error('INVALID_WORK_ITEM_REF');
+        return `<span class="polarion-rte-link" data-type="workItem" id="fake" data-item-id="${attr(id)}" data-option-id="long"></span>`;
+      }
       if(j.type==='image'){
         const a=j.attrs??{};const attrs={...(r?.attrs??{})};
         if(a.assetId){if(!/^[0-9a-f-]{36}$/i.test(a.assetId))throw Error('INVALID_IMAGE_ASSET');attrs.src='polarion-asset:'+a.assetId;}

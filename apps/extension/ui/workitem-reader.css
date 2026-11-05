@@ -1,0 +1,15 @@
+/* 完整阅读预览：独立浮层，只读 iframe，关闭后回到原上下文。 */
+:host .reader-layer { position: fixed; inset: 0; z-index: 100010; display: flex; align-items: center; justify-content: center; padding: 44px; background: #20262b4d; }
+:host .reader-panel { width: min(980px, 92vw); height: min(84vh, 900px); display: flex; flex-direction: column; background: var(--ui-surface); border: 1px solid var(--ui-line); border-radius: 12px; box-shadow: var(--ui-modal-shadow); overflow: hidden; }
+:host .reader-panel > header { display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-bottom: 1px solid var(--ui-soft-line); background: var(--ui-surface); flex-shrink: 0; }
+:host .reader-icon { width: 30px; height: 30px; border-radius: var(--ui-radius-md); display: grid; place-items: center; color: var(--ui-accent); background: var(--ui-accent-soft); border: 1px solid #dde7e4; flex: none; }
+:host .reader-title { flex: 1; min-width: 0; }
+:host .reader-title .eyebrow { font-size: 10px; color: var(--ui-muted); letter-spacing: .04em; }
+:host .reader-title h2 { margin: 2px 0 1px; font-size: 15px; font-weight: 600; color: var(--ui-ink); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:host .reader-title small { font-size: 11px; color: var(--ui-muted); }
+:host .reader-body { flex: 1; min-height: 0; padding: 14px; background: var(--ui-subtle); }
+:host .reader-body .rich-surface { display: block; width: 100%; height: 100%; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); background: #fff; }
+:host .reader-panel > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 15px; border-top: 1px solid var(--ui-soft-line); background: var(--ui-surface); flex-shrink: 0; }
+:host .reader-panel > footer .muted { font-size: 11px; }
+:host .reader-panel > footer > div { display: flex; gap: 8px; }
+@media (max-width: 720px) { :host .reader-layer { padding: 14px; } :host .reader-panel { width: 100%; height: 90vh; } }

@@ -1,19 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, rmdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from './store.ts';
-import type { Context } from '../../packages/protocol/index.ts';
+import type { Context, Draft } from '../../packages/protocol/index.ts';
 import { CommandSchema } from '../../packages/protocol/index.ts';
 const target = { origin: 'https://polarion.pufafen.com' as const, projectId: 'test01', document: 'Requirements/Fixture' };
 test('fresh and legacy settings use compact answer type without changing engine preferences', () => {
   const store=new Store(':memory:');
   try {
     assert.equal(store.settings().assistantFontSize,13);
+    assert.equal(store.settings().defaultPermissionMode,'auto');
+    assert.equal(store.settings().defaultTurnDelivery,'queue');
     const legacy={defaultEngine:'codex',claudeModel:'existing-local-model',codexModel:'gpt-6.1-sol'};
     store.put('settings','global',legacy);
-    assert.deepEqual(store.settings(),{...legacy,assistantFontSize:13});
+    assert.deepEqual(store.settings(),{...legacy,assistantFontSize:13,defaultPermissionMode:'auto',defaultTurnDelivery:'queue',draftsFolder:'',variantLinkRole:''});
     assert.deepEqual(store.get('settings','global'),legacy,'reading old settings must not write them');
   } finally {store.close();}
 });
@@ -29,9 +31,12 @@ test('answer font size accepts integer boundaries and rejects invalid settings w
   for(const assistantFontSize of [11,19,13.5,NaN,Infinity,'14',null]) {
     assert.equal(CommandSchema.safeParse({method:'settings.write',settings:{...settings,assistantFontSize}}).success,false);
   }
+  assert.equal(CommandSchema.safeParse({method:'settings.write',settings:{...settings,defaultPermissionMode:'yolo'}}).success,false);
+  assert.equal(CommandSchema.safeParse({method:'settings.write',settings:{...settings,defaultTurnDelivery:'now'}}).success,false);
   const legacy=CommandSchema.parse({method:'settings.write',settings});
-  if(legacy.method!=='settings.write')throw Error('Unexpected command');
+  if(legacy.method!=='settings.write') throw Error('Unexpected command');
   assert.equal(legacy.settings.assistantFontSize,13);
+  assert.equal(legacy.settings.defaultTurnDelivery,'queue');
 });
 
 test('saved answer font size survives closing and reopening the settings store', () => {
@@ -65,9 +70,14 @@ test('new turns default to auto while explicit and legacy permissions remain fro
     assert.equal(command.method,'runs.start');
     if(command.method!=='runs.start') throw Error('Unexpected command');
     assert.equal(command.permissionMode,'auto');
+    assert.equal(command.delivery,'queue');
+    const steerCommand=CommandSchema.parse({method:'runs.start',sessionId:session.id,requestId:crypto.randomUUID(),target,prompt:'steer',contexts:[],delivery:'steer'});
+    if(steerCommand.method!=='runs.start')throw Error('Unexpected command');
+    assert.equal(steerCommand.delivery,'steer');
     const {run}=store.startRun(session.id,command.requestId,command.prompt,[]);
     assert.equal(run.permissionMode,'auto');
     assert.throws(()=>store.startRun(session.id,command.requestId,command.prompt,[],target,[],'ask'),/REQUEST_ID_REUSED/);
+    assert.throws(()=>store.startRun(session.id,command.requestId,command.prompt,[],target,[],'auto','steer'),/REQUEST_ID_REUSED/);
     store.put('run',run.id,{...run,status:'completed'});
     const explicit=store.startRun(session.id,crypto.randomUUID(),'explicit ask',[],target,[],'ask').run;
     assert.equal(explicit.permissionMode,'ask');
@@ -90,8 +100,64 @@ test('session engine affinity, immutable context and idempotent turn submission'
   contexts[0].text = 'changed after sending';
   assert.equal(store.require<any>('run', run.id).contexts[0].text, 'initial');
   assert.throws(() => store.startRun(session.id, request, 'different', contexts), /REQUEST_ID_REUSED/);
-  assert.throws(() => store.startRun(session.id, crypto.randomUUID(), 'second', []), /SESSION_BUSY/);
+  // 会话运行中不再拒绝新输入：默认排队、先进先出，超过队列上限才拒绝。
+  const queued = store.startRun(session.id, crypto.randomUUID(), 'second', []);
+  assert.equal(queued.run.status, 'queued');
+  assert.ok(queued.run.startedAt > run.startedAt, 'queued runs keep FIFO order');
+  for (let i = 0; i < 4; i++) store.startRun(session.id, crypto.randomUUID(), 'q' + i, []);
+  assert.throws(() => store.startRun(session.id, crypto.randomUUID(), 'overflow', []), /SESSION_QUEUE_FULL/);
+  store.put('run', run.id, { ...run, status: 'completed' });
+  const next = store.claimQueued(session.id);
+  assert.equal(next!.prompt, 'second'); assert.equal(next!.status, 'running');
+  assert.equal(store.claimQueued(session.id)!.prompt, 'q0');
+  // 引导输入插队：比它早排队的普通消息让位。
+  store.startRun(session.id, crypto.randomUUID(), 'early queue', [], undefined, [], 'auto', 'queue');
+  store.startRun(session.id, crypto.randomUUID(), 'late steer', [], undefined, [], 'auto', 'steer');
+  assert.equal(store.claimQueued(session.id)!.prompt, 'late steer');
+  assert.equal(store.claimQueued(session.id)!.prompt, 'q1', '普通排队仍按先进先出');
   store.close();
+});
+test('drafts move to a custom folder and back, and guidelines round-trip', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'polarion-drafts-folder-'));
+  let store: Store | undefined;
+  try {
+    store = new Store(join(directory, 'state.sqlite'));
+    const session = store.createSession(target, 'folder session');
+    const draft: Draft = { id: crypto.randomUUID(), target, workItemId: 'S-1', title: 'fixture', baseHtml: '<p>a</p>', html: '<p>b</p>', baseUpdated: '2026-01-01T00:00:00Z', revision: 2, state: 'dirty' };
+    store.put('draft', draft.id, draft);
+    assert.equal(store.drafts(target).length, 1);
+    const folder = join(directory, 'custom-drafts');
+    store.setDraftsFolder(folder);
+    assert.equal(store.require<Draft>('draft', draft.id).html, '<p>b</p>');
+    assert.ok(existsSync(join(folder, draft.id + '.json')), 'draft persisted as JSON in the custom folder');
+    assert.equal(store.drafts(target).length, 1);
+    const updated = { ...draft, html: '<p>c</p>', revision: 3 };
+    store.put('draft', draft.id, updated);
+    assert.equal(store.require<Draft>('draft', draft.id).html, '<p>c</p>');
+    assert.throws(() => store!.setDraftsFolder('relative/path'), /DRAFTS_FOLDER_NOT_ABSOLUTE/);
+    store.setDraftsFolder('');
+    assert.equal(store.require<Draft>('draft', draft.id).html, '<p>c</p>', 'draft migrated back to the internal database');
+    assert.equal(store.drafts(target).length, 1);
+    const guideline = { id: crypto.randomUUID(), kind: 'send' as const, name: '写标准需求', description: '标准模板', content: '模板正文', files: [], file: '' };
+    store.put('guideline', guideline.id, guideline);
+    assert.deepEqual(store.guidelines(), [guideline]);
+    // 旧版单文件字段在读取时折叠为带备注的文件列表，多文件按顺序保留。
+    const legacy = { id: crypto.randomUUID(), kind: 'library' as const, name: '变量定义', description: '', content: '', file: 'C:/docs/vars.md' };
+    store.put('guideline', legacy.id, legacy);
+    assert.deepEqual(store.guidelines().find(g => g.id === legacy.id)!.files, [{ path: 'C:/docs/vars.md', label: '' }]);
+    const multi = { ...guideline, id: crypto.randomUUID(), kind: 'library' as const, content: '', files: [{ path: 'C:/a.md', label: '模板 v2' }, { path: 'C:/b.md', label: '' }] };
+    store.put('guideline', multi.id, multi);
+    assert.deepEqual(store.guidelines().find(g => g.id === multi.id)!.files.map(f => f.label), ['模板 v2', '']);
+    store.startRun(session.id, crypto.randomUUID(), 'busy turn', []);
+    const attached = store.startRun(session.id, crypto.randomUUID(), 'with guideline', [], undefined, [], 'auto', 'queue', guideline.id).run;
+    assert.equal(attached.guidelineId, guideline.id);
+    assert.equal(attached.status, 'queued');
+    assert.equal((store.events(session.id, 0).filter(e => e.kind === 'user').at(-1)!.data as any).guideline.name, '写标准需求');
+    assert.throws(() => store!.startRun(session.id, crypto.randomUUID(), 'missing guideline', [], undefined, [], 'auto', 'queue', crypto.randomUUID()), /GUIDELINE_NOT_FOUND/);
+  } finally {
+    store?.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 test('cross-document context rejected and interrupted turns never silently rerun', () => {
   const store = new Store(':memory:'); const session = store.createSession(target, 'test');
@@ -111,4 +177,22 @@ test('project session spans documents but each turn target stays frozen', () => 
   assert.equal(store.require<any>('session', session.id).target.document, 'Requirements/Next');
   assert.throws(() => store.startRun(session.id, crypto.randomUUID(), 'other project', [], { ...target, projectId: 'other' }), /SESSION_PROJECT_MISMATCH/);
   store.close();
+});
+test('draft folder ignores unrelated JSON and equivalent path spellings keep drafts', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'polarion-drafts-safety-'));
+  const store = new Store(join(directory, 'state.sqlite'));
+  try {
+    const draft: Draft = { id: crypto.randomUUID(), target, workItemId: 'S-1', title: 'fixture', baseHtml: '<p>a</p>', html: '<p>b</p>', baseUpdated: '2026-01-01T00:00:00Z', revision: 2, state: 'dirty' };
+    store.put('draft', draft.id, draft);
+    const folder = join(directory, 'drafts');
+    store.setDraftsFolder(folder);
+    // 共享目录里的 package.json/其它 JSON 不能被当作草稿，否则 d.target 为 undefined 会让整条链路抛错。
+    writeFileSync(join(folder, 'package.json'), '{"name":"workspace"}');
+    writeFileSync(join(folder, 'notes.json'), '{"id":"not-a-draft"}');
+    assert.deepEqual(store.list<Draft>('draft').map(item => item.id), [draft.id]);
+    // 同一目录的另一种写法不能触发迁移删除：写入和删除的会是同一批文件。
+    store.setDraftsFolder(folder.replaceAll('\\', '/') + '/');
+    assert.deepEqual(store.list<Draft>('draft').map(item => item.id), [draft.id]);
+    assert.ok(existsSync(join(folder, draft.id + '.json')));
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

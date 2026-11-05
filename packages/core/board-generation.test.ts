@@ -1,10 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {BoardDiagramSchema,generateBoardDiagram,boardPreviewDimensions,checkBoardCanvas} from './board-generation.ts';
+import {BoardDiagramSchema,generateBoardDiagram,boardPreviewDimensions,checkBoardCanvas,straightConnectionRoutes} from './board-generation.ts';
 import {applyBoardPatches,boardSceneSignature} from './board-changes.ts';
 import {validateBoardSource} from './board-contract.ts';
 
 const namespace='00000000-0000-4000-8000-000000000001';
+const overlaps=(a:any,b:any)=>a.x<b.x+b.width-1e-6&&a.x+a.width>b.x+1e-6&&a.y<b.y+b.height-1e-6&&a.y+a.height>b.y+1e-6;
 const diagram={title:'冷却请求流程',summary:'采集温度并检查冷却请求，执行或等待。',direction:'down',nodes:[{id:'start',kind:'ellipse',text:'采集温度'},{id:'check',kind:'diamond',text:'需要冷却？'},{id:'cool',text:'启动冷却',tone:'accent'},{id:'wait',text:'保持待机'}],edges:[{id:'a',from:'start',to:'check'},{id:'b',from:'check',to:'cool',label:'是'},{id:'c',from:'check',to:'wait',label:'否'}]};
 test('diagram compiler creates deterministic editable shapes, text and bound arrows without embedded images',()=>{
   const first=generateBoardDiagram(diagram,namespace),again=generateBoardDiagram(diagram,namespace);
@@ -86,4 +87,318 @@ test('actual source frame checker detects escaped shapes, arrow points, labels a
   const arrowSource=structuredClone(result.elements),arrow=arrowSource.find(e=>e.type==='arrow')!;arrow.points[1]=[5000,5000];assert.ok(checkBoardCanvas(arrowSource).errors.some(e=>e.startsWith('BOARD_CANVAS_OVERFLOW:')));
   const labelSource=structuredClone(result.elements),mask=labelSource.find(e=>e.customData?.boardRole==='edge-label-mask')!;mask.y=1000;assert.ok(checkBoardCanvas(labelSource).errors.some(e=>e.startsWith('BOARD_CANVAS_OVERFLOW:')));
   const titleSource=structuredClone(result.elements),title=titleSource.find(e=>e.customData?.boardRole==='title')!,other=titleSource.find(e=>e.customData?.boardRole==='node')!;other.x=title.x;other.y=title.y;assert.ok(checkBoardCanvas(titleSource).errors.some(e=>e.startsWith('BOARD_TITLE_OVERLAP:')));
+});
+
+test('swimlane kind renders named vertical lanes with lane-owned nodes and deterministic elbows',()=>{
+  const swimlane={title:'需求评审泳道流程',summary:'编写与评审职责分离的示例流程。',kind:'swimlane',lanes:[{id:'author',name:'编写方'},{id:'reviewer',name:'评审方'}],nodes:[
+    {id:'draft',text:'编写草稿',lane:'author'},
+    {id:'submit',text:'提交评审',lane:'author'},
+    {id:'check',kind:'diamond',text:'评审通过？',lane:'reviewer',tone:'accent'},
+    {id:'publish',text:'归档发布',lane:'author'}],
+    edges:[{id:'a',from:'draft',to:'submit'},{id:'b',from:'submit',to:'check'},{id:'c',from:'check',to:'publish',label:'通过'},{id:'d',from:'check',to:'draft',label:'修改'}]};
+  const first=generateBoardDiagram(swimlane,namespace),again=generateBoardDiagram(swimlane,namespace);
+  assert.deepEqual(first,again);
+  assert.equal(first.summary.lanes,2);assert.equal(first.summary.checks.ok,true);
+  validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:first.elements,files:{}}));
+  const headers=first.elements.filter(e=>e.customData?.boardRole==='lane'&&e.customData.part==='header');
+  const bodies=first.elements.filter(e=>e.customData?.boardRole==='lane'&&e.customData.part==='body');
+  assert.equal(headers.length,2);assert.equal(bodies.length,2);
+  assert.deepEqual(headers.map(h=>h.customData.laneId),['author','reviewer']);
+  assert.ok(headers[0]!.x+headers[0]!.width<=headers[1]!.x+1e-9,'lanes are side-by-side columns');
+  const laneOf=new Map(swimlane.nodes.map(n=>[n.id,n.lane]));
+  const nodes=first.elements.filter(e=>e.customData?.boardRole==='node');
+  const bodiesByLane=new Map(bodies.map(b=>[b.customData.laneId as string,b]));
+  for(const node of nodes){const lane=laneOf.get(node.customData.logicalId as string)!,body=bodiesByLane.get(lane)!;
+    assert.ok(node.x>=body.x&&node.x+node.width<=body.x+body.width+1e-9,'node stays inside its lane column: '+node.customData.logicalId);
+    assert.ok(node.y>=body.y,'node starts below the lane header');}
+  const arrows=first.elements.filter(e=>e.type==='arrow');
+  assert.equal(arrows.length,4);
+  assert.ok(arrows.every(a=>a.elbowed&&a.startBinding&&a.endBinding&&a.points.every((p:number[],i:number)=>!i||p[0]===a.points[i-1]![0]||p[1]===a.points[i-1]![1])));
+  for(const arrow of arrows)for(const binding of [arrow.startBinding,arrow.endBinding])assert.ok(first.elements.some(e=>e.id===binding!.elementId&&e.boundElements.some((b:{id:string;type:string})=>b.id===arrow.id&&b.type==='arrow')));
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='lane-title'&&e.originalText==='编写方'));
+});
+
+test('swimlane schema enforces lanes, references, direction and auto layout',()=>{
+  const base={title:'泳道',summary:'校验规则',kind:'swimlane',lanes:[{id:'a',name:'甲'},{id:'b',name:'乙'}],nodes:[{id:'n1',text:'步骤',lane:'a'}],edges:[]} as const;
+  assert.equal(BoardDiagramSchema.safeParse(base).success,true);
+  assert.equal(BoardDiagramSchema.safeParse({...base,nodes:[{id:'n1',text:'步骤'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,nodes:[{id:'n1',text:'步骤',lane:'ghost'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,lanes:[{id:'a',name:'甲'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,direction:'right'}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,nodes:[{id:'n1',text:'步骤',lane:'a',x:10,y:10}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,kind:'flow'}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({title:'流程',summary:'普通流程不能带泳道字段',nodes:[{id:'n1',text:'步骤',lane:'a'}]}).success,false);
+});
+
+test('swimlane layout refuses content that cannot fit any frame legibly',()=>{
+  const nodes=Array.from({length:9},(_,i)=>({id:'n'+i,text:'步骤',lane:'a'}));
+  assert.throws(()=>generateBoardDiagram({title:'超高通量泳道',summary:'任何画幅都无法可读容纳。',kind:'swimlane',lanes:[{id:'a',name:'甲'},{id:'b',name:'乙'}],nodes},namespace),/BOARD_LAYOUT_TOO_DENSE/);
+});
+
+test('sequence kind lays out lifelines with bound horizontal messages, returns and self loops',()=>{
+  const sequence={title:'评审交互时序',summary:'用户提交评审，服务受理并返回结果。',kind:'sequence',
+    participants:[{id:'user',name:'用户'},{id:'ui',name:'界面'},{id:'svc',name:'评审服务'}],
+    messages:[
+      {id:'m1',from:'user',to:'ui',text:'提交评审请求'},
+      {id:'m2',from:'ui',to:'svc',text:'调用评审接口'},
+      {id:'m3',from:'svc',to:'svc',text:'校验并记录',kind:'self'},
+      {id:'m4',from:'svc',to:'ui',text:'返回结果',kind:'return'},
+    ]};
+  const first=generateBoardDiagram(sequence,namespace),again=generateBoardDiagram(sequence,namespace);
+  assert.deepEqual(first,again);
+  validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:first.elements,files:{}}));
+  assert.equal(first.summary.nodes,3);assert.equal(first.summary.edges,4);assert.equal(first.summary.lanes,0);
+  assert.equal(first.summary.checks.participants,3);assert.equal(first.summary.checks.messages,4);
+  const byRole=(role:string)=>first.elements.filter(e=>e.customData?.boardRole===role);
+  const headers=byRole('participant'),lifelines=byRole('lifeline'),messages=byRole('message'),labels=byRole('message-label');
+  assert.equal(headers.length,3);assert.equal(lifelines.length,3);assert.equal(messages.length,4);assert.equal(labels.length,4);
+  const lifelineById=new Map(lifelines.map(l=>[l.customData!.logicalId as string,l]));
+  for(const header of headers)assert.ok(first.elements.some(e=>e.containerId===header.id&&e.customData?.boardRole==='participant-name'));
+  for(const line of lifelines){assert.equal(line.type,'rectangle');assert.ok(line.width<=4,'lifeline must be a thin bindable rectangle');assert.ok(line.height>100);assert.ok(line.groupIds.length>0);}
+  const arrows=first.elements.filter(e=>e.type==='arrow');
+  assert.equal(arrows.length,4);
+  for(const arrow of arrows){
+    assert.ok(arrow.startBinding&&arrow.endBinding);
+    assert.ok(lifelineById.has(arrow.customData!.from as string)&&lifelineById.has(arrow.customData!.to as string));
+    for(const binding of [arrow.startBinding,arrow.endBinding])assert.ok(first.elements.some(e=>e.id===binding!.elementId&&e.boundElements.some((b:{id:string;type:string})=>b.id===arrow.id)));
+    const points=arrow.points as number[][];
+    if(arrow.customData!.kind==='self'){assert.equal(points.length,4);assert.ok(points.every((p,i)=>!i||p[0]===points[i-1]![0]||p[1]===points[i-1]![1]));assert.equal(arrow.elbowed,false);}
+    else{assert.ok(points.every(p=>p[1]===points[0]![1]),'message must be horizontal');assert.equal(arrow.elbowed,false);}
+  }
+  const self=arrows.find(a=>a.customData!.kind==='self')!,ret=arrows.find(a=>a.customData!.kind==='return')!;
+  assert.equal(self.points.length,4);assert.equal(ret.strokeStyle,'dashed');
+  const fixedPoints=arrows.map(a=>(a.startBinding!.fixedPoint as number[])[1]);
+  assert.equal(new Set(fixedPoints.map(v=>v.toFixed(3))).size,4,'each message attaches at its own lifeline height');
+  const canvas=first.summary.checks.canvas;
+  assert.ok(canvas.width<=1280);assert.ok(canvas.height<=1400);
+  for(const element of first.elements.filter(e=>!['canvas','title'].includes(e.customData?.boardRole as string)))assert.ok(element.x>=0&&element.y>=0&&element.x+element.width<=canvas.width&&element.y+element.height<=canvas.height);
+});
+
+test('sequence schema rejects mixed models, unknown participants and unmarked self messages',()=>{
+  const base={title:'时序',summary:'校验',kind:'sequence',participants:[{id:'a',name:'甲'},{id:'b',name:'乙'}],messages:[{id:'m1',from:'a',to:'b',text:'请求'}]} as const;
+  assert.equal(BoardDiagramSchema.safeParse(base).success,true);
+  assert.equal(BoardDiagramSchema.safeParse({...base,nodes:[{id:'n1',text:'节点'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,edges:[{id:'e1',from:'a',to:'b'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,participants:[{id:'a',name:'甲'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,messages:[]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,messages:[{id:'m1',from:'a',to:'ghost',text:'请求'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,messages:[{id:'m1',from:'a',to:'a',text:'请求'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,messages:[{id:'m1',from:'a',to:'b',text:'请求',kind:'self'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,lanes:[{id:'l1',name:'泳道'},{id:'l2',name:'泳道2'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({title:'流程图',summary:'普通流程图不能带参与者',participants:[{id:'a',name:'甲'},{id:'b',name:'乙'}],nodes:[{id:'n1',text:'步骤'}]}).success,false);
+  const six=Array.from({length:6},(_,i)=>({id:'p'+i,name:'参与方'+i}));
+  assert.throws(()=>generateBoardDiagram({title:'六参与者',summary:'窄画幅放不下',size:'doc-inline',kind:'sequence',participants:six,messages:[{id:'m1',from:'p0',to:'p5',text:'通知'}]},namespace),/BOARD_SEQUENCE_TOO_WIDE/);
+});
+
+test('class kind builds three-compartment UML boxes with UML arrowheads and bound relations',()=>{
+  const classDiagram={title:'评审服务类图',summary:'用户、评审与评审服务的关系。',kind:'class',classes:[
+    {id:'user',name:'User',attributes:['+ id: String','+ name: String'],methods:['+ submit(): void']},
+    {id:'review',name:'Review',attributes:['+ id: String','+ state: State'],methods:['+ approve(): void']},
+    {id:'service',name:'ReviewService',attributes:['- repo: Repository'],methods:['+ handle(r: Review): void','+ validate(): bool']},
+  ],relations:[{id:'r1',from:'user',to:'review',kind:'association',label:'1..*'},{id:'r2',from:'service',to:'review',kind:'dependency'},{id:'r3',from:'review',to:'user',kind:'aggregation'}]};
+  const first=generateBoardDiagram(classDiagram,namespace),again=generateBoardDiagram(classDiagram,namespace);
+  assert.deepEqual(first,again);
+  validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:first.elements,files:{}}));
+  assert.equal(first.summary.nodes,3);assert.equal(first.summary.edges,3);assert.equal(first.summary.checks.classes,3);
+  const byRole=(role:string)=>first.elements.filter(e=>e.customData?.boardRole===role);
+  const boxes=byRole('class'),names=byRole('class-name'),attributes=byRole('class-attribute'),methods=byRole('class-method'),separators=byRole('class-separator');
+  assert.equal(boxes.length,3);assert.equal(names.length,3);assert.equal(attributes.length,5);assert.equal(methods.length,4);assert.equal(separators.length,6);
+  const boxById=new Map(boxes.map(box=>[box.customData!.logicalId as string,box]));
+  for(const box of boxes)assert.ok(box.groupIds.length>0,'class parts move together');
+  for(const name of names){const box=boxById.get(name.customData!.logicalId as string)!;assert.equal(name.textAlign,'center');assert.ok(name.y>box.y&&name.y+name.height<box.y+36);}
+  for(const attribute of attributes){const box=boxById.get(attribute.customData!.logicalId as string)!;assert.ok(attribute.x>=box.x&&attribute.x+attribute.width<=box.x+box.width);assert.ok(attribute.y>box.y+36);}
+  const arrows=first.elements.filter(e=>e.type==='arrow');
+  assert.equal(arrows.length,3);
+  for(const arrow of arrows){assert.ok(arrow.startBinding&&arrow.endBinding);assert.ok(boxById.has(byRole('class').find(box=>box.id===arrow.startBinding!.elementId)!.customData!.logicalId as string));}
+  const heads=Object.fromEntries(arrows.map(arrow=>[arrow.customData!.relationKind,arrow.endArrowhead]));
+  assert.equal(heads.inheritance,undefined);assert.equal(heads.association,null);assert.equal(heads.aggregation,'diamond_outline');assert.equal(heads.dependency,'arrow');
+  const dependency=arrows.find(arrow=>arrow.customData!.relationKind==='dependency')!;
+  assert.equal(dependency.strokeStyle,'dashed');
+  assert.deepEqual(byRole('relation-label').map(label=>label.originalText),['1..*']);
+  const canvas=first.summary.checks.canvas;
+  for(const element of first.elements.filter(e=>!['canvas','title'].includes(e.customData?.boardRole as string)))assert.ok(element.x>=0&&element.y>=0&&element.x+element.width<=canvas.width&&element.y+element.height<=canvas.height);
+});
+
+test('class schema rejects mixed models, unknown references and self relations',()=>{
+  const base={title:'类图',summary:'校验',kind:'class',classes:[{id:'a',name:'A'},{id:'b',name:'B'}],relations:[{id:'r1',from:'a',to:'b'}]} as const;
+  assert.equal(BoardDiagramSchema.safeParse(base).success,true);
+  assert.equal(BoardDiagramSchema.safeParse({...base,classes:[{id:'a',name:'A'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,nodes:[{id:'n1',text:'节点'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,participants:[{id:'p1',name:'甲'},{id:'p2',name:'乙'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,relations:[{id:'r1',from:'a',to:'ghost'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,relations:[{id:'r1',from:'a',to:'a'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,relations:[{id:'r1',from:'a',to:'b',label:'x'.repeat(15)}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,classes:[{id:'a',name:'A',attributes:Array.from({length:9},(_,i)=>'a'+i)}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({title:'流程图',summary:'不能带类',classes:[{id:'a',name:'A'},{id:'b',name:'B'}],nodes:[{id:'n1',text:'步骤'}]}).success,false);
+});
+
+test('er kind builds entity boxes with typed fields and crowfoot cardinality',()=>{
+  const erDiagram={title:'车辆数据 ER 图',summary:'车辆、传感器与读数。',kind:'er',entities:[
+    {id:'vehicle',name:'Vehicle',fields:[{name:'vin',type:'String',pk:true},{name:'model',type:'String'}]},
+    {id:'sensor',name:'Sensor',fields:[{name:'id',type:'String',pk:true},{name:'vehicle_vin',type:'String'}]},
+    {id:'reading',name:'Reading',fields:[{name:'id',type:'String',pk:true},{name:'value',type:'Float'}]},
+  ],entityRelations:[{id:'r1',from:'vehicle',to:'sensor',cardinality:'one-many',label:'安装'},{id:'r2',from:'sensor',to:'reading',cardinality:'one-many'},{id:'r3',from:'vehicle',to:'reading',cardinality:'one-one',label:'关联'}]};
+  const first=generateBoardDiagram(erDiagram,namespace),again=generateBoardDiagram(erDiagram,namespace);
+  assert.deepEqual(first,again);
+  validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:first.elements,files:{}}));
+  assert.equal(first.summary.nodes,3);assert.equal(first.summary.edges,3);assert.equal(first.summary.checks.entities,3);
+  const byRole=(role:string)=>first.elements.filter(e=>e.customData?.boardRole===role);
+  assert.equal(byRole('entity').length,3);assert.equal(byRole('entity-name').length,3);assert.equal(byRole('entity-separator').length,3);
+  assert.deepEqual(byRole('entity-field').map(e=>e.originalText).slice(0,2),['PK · vin : String','model : String']);
+  const arrows=first.elements.filter(e=>e.type==='arrow');
+  assert.equal(arrows.length,3);
+  const heads=arrows.map(arrow=>[arrow.customData!.cardinality,arrow.startArrowhead,arrow.endArrowhead]);
+  assert.ok(heads.some(([,start,end])=>start==='crowfoot_one'&&end==='crowfoot_many'));
+  assert.ok(heads.some(([,start,end])=>start==='crowfoot_one'&&end==='crowfoot_one'));
+  for(const arrow of arrows){assert.ok(arrow.startBinding&&arrow.endBinding);assert.equal(arrow.elbowed,arrow.points.length>2);}
+  assert.deepEqual(byRole('er-label').map(label=>label.originalText),['安装','关联']);
+  const canvas=first.summary.checks.canvas;
+  for(const element of first.elements.filter(e=>!['canvas','title'].includes(e.customData?.boardRole as string)))assert.ok(element.x>=0&&element.y>=0&&element.x+element.width<=canvas.width&&element.y+element.height<=canvas.height);
+});
+
+test('er schema rejects mixed models, missing fields and invalid endpoints',()=>{
+  const base={title:'ER',summary:'校验',kind:'er',entities:[{id:'a',name:'A',fields:[{name:'id'}]},{id:'b',name:'B',fields:[{name:'id'}]}],entityRelations:[{id:'r1',from:'a',to:'b'}]} as const;
+  assert.equal(BoardDiagramSchema.safeParse(base).success,true);
+  assert.equal(BoardDiagramSchema.safeParse({...base,entities:[{id:'a',name:'A',fields:[{name:'id'}]}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,entities:[{id:'a',name:'A',fields:[]},{id:'b',name:'B',fields:[{name:'id'}]}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,nodes:[{id:'n1',text:'节点'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,classes:[{id:'c1',name:'C'},{id:'c2',name:'D'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,entityRelations:[{id:'r1',from:'a',to:'ghost'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,entityRelations:[{id:'r1',from:'a',to:'a'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,entityRelations:[{id:'r1',from:'a',to:'b',label:'x'.repeat(15)}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({title:'流程图',summary:'不能带实体',entities:[{id:'a',name:'A',fields:[{name:'id'}]},{id:'b',name:'B',fields:[{name:'id'}]}],nodes:[{id:'n1',text:'步骤'}]}).success,false);
+});
+
+test('straight fallback connects facing sides when orthogonal routing cannot place every relation',()=>{
+  const boxes=[{id:'a',kind:'rectangle',x:0,y:0,width:160,height:100},{id:'b',kind:'rectangle',x:400,y:260,width:160,height:100}];
+  const routes=straightConnectionRoutes(boxes,[{id:'r1',from:'a',to:'b'}]);
+  assert.equal(routes.length,1);
+  const route=routes[0]!;
+  assert.equal(route.points.length,2,'fallback uses a single straight segment');
+  const [start,end]=route.points;
+  assert.equal(start![0],160,'starts on the source right edge');
+  assert.equal(end![0],400,'ends on the target left edge');
+  assert.equal(start![1],50);assert.equal(end![1],310);
+  assert.deepEqual(route.start.fixedPoint,[1,.5]);assert.deepEqual(route.end.fixedPoint,[0,.5]);
+  const below={id:'c',kind:'rectangle',x:20,y:520,width:160,height:100};
+  const vertical=straightConnectionRoutes([boxes[0]!,below],[{id:'r2',from:'a',to:'c'}])[0]!;
+  assert.deepEqual(vertical.start.fixedPoint,[.5,1]);assert.deepEqual(vertical.end.fixedPoint,[.5,0]);
+  assert.equal(vertical.points[0]![1],100);assert.equal(vertical.points[1]![1],520);
+});
+
+test('title overlap check understands diagonal connectors instead of rejecting every diagonal',()=>{
+  const canvas={id:'c',type:'rectangle',x:0,y:0,width:960,height:600,angle:0,locked:true,customData:{boardRole:'canvas'}};
+  const title={id:'t',type:'text',x:32,y:32,width:896,height:38,angle:0,customData:{boardRole:'title'}};
+  const diagonalBelow={id:'a1',type:'arrow',x:100,y:200,width:200,height:200,angle:0,points:[[0,0],[200,200]],startBinding:null,endBinding:null};
+  assert.equal(checkBoardCanvas([canvas,title,diagonalBelow]).ok,true,'a diagonal below the title must not be reported');
+  const crossing={id:'a2',type:'arrow',x:100,y:20,width:200,height:180,angle:0,points:[[0,0],[200,180]],startBinding:null,endBinding:null};
+  const result=checkBoardCanvas([canvas,title,crossing]);
+  assert.equal(result.ok,false);
+  assert.ok(result.errors.some(error=>error.startsWith('BOARD_TITLE_OVERLAP:a2')));
+});
+
+test('long field and attribute text wraps inside its compartment instead of overlapping the next row',()=>{
+  const longText='字段名称非常长需要换行显示以验证布局是否仍然正确并且在框内完整呈现'.slice(0,60);
+  const erDiagram={title:'长字段 ER',summary:'换行布局',kind:'er',entities:[
+    {id:'a',name:'EntityA',fields:[{name:longText,type:'String',pk:true},{name:longText},{name:'id',type:'String'}]},
+    {id:'b',name:'EntityB',fields:[{name:'id',type:'String'}]}],
+    entityRelations:[{id:'r1',from:'a',to:'b',cardinality:'one-many'}]};
+  const er=generateBoardDiagram(erDiagram,namespace);
+  const erBox=er.elements.find(e=>e.customData?.boardRole==='entity'&&e.customData.logicalId==='a')!;
+  const erFields=er.elements.filter(e=>e.customData?.boardRole==='entity-field'&&e.customData.logicalId==='a').sort((x,y)=>x.y-y.y);
+  assert.equal(erFields.length,3);
+  for(const field of erFields)assert.ok(field.y>=erBox.y&&field.y+field.height<=erBox.y+erBox.height+1e-6,'field stays inside its entity box');
+  for(let index=1;index<erFields.length;index++)assert.ok(erFields[index]!.y>=erFields[index-1]!.y+erFields[index-1]!.height-1e-6,'wrapped rows never overlap');
+  assert.ok(erFields[0]!.height>22,'wrapped text is taller than a single row');
+
+  const classDiagram={title:'长属性类图',summary:'换行布局',kind:'class',classes:[
+    {id:'a',name:'Service',attributes:[longText,longText],methods:[longText]},
+    {id:'b',name:'Repo',attributes:['- id: String'],methods:['+ find(): Repo']}],
+    relations:[{id:'r1',from:'a',to:'b',kind:'dependency'}]};
+  const cls=generateBoardDiagram(classDiagram,namespace);
+  const clsBox=cls.elements.find(e=>e.customData?.boardRole==='class'&&e.customData.logicalId==='a')!;
+  const attributes=cls.elements.filter(e=>e.customData?.boardRole==='class-attribute'&&e.customData.logicalId==='a').sort((x,y)=>x.y-y.y);
+  const methods=cls.elements.filter(e=>e.customData?.boardRole==='class-method'&&e.customData.logicalId==='a').sort((x,y)=>x.y-y.y);
+  for(const element of [...attributes,...methods])assert.ok(element.y>=clsBox.y&&element.y+element.height<=clsBox.y+clsBox.height+1e-6,'class text stays inside the box');
+  for(let index=1;index<attributes.length;index++)assert.ok(attributes[index]!.y>=attributes[index-1]!.y+attributes[index-1]!.height-1e-6);
+  assert.ok(methods[0]!.y>=attributes.at(-1)!.y+attributes.at(-1)!.height-1e-6,'methods start below the attribute compartment');
+});
+
+test('class and er relation labels size masks to wrapped text and keep clear of boxes',()=>{
+  const longLabel='关系标签非常长需要换行';
+  const cls=generateBoardDiagram({title:'长标签类图',summary:'长标签',kind:'class',classes:[{id:'a',name:'Alpha',attributes:['+ id: String'],methods:['+ run(): void']},{id:'b',name:'Beta',attributes:['+ id: String'],methods:['+ stop(): void']}],relations:[{id:'r1',from:'a',to:'b',kind:'association',label:longLabel}]},namespace);
+  const clsMask=cls.elements.find(e=>e.customData?.boardRole==='relation-label-mask')!,clsText=cls.elements.find(e=>e.customData?.boardRole==='relation-label')!;
+  assert.ok(clsMask.height>24,'mask height follows the wrapped label');
+  assert.equal(clsText.text.split('\n').length,2);
+  assert.ok(clsText.y>=clsMask.y&&clsText.y+clsText.height<=clsMask.y+clsMask.height+1e-6,'wrapped relation text stays inside its mask');
+  assert.ok(cls.elements.filter(e=>e.customData?.boardRole==='class').every(box=>!overlaps(clsMask,box)),'relation label never covers a class box');
+  assert.equal(checkBoardCanvas(cls.elements).ok,true);
+
+  const er=generateBoardDiagram({title:'长标签 ER',summary:'长标签',kind:'er',entities:[{id:'a',name:'Alpha',fields:[{name:'id',type:'String',pk:true}]},{id:'b',name:'Beta',fields:[{name:'id',type:'String'}]}],entityRelations:[{id:'r1',from:'a',to:'b',cardinality:'one-many',label:longLabel},{id:'r2',from:'a',to:'b',cardinality:'one-one',label:longLabel}]},namespace);
+  const erMasks=er.elements.filter(e=>e.customData?.boardRole==='er-label-mask'),erTexts=er.elements.filter(e=>e.customData?.boardRole==='er-label'),erBoxes=er.elements.filter(e=>e.customData?.boardRole==='entity');
+  assert.equal(erMasks.length,2);assert.ok(erMasks.every(mask=>mask.height>24));
+  for(const mask of erMasks){const text=erTexts.find(element=>element.containerId===mask.id)!;assert.ok(text.y>=mask.y&&text.y+text.height<=mask.y+mask.height+1e-6,'wrapped ER label stays inside its mask');assert.ok(erBoxes.every(box=>!overlaps(mask,box)),'ER label never covers an entity box');}
+  for(let index=1;index<erMasks.length;index++)assert.equal(overlaps(erMasks[index]!,erMasks[index-1]!),false,'ER labels do not cover each other');
+  assert.equal(checkBoardCanvas(er.elements).ok,true);
+});
+
+test('dense class and er relations place every wrapped label clear of boxes and other labels',()=>{
+  const longLabel='关系标签非常长需要换行',pairs=[['c0','c1'],['c1','c2'],['c2','c3'],['c3','c4'],['c4','c5'],['c5','c0'],['c0','c2'],['c1','c3'],['c2','c4'],['c3','c5']];
+  const classes=Array.from({length:6},(_,index)=>({id:'c'+index,name:'Class'+index,attributes:['+ id: String','+ value: String'],methods:['+ run(): void']}));
+  const cls=generateBoardDiagram({title:'密集类图',summary:'密集关系',kind:'class',classes,relations:pairs.map(([from,to],index)=>({id:'r'+index,from:from!,to:to!,kind:'association',label:longLabel}))},namespace);
+  const entities=Array.from({length:6},(_,index)=>({id:'e'+index,name:'Entity'+index,fields:[{name:'id',type:'String',pk:true},{name:'value',type:'Float'}]}));
+  const er=generateBoardDiagram({title:'密集 ER',summary:'密集关系',kind:'er',entities,entityRelations:pairs.map(([from,to],index)=>({id:'r'+index,from:'e'+from!.slice(1),to:'e'+to!.slice(1),cardinality:'one-many',label:longLabel}))},namespace);
+  const verify=(result:ReturnType<typeof generateBoardDiagram>,boxRole:string,maskRole:string,textRole:string)=>{
+    const masks=result.elements.filter(e=>e.customData?.boardRole===maskRole),boxes=result.elements.filter(e=>e.customData?.boardRole===boxRole),texts=result.elements.filter(e=>e.customData?.boardRole===textRole);
+    assert.equal(masks.length,10);assert.ok(masks.every(mask=>mask.height>24));
+    for(const mask of masks){const text=texts.find(element=>element.containerId===mask.id)!;assert.ok(text.y>=mask.y&&text.y+text.height<=mask.y+mask.height+1e-6,'label text fits its mask');assert.ok(boxes.every(box=>!overlaps(mask,box)),'label mask keeps clear of '+boxRole);assert.ok(masks.every(other=>other===mask||!overlaps(mask,other)),'label masks never cover each other');}
+    assert.ok(masks.every(mask=>mask.x>=0&&mask.y>=0&&mask.x+mask.width<=result.summary.checks.canvas.width&&mask.y+mask.height<=result.summary.checks.canvas.height));
+    assert.equal(checkBoardCanvas(result.elements).ok,true);
+  };
+  verify(cls,'class','relation-label-mask','relation-label');verify(er,'entity','er-label-mask','er-label');
+});
+
+test('canvas checker reports relation label masks covering boxes or other labels',()=>{
+  const source=structuredClone(generateBoardDiagram({title:'标签遮挡',summary:'标签不得遮挡',kind:'er',entities:[{id:'a',name:'Alpha',fields:[{name:'id'}]},{id:'b',name:'Beta',fields:[{name:'id'}]}],entityRelations:[{id:'r1',from:'a',to:'b',label:'安装'},{id:'r2',from:'a',to:'b',label:'关联'}]},namespace).elements);
+  const masks=source.filter(e=>e.customData?.boardRole==='er-label-mask'),box=source.find(e=>e.customData?.boardRole==='entity')!;
+  masks[0]!.x=box.x;masks[0]!.y=box.y;
+  assert.ok(checkBoardCanvas(source).errors.some(error=>error.startsWith('BOARD_LABEL_OVERLAP:'+masks[0]!.id+':'+box.id)),'a mask dragged onto an entity box is rejected');
+  const stacked=structuredClone(generateBoardDiagram({title:'标签遮挡',summary:'标签不得遮挡',kind:'er',entities:[{id:'a',name:'Alpha',fields:[{name:'id'}]},{id:'b',name:'Beta',fields:[{name:'id'}]}],entityRelations:[{id:'r1',from:'a',to:'b',label:'安装'},{id:'r2',from:'a',to:'b',label:'关联'}]},namespace).elements);
+  const stackedMasks=stacked.filter(e=>e.customData?.boardRole==='er-label-mask');stackedMasks[0]!.x=stackedMasks[1]!.x;stackedMasks[0]!.y=stackedMasks[1]!.y;
+  assert.ok(checkBoardCanvas(stacked).errors.some(error=>error.startsWith('BOARD_LABEL_OVERLAP:')&&error.includes(stackedMasks[0]!.id)&&error.includes(stackedMasks[1]!.id)),'stacked masks are rejected');
+});
+
+test('relation labels that cannot fit any free area fail with an explicit layout error',()=>{
+  const longAttr='非常长的属性名称需要换行显示并验证布局是否仍然正确并且在框内完整呈现'.slice(0,60),pairs=[['c0','c1'],['c1','c2'],['c2','c3'],['c3','c4'],['c4','c5'],['c5','c0'],['c0','c2'],['c1','c3'],['c2','c4'],['c3','c5']];
+  const classes=Array.from({length:6},(_,index)=>({id:'c'+index,name:'Class'+index,attributes:[longAttr,...Array.from({length:7},(_,attr)=>'attr'+attr)],methods:['+ run(): void']}));
+  assert.throws(()=>generateBoardDiagram({title:'无位可放',summary:'密集标签',kind:'class',classes,relations:pairs.map(([from,to],index)=>({id:'r'+index,from:from!,to:to!,kind:'association',label:'关系标签非常长需要换行'}))},namespace),/BOARD_LABEL_UNPLACEABLE/);
+});
+
+test('sequence rows grow with wrapped message labels instead of pressing arrows or overflowing',()=>{
+  const longText='这是一个非常长的消息标签用于测试时序图在高密度布局下是否会压住箭头以及后续消息并且是否会导致画布溢出的真实缺陷'.repeat(2).slice(0,110);
+  const messages=Array.from({length:8},(_,index)=>({id:'m'+index,from:index%2?'b':'a',to:index%2?'a':'b',text:index===7?longText:'短消息'+index}));
+  const result=generateBoardDiagram({title:'长消息时序',summary:'长消息标签',kind:'sequence',participants:[{id:'a',name:'甲'},{id:'b',name:'乙'}],messages},namespace);
+  const arrows=result.elements.filter(e=>e.customData?.boardRole==='message'),labels=result.elements.filter(e=>e.customData?.boardRole==='message-label');
+  assert.equal(arrows.length,8);assert.equal(labels.length,8);assert.ok(labels[7]!.height>18.9*4,'the long message wraps to several lines');
+  for(let index=0;index<labels.length;index++){assert.ok(labels[index]!.y+labels[index]!.height<=arrows[index]!.y-6,'message label stays above its arrow');if(index)assert.ok(labels[index]!.y>=labels[index-1]!.y+labels[index-1]!.height+8-1e-6,'wrapped labels keep a readable gap');}
+  assert.ok(arrows[7]!.y-arrows[6]!.y>56,'row pitch grows for the wrapped label');
+  const canvas=result.summary.checks.canvas;assert.ok(labels.every(label=>label.y>=0&&label.y+label.height<=canvas.height),'every label stays inside the taller canvas');
+  assert.equal(checkBoardCanvas(result.elements).ok,true);
+});
+
+test('sequence participant headers grow with wrapped names and keep lifelines attached',()=>{
+  const result=generateBoardDiagram({title:'长参与者名',summary:'表头随名字换行',kind:'sequence',participants:[{id:'a',name:'非常长的参与者名称需要换行显示'},{id:'b',name:'短名'}],messages:[{id:'m1',from:'a',to:'b',text:'请求'},{id:'m2',from:'b',to:'a',text:'返回',kind:'return'}]},namespace);
+  const headers=result.elements.filter(e=>e.customData?.boardRole==='participant'),names=result.elements.filter(e=>e.customData?.boardRole==='participant-name'),lifelines=result.elements.filter(e=>e.customData?.boardRole==='lifeline'),labels=result.elements.filter(e=>e.customData?.boardRole==='message-label');
+  const header=headers.find(e=>e.customData.logicalId==='a')!,name=names.find(e=>e.customData.logicalId==='a')!,lifeline=lifelines.find(e=>e.customData.logicalId==='a')!;
+  assert.ok(header.height>48,'header grows for the wrapped name');
+  assert.ok(name.y>=header.y&&name.y+name.height<=header.y+header.height+1e-6,'wrapped participant name stays inside its header');
+  assert.ok(headers.every(other=>other.height===header.height));assert.equal(lifeline.y,header.y+header.height,'lifeline starts at the real header bottom');
+  assert.ok(labels.every(label=>label.y>=header.y+header.height),'first message label starts below the taller header');
+  assert.equal(checkBoardCanvas(result.elements).ok,true);
+});
+
+test('sequence layout rejects dense wrapped messages with a bounded-canvas error instead of overflow',()=>{
+  const text='这是一个非常长的消息标签用于测试时序图在高密度布局下是否会压住箭头以及后续消息并且是否会导致画布溢出的真实缺陷'.repeat(3).slice(0,120);
+  const messages=Array.from({length:14},(_,index)=>({id:'m'+index,from:index%2?'b':'a',to:index%2?'a':'b',text}));
+  assert.throws(()=>generateBoardDiagram({title:'超密时序',summary:'长标签',kind:'sequence',participants:[{id:'a',name:'A'},{id:'b',name:'B'}],messages},namespace),/BOARD_LAYOUT_TOO_DENSE/);
 });

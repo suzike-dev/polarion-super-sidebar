@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="ro-title ro-desc">
+<title id="ro-title">软件需求分析总览 · 功能示意</title>
+<desc id="ro-desc">纯矢量功能示意，全部工作项编号与名称为虚构；展示章节色带、分组块、条目平铺、搜索与阅读预览入口，非产品截图。</desc>
+<defs>
+  <style>
+    .bg{fill:#f5f6f5}.panel{fill:#fbfcfc;stroke:#dbe4e8}.ink{fill:#1b272e}.muted{fill:#687176}.faint{fill:#93a0a6}
+    .t{font-family:'Microsoft YaHei UI','Microsoft YaHei','Noto Sans CJK SC',sans-serif}
+    .h{font-size:15px;font-weight:700}.s{font-size:10px}.m{font-size:11px}.xs{font-size:9px;font-weight:600}
+    .chip{fill:#eef4f6;stroke:#dbe6ea}.search{fill:#fff;stroke:#dbe4e8}
+  </style>
+</defs>
+<rect class="bg" width="1200" height="700"/>
+<!-- window -->
+<rect x="28" y="24" width="1144" height="652" rx="12" class="panel"/>
+<rect x="28" y="24" width="1144" height="54" rx="12" fill="#ffffff"/>
+<rect x="28" y="66" width="1144" height="12" fill="#ffffff"/>
+<line x1="28" y1="78" x2="1172" y2="78" stroke="#e7eef1"/>
+<text x="52" y="57" class="t h ink">需求总览</text>
+<text x="132" y="57" class="t s muted">SWR · 软件需求规范（示例文档）</text>
+<rect x="842" y="40" width="216" height="26" rx="7" class="search"/>
+<circle cx="858" cy="53" r="5" fill="none" stroke="#96a3a9" stroke-width="1.6"/>
+<line x1="862" y1="57" x2="866" y2="61" stroke="#96a3a9" stroke-width="1.6"/>
+<text x="874" y="57" class="t s faint">搜索编号或名称 · Ctrl F</text>
+<text x="1074" y="57" class="t m muted">258 项</text>
+<circle cx="1150" cy="53" r="10" fill="#f1f5f6"/>
+<path d="M1146 49l8 8M1154 49l-8 8" stroke="#7a8a91" stroke-width="1.5" stroke-linecap="round"/>
+<!-- left small chapters -->
+<g class="t">
+  <rect x="52" y="96" width="268" height="118" rx="8" fill="#f2faf8" stroke="#b9ddd4"/>
+  <rect x="52" y="96" width="268" height="24" rx="8" fill="#dff1ec"/>
+  <text x="64" y="113" class="m ink" font-weight="700">3 项目介绍</text><text x="300" y="113" class="xs muted" text-anchor="end">2</text>
+  <rect x="62" y="130" width="248" height="72" rx="6" fill="#fff" stroke="#d6ebe5"/>
+  <text x="72" y="146" class="xs muted">3.5 系统概述</text>
+  <rect x="72" y="154" width="110" height="18" rx="3" fill="#f7fbfa"/><text x="77" y="167" class="xs" fill="#356c7c">SPE-101</text><text x="116" y="167" class="s muted">系统框图</text>
+  <rect x="188" y="154" width="110" height="18" rx="3" fill="#f7fbfa"/><text x="193" y="167" class="xs" fill="#356c7c">SPE-102</text><text x="232" y="167" class="s muted">默认位置</text>
+  <rect x="72" y="176" width="110" height="18" rx="3" fill="#f7fbfa"/><text x="77" y="189" class="xs" fill="#356c7c">SPE-103</text><text x="116" y="189" class="s muted">信号接口</text>
+  <rect x="188" y="176" width="110" height="18" rx="3" fill="#f7fbfa"/><text x="193" y="189" class="xs" fill="#356c7c">SPE-104</text><text x="232" y="189" class="s muted">环境条件</text>
+
+  <rect x="52" y="226" width="268" height="116" rx="8" fill="#f6f4fb" stroke="#d6cbe9"/>
+  <rect x="52" y="226" width="268" height="24" rx="8" fill="#eae3f5"/>
+  <text x="64" y="243" class="m ink" font-weight="700">5 BSW 功能需求</text><text x="300" y="243" class="xs muted" text-anchor="end">7</text>
+  <g>
+    <rect x="62" y="258" width="120" height="56" rx="5" fill="#fff" stroke="#e3daf1"/><text x="70" y="272" class="xs" fill="#6d4c9e">5.1 传感器采集</text>
+    <rect x="70" y="279" width="46" height="15" rx="3" fill="#faf8fd"/><text x="73" y="290" class="s muted">SPE-201</text>
+    <rect x="70" y="297" width="46" height="15" rx="3" fill="#faf8fd"/><text x="73" y="308" class="s muted">SPE-202</text>
+    <rect x="196" y="258" width="120" height="56" rx="5" fill="#fff" stroke="#e3daf1"/><text x="204" y="272" class="xs" fill="#6d4c9e">5.2 负载驱动</text>
+    <rect x="204" y="279" width="46" height="15" rx="3" fill="#faf8fd"/><text x="207" y="290" class="s muted">SPE-211</text>
+    <rect x="204" y="297" width="46" height="15" rx="3" fill="#faf8fd"/><text x="207" y="308" class="s muted">SPE-212</text>
+  </g>
+
+  <rect x="52" y="354" width="268" height="74" rx="8" fill="#fdf7ee" stroke="#ead9ba"/>
+  <rect x="52" y="354" width="268" height="24" rx="8" fill="#f7e9cf"/>
+  <text x="64" y="371" class="m ink" font-weight="700">6 非功能需求</text><text x="300" y="371" class="xs muted" text-anchor="end">1</text>
+  <rect x="62" y="388" width="248" height="28" rx="5" fill="#fff" stroke="#efdfc5"/>
+  <text x="72" y="406" class="xs" fill="#9a6a2f">SPE-901</text><text x="120" y="406" class="s muted">软件版本要求</text>
+</g>
+<!-- main chapter -->
+<g class="t">
+  <rect x="336" y="96" width="740" height="506" rx="8" fill="#f3fafd" stroke="#a9d5e8"/>
+  <rect x="336" y="96" width="740" height="28" rx="8" fill="#dcf0f9"/>
+  <rect x="336" y="116" width="740" height="8" fill="#dcf0f9"/>
+  <text x="350" y="116" class="h ink" font-size="13">4 ASW 软件功能需求</text>
+  <text x="1052" y="116" class="xs muted" text-anchor="end">248</text>
+  <!-- group 4.1 -->
+  <rect x="348" y="136" width="170" height="448" rx="6" fill="#fff" stroke="#dfeaf0"/>
+  <rect x="348" y="136" width="170" height="26" rx="6" fill="#e9f3f8"/>
+  <text x="358" y="153" class="m" fill="#2d5e6c" font-weight="700">4.1 整车状态识别</text><text x="506" y="153" class="xs muted" text-anchor="end">12</text>
+  <g fill="#fff" stroke="#eef4f7">
+    <rect x="356" y="170" width="154" height="20"/><rect x="356" y="193" width="154" height="20"/><rect x="356" y="216" width="154" height="20"/><rect x="356" y="239" width="154" height="20"/><rect x="356" y="262" width="154" height="20"/><rect x="356" y="285" width="154" height="20"/><rect x="356" y="308" width="154" height="20"/><rect x="356" y="331" width="154" height="20"/><rect x="356" y="354" width="154" height="20"/><rect x="356" y="380" width="154" height="20"/><rect x="356" y="403" width="154" height="20"/><rect x="356" y="426" width="154" height="20"/>
+  </g>
+  <g class="xs">
+    <text x="361" y="184" fill="#4f7d8b">SPE-301</text><text x="404" y="184" class="s muted">整车低压</text>
+    <text x="361" y="207" fill="#4f7d8b">SPE-302</text><text x="404" y="207" class="s muted">整车高压</text>
+    <text x="361" y="230" fill="#4f7d8b">SPE-303</text><text x="404" y="230" class="s muted">上电工作状态</text>
+    <text x="361" y="253" fill="#4f7d8b">SPE-304</text><text x="404" y="253" class="s muted">充电状态</text>
+    <text x="361" y="276" fill="#4f7d8b">SPE-305</text><text x="404" y="276" class="s muted">低压能量管理</text>
+    <text x="361" y="299" fill="#4f7d8b">SPE-306</text><text x="404" y="299" class="s muted">高压能量管理</text>
+    <text x="361" y="322" fill="#4f7d8b">SPE-307</text><text x="404" y="322" class="s muted">OTA 功能</text>
+    <text x="361" y="345" fill="#4f7d8b">SPE-308</text><text x="404" y="345" class="s muted">驾驶模式</text>
+    <text x="361" y="368" fill="#4f7d8b">SPE-309</text><text x="404" y="368" class="s muted">展车模式</text><text x="361" y="394" fill="#4f7d8b">SPE-310</text><text x="404" y="394" class="s muted">超级续航</text><text x="361" y="417" fill="#4f7d8b">SPE-311</text><text x="404" y="417" class="s muted">热管理故障</text><text x="361" y="440" fill="#4f7d8b">SPE-312</text><text x="404" y="440" class="s muted">诊断接口</text>
+  </g>
+  <!-- group 4.2 -->
+  <rect x="530" y="136" width="170" height="448" rx="6" fill="#fff" stroke="#dfeaf0"/>
+  <rect x="530" y="136" width="170" height="26" rx="6" fill="#e9f3f8"/>
+  <text x="540" y="153" class="m" fill="#2d5e6c" font-weight="700">4.2 传感器处理</text><text x="688" y="153" class="xs muted" text-anchor="end">17</text>
+  <g fill="#fff" stroke="#eef4f7">
+    <rect x="538" y="170" width="154" height="20"/><rect x="538" y="193" width="154" height="20"/><rect x="538" y="216" width="154" height="20"/><rect x="538" y="239" width="154" height="20"/><rect x="538" y="262" width="154" height="20"/><rect x="538" y="285" width="154" height="20"/><rect x="538" y="308" width="154" height="20"/><rect x="538" y="331" width="154" height="20"/><rect x="538" y="354" width="154" height="20"/><rect x="538" y="380" width="154" height="20"/><rect x="538" y="403" width="154" height="20"/><rect x="538" y="426" width="154" height="20"/>
+  </g>
+  <g class="xs">
+    <text x="543" y="184" fill="#4f7d8b">SPE-401</text><text x="586" y="184" class="s muted">传感器接口</text>
+    <text x="543" y="207" fill="#4f7d8b">SPE-402</text><text x="586" y="207" class="s muted">环温滤波控制</text>
+    <text x="543" y="230" fill="#4f7d8b">SPE-403</text><text x="586" y="230" class="s muted">车内温度处理</text>
+    <text x="543" y="253" fill="#4f7d8b">SPE-404</text><text x="586" y="253" class="s muted">蒸发器温度</text>
+    <text x="543" y="276" fill="#4f7d8b">SPE-405</text><text x="586" y="276" class="s muted">阳光数据</text>
+    <text x="543" y="299" fill="#4f7d8b">SPE-406</text><text x="586" y="299" class="s muted">出风温度</text>
+    <text x="543" y="322" fill="#4f7d8b">SPE-407</text><text x="586" y="322" class="s muted">鼓风机电压</text>
+    <text x="543" y="345" fill="#4f7d8b">SPE-408</text><text x="586" y="345" class="s muted">进水温度</text>
+    <text x="543" y="368" fill="#4f7d8b">SPE-409</text><text x="586" y="368" class="s muted">电池温度</text><text x="543" y="394" fill="#4f7d8b">SPE-410</text><text x="586" y="394" class="s muted">压缩机出口温度</text><text x="543" y="417" fill="#4f7d8b">SPE-411</text><text x="586" y="417" class="s muted">压缩机入口</text><text x="543" y="440" fill="#4f7d8b">SPE-412</text><text x="586" y="440" class="s muted">过冷度</text>
+  </g>
+  <!-- group 4.3 wide -->
+  <rect x="712" y="136" width="170" height="448" rx="6" fill="#fff" stroke="#dfeaf0"/>
+  <rect x="712" y="136" width="170" height="26" rx="6" fill="#e9f3f8"/>
+  <text x="722" y="153" class="m" fill="#2d5e6c" font-weight="700">4.3 空调功能</text><text x="870" y="153" class="xs muted" text-anchor="end">44</text>
+  <g fill="#fff" stroke="#eef4f7">
+    <rect x="720" y="170" width="154" height="20"/><rect x="720" y="193" width="154" height="20"/><rect x="720" y="216" width="154" height="20"/><rect x="720" y="239" width="154" height="20"/><rect x="720" y="262" width="154" height="20"/><rect x="720" y="285" width="154" height="20"/><rect x="720" y="308" width="154" height="20"/><rect x="720" y="331" width="154" height="20"/><rect x="720" y="354" width="154" height="20"/><rect x="720" y="380" width="154" height="20"/><rect x="720" y="403" width="154" height="20"/><rect x="720" y="426" width="154" height="20"/>
+  </g>
+  <g class="xs">
+    <text x="725" y="184" fill="#4f7d8b">SPE-501</text><text x="568" y="184" class="s muted"> </text>
+    <text x="768" y="184" class="s muted">ICC 交互</text>
+    <text x="725" y="207" fill="#4f7d8b">SPE-502</text><text x="768" y="207" class="s muted">物理按键</text>
+    <text x="725" y="230" fill="#4f7d8b">SPE-503</text><text x="768" y="230" class="s muted">TBOX 交互</text>
+    <text x="725" y="253" fill="#4f7d8b">SPE-504</text><text x="768" y="253" class="s muted">水晶旋钮</text>
+    <text x="725" y="276" fill="#4f7d8b">SPE-505</text><text x="768" y="276" class="s muted">Auto 功能</text>
+    <text x="725" y="299" fill="#4f7d8b">SPE-506</text><text x="768" y="299" class="s muted">吹风模式</text>
+    <text x="725" y="322" fill="#4f7d8b">SPE-507</text><text x="768" y="322" class="s muted">风量调节</text>
+    <text x="725" y="345" fill="#4f7d8b">SPE-508</text><text x="768" y="345" class="s muted">循环调节</text>
+    <text x="725" y="368" fill="#4f7d8b">SPE-509</text><text x="768" y="368" class="s muted">自动除霜</text><text x="725" y="394" fill="#4f7d8b">SPE-510</text><text x="768" y="394" class="s muted">温区切换</text><text x="725" y="417" fill="#4f7d8b">SPE-511</text><text x="768" y="417" class="s muted">一键制冷</text><text x="725" y="440" fill="#4f7d8b">SPE-512</text><text x="768" y="440" class="s muted">一键制热</text>
+  </g>
+  <!-- group 4.4 continuation blocks -->
+  <rect x="894" y="136" width="170" height="212" rx="6" fill="#fff" stroke="#dfeaf0"/>
+  <rect x="894" y="136" width="170" height="26" rx="6" fill="#e9f3f8"/>
+  <text x="904" y="153" class="m" fill="#2d5e6c" font-weight="700">4.4 热管理功能</text><text x="1052" y="153" class="xs muted" text-anchor="end">57</text>
+  <g fill="#fff" stroke="#eef4f7">
+    <rect x="902" y="170" width="154" height="20"/><rect x="902" y="193" width="154" height="20"/><rect x="902" y="216" width="154" height="20"/><rect x="902" y="239" width="154" height="20"/><rect x="902" y="262" width="154" height="20"/><rect x="902" y="285" width="154" height="20"/><rect x="902" y="308" width="154" height="20"/>
+  </g>
+  <g class="xs">
+    <text x="907" y="184" fill="#4f7d8b">SPE-601</text><text x="950" y="184" class="s muted">主驾目标温度</text>
+    <text x="907" y="207" fill="#4f7d8b">SPE-602</text><text x="950" y="207" class="s muted">副驾目标温度</text>
+    <text x="907" y="230" fill="#4f7d8b">SPE-603</text><text x="950" y="230" class="s muted">主驾基础风量</text>
+    <text x="907" y="253" fill="#4f7d8b">SPE-604</text><text x="950" y="253" class="s muted">副驾基础风量</text>
+    <text x="907" y="276" fill="#4f7d8b">SPE-605</text><text x="950" y="276" class="s muted">Auto 风量</text>
+    <text x="907" y="299" fill="#4f7d8b">SPE-606</text><text x="950" y="299" class="s muted">目标出风温度</text>
+    <text x="907" y="322" fill="#4f7d8b">SPE-607</text><text x="950" y="322" class="s muted">防结霜风量</text>
+  </g>
+  <rect x="894" y="356" width="170" height="228" rx="6" fill="#fff" stroke="#dfeaf0"/>
+  <rect x="894" y="356" width="170" height="26" rx="6" fill="#e9f3f8"/>
+  <text x="904" y="373" class="xs" fill="#2d5e6c" font-weight="700">4.4 续</text>
+  <g fill="#fff" stroke="#eef4f7">
+    <rect x="902" y="390" width="154" height="20"/><rect x="902" y="413" width="154" height="20"/><rect x="902" y="436" width="154" height="20"/><rect x="902" y="459" width="154" height="20"/><rect x="902" y="482" width="154" height="20"/><rect x="902" y="505" width="154" height="20"/><rect x="902" y="528" width="154" height="20"/>
+  </g>
+  <g class="xs">
+    <text x="907" y="404" fill="#4f7d8b">SPE-608</text><text x="950" y="404" class="s muted">鼓风机目标转速</text>
+    <text x="907" y="427" fill="#4f7d8b">SPE-609</text><text x="950" y="427" class="s muted">手动模式</text>
+    <text x="907" y="450" fill="#4f7d8b">SPE-610</text><text x="950" y="450" class="s muted">最大除霜</text>
+    <text x="907" y="473" fill="#4f7d8b">SPE-611</text><text x="950" y="473" class="s muted">PTC 功率</text>
+    <text x="907" y="496" fill="#4f7d8b">SPE-612</text><text x="950" y="496" class="s muted">电池加热</text>
+    <text x="907" y="519" fill="#4f7d8b">SPE-613</text><text x="950" y="519" class="s muted">模式切换</text>
+    <text x="907" y="542" fill="#4f7d8b">SPE-614</text><text x="950" y="542" class="s muted">后排气模式</text>
+  </g>
+</g>
+<text x="52" y="632" class="t s faint">点击条目打开完整内容 · Ctrl+F 搜索 · Esc 关闭</text>
+<text x="1150" y="632" class="t s faint" text-anchor="end">需求总览覆盖文档区，不挤占右侧 AI 侧栏</text>
+</svg>

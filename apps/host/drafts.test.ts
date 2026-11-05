@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from './store.ts';
-import { Drafts, type RemoteItem } from './polarion.ts';
+import { Drafts, previewText, type RemoteItem } from './polarion.ts';
 const target = { origin: 'https://polarion.pufafen.com' as const, projectId: 'test01', document: 'Requirements/Fixture' };
 test('an open rich editor survives normalized save, undo, image alias and a second save',async()=>{
  const store=new Store(':memory:');let item:RemoteItem={id:'T-1',title:'x',description:'<p>base</p>',updated:'1'},writes=0;
@@ -86,4 +86,56 @@ test('uploaded image references become the saved baseline only after independent
   const drafts=new Drafts(store,{read:async()=>({...item}),save:async draft=>{const html=draft.html.replace(/polarion-asset:[0-9a-f-]+/g,'workitemimg:fixture.png');item={...item,description:html,updated:'2'};return{...item,submittedHtml:html};}});
   const d=await drafts.open(target,'T-1'),rich=drafts.richRead(d.id);rich.document.content![0]!.content!.push({type:'image',attrs:{assetId:crypto.randomUUID(),src:'',alt:'fixture',align:'center',width:320}});
   const edited=drafts.richApply(d.id,rich.editorId,d.revision,rich.document);const saved=await drafts.save(d.id,edited.revision,'clean');assert.equal(saved.state,'clean');assert(saved.html.includes('workitemimg:fixture.png'));assert.equal(saved.html,saved.baseHtml);assert.equal(saved.revision,edited.revision+1);store.close();
+});
+test('work item preview prefers the local draft and caches remote reads for hover',async()=>{
+ const store=new Store(':memory:');let reads=0;
+ const drafts=new Drafts(store,{read:async(_target,id)=>{reads++;return{id,title:'远程标题',description:'<h2>标题</h2><p>远程正文</p>',updated:'1'};},save:async()=>{throw Error('unused');}});
+ const localId=crypto.randomUUID();
+ store.put('draft',localId,{id:localId,target,workItemId:'LOCAL-1',title:'本地标题',baseHtml:'',html:'<h2>本地</h2><p>本地正文</p>',baseUpdated:'',revision:1,state:'dirty'});
+ const local=await drafts.peek(target,'LOCAL-1');
+ assert.equal(local.source,'draft');assert.equal(local.title,'本地标题');assert.match(local.text,/本地正文/);assert.equal(local.state,'dirty');assert.equal(reads,0);
+ const remote=await drafts.peek(target,'REMOTE-1');
+ assert.equal(remote.source,'remote');assert.equal(remote.title,'远程标题');assert.match(remote.text,/远程正文/);assert.equal(reads,1);
+ await drafts.peek(target,'REMOTE-1');assert.equal(reads,1,'hover repeats reuse the cached preview');
+ store.close();
+});
+test('preview text prefers prose and never dumps table cells as a field-name list',()=>{
+ const structured='<ol><li><span>功能描述</span></li><li><span>输入输出接口</span><table><tbody><tr><th>信号名称</th><th>信号描述</th></tr><tr><td>ECC_OperMod</td><td>0x2</td></tr></tbody></table></li></ol>';
+ const text=previewText(structured);
+ assert.match(text,/功能描述/);
+ assert.match(text,/输入输出接口/);
+ assert.doesNotMatch(text,/信号名称/,'table cells are excluded from the summary');
+ assert.match(text,/含 1 个表格/);
+ const prose='<p>系统上电后进入待机状态，等待控制侧下发使能信号。</p><p>接收到使能信号后按既定顺序自检并上报状态。</p>'.repeat(1);
+ assert.equal(previewText(prose).includes('表格'),false);
+ assert.match(previewText(prose),/系统上电后进入待机状态/);
+ const tablesOnly='<table><tbody><tr><td>a</td></tr></tbody></table>';
+ assert.match(previewText(tablesOnly),/正文以表格/);
+});
+test('work item full read returns renderable nodes for local drafts and remote items',async()=>{
+ const store=new Store(':memory:');
+ const drafts=new Drafts(store,{read:async(_target,id)=>({id,title:'远程标题',description:'<h2>标题</h2><p>远程正文</p>',updated:'9'}),save:async()=>{throw Error('unused');}});
+ const localId=crypto.randomUUID();
+ store.put('draft',localId,{id:localId,target,workItemId:'LOCAL-1',title:'本地标题',baseHtml:'',html:'<h2>本地</h2><p>本地正文</p>',baseUpdated:'',revision:2,state:'dirty'});
+ const local=await drafts.readOnly(target,'LOCAL-1');
+ assert.equal(local.source,'draft');assert.equal(local.revision,2);assert.ok(local.nodes.some(node=>node.text?.includes('本地正文')));
+ const remote=await drafts.readOnly(target,'REMOTE-1');
+ assert.equal(remote.source,'remote');assert.equal(remote.title,'远程标题');assert.ok(remote.nodes.some(node=>node.text?.includes('远程正文')));
+ store.close();
+});
+test('work item search merges local drafts with remote hits and dedupes by id',async()=>{
+ const store=new Store(':memory:');
+ const queries:string[]=[];
+ const remote:(target:unknown,query:string,limit:number)=>Promise<{workItemId:string;title:string}[]>=async(_target,query)=>{queries.push(query);return query.includes('TEST\\-7')?[{workItemId:'TEST-729',title:'重复项'},{workItemId:'TEST-777',title:'远端结果'}]:[];};
+ const drafts=new Drafts(store,{read:async()=>{throw Error('unused');},save:async()=>{throw Error('unused');},search:remote as never});
+ const localId=crypto.randomUUID();
+ store.put('draft',localId,{id:localId,target,workItemId:'TEST-729',title:'本地标题',baseHtml:'',html:'',baseUpdated:'',revision:0,state:'clean',savedAt:5});
+ const hits=await drafts.searchItems(target,'test-7');
+ assert.deepEqual(hits,[{workItemId:'TEST-729',title:'本地标题',source:'draft'},{workItemId:'TEST-777',title:'远端结果',source:'remote'}]);
+ assert.ok(queries[0]!.includes('TEST\\-7'),'lucene special characters are escaped');
+ const byTitle=await drafts.searchItems(target,'本地');
+ assert.deepEqual(byTitle.map(h=>h.workItemId),['TEST-729']);
+ const none=await drafts.searchItems(target,'不存在且远端失败');
+ assert.deepEqual(none,[]);
+ store.close();
 });

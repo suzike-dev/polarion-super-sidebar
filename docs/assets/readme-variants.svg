@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="var-title var-desc">
+<title id="var-title">变体管理 · 功能示意</title>
+<desc id="var-desc">纯矢量功能示意，全部工作项编号、客户与项目名称为虚构；展示主工作项、默认变体、独立变体工作项、接入与撤销路径，非产品截图。</desc>
+<defs>
+  <style>
+    .bg{fill:#f5f6f5}.panel{fill:#ffffff;stroke:#dbe4e8}.ink{fill:#1b272e}.muted{fill:#687176}.faint{fill:#93a0a6}
+    .t{font-family:'Microsoft YaHei UI','Microsoft YaHei','Noto Sans CJK SC',sans-serif}
+    .h{font-size:16px;font-weight:700}.m{font-size:11px}.s{font-size:10px}.xs{font-size:9px;font-weight:600}
+    .accent{fill:#356c7c}.chip{fill:#eef4f6;stroke:#dbe6ea}
+  </style>
+</defs>
+<rect class="bg" width="1200" height="700"/>
+<text x="48" y="52" class="t h ink">同一需求，多个变体</text>
+<text x="48" y="74" class="t s muted">主工作项保持文档槽位；变体是 Polarion 项目里的独立工作项，需要时再接入主正文。</text>
+<!-- main card -->
+<rect x="48" y="104" width="320" height="222" rx="12" class="panel"/>
+<rect x="48" y="104" width="320" height="36" rx="12" fill="#eef4f6"/><rect x="48" y="128" width="320" height="12" fill="#eef4f6"/>
+<text x="66" y="127" class="t m accent" font-weight="700">主工作项 · TEST-728</text>
+<rect x="286" y="114" width="66" height="18" rx="9" fill="#dceee8"/><text x="319" y="127" class="t xs" fill="#2c6a58" text-anchor="middle">当前接入</text>
+<text x="66" y="162" class="t m ink" font-weight="700">[示例] fixture A</text>
+<text x="66" y="182" class="t s muted">正文、评论、审批与文档位置保持不变。</text>
+<rect x="66" y="196" width="284" height="1" fill="#edf2f4"/>
+<text x="66" y="216" class="t s muted">默认变体</text><text x="136" y="216" class="t s ink">已捕获 · TEST-724</text>
+<text x="66" y="236" class="t s muted">链接角色</text><text x="136" y="236" class="t s ink">parent（可配置）</text>
+<text x="66" y="256" class="t s muted">详细配置</text><text x="136" y="256" class="t s ink">客户 / 项目 / 车型 / 配置 / 备注</text>
+<rect x="66" y="272" width="88" height="30" rx="7" fill="#356c7c"/><text x="110" y="291" class="t s" fill="#fff" text-anchor="middle">打开编辑</text>
+<rect x="162" y="272" width="88" height="30" rx="7" fill="#fff" stroke="#dbe4e8"/><text x="206" y="291" class="t s muted" text-anchor="middle">详细配置</text>
+<!-- variants -->
+<g>
+  <rect x="452" y="96" width="300" height="128" rx="10" class="panel"/>
+  <rect x="452" y="96" width="300" height="30" rx="10" fill="#f7f4fb"/><rect x="452" y="112" width="300" height="14" fill="#f7f4fb"/>
+  <text x="468" y="116" class="t m" fill="#6d4c9e" font-weight="700">客户甲</text><text x="734" y="116" class="t xs muted" text-anchor="end">独立工作项</text>
+  <text x="468" y="145" class="t s muted">客户</text><text x="508" y="145" class="t s ink">客户甲</text>
+  <text x="468" y="165" class="t s muted">项目</text><text x="508" y="165" class="t s ink">整包项目</text>
+  <text x="468" y="185" class="t s muted">车型</text><text x="508" y="185" class="t s ink">SUV-B</text>
+  <text x="468" y="205" class="t s muted">配置</text><text x="508" y="205" class="t s ink">高配 / 热泵</text>
+
+  <rect x="452" y="240" width="300" height="128" rx="10" class="panel"/>
+  <rect x="452" y="240" width="300" height="30" rx="10" fill="#fff7f0"/><rect x="452" y="256" width="300" height="14" fill="#fff7f0"/>
+  <text x="468" y="260" class="t m" fill="#a4652b" font-weight="700">高配车型</text><text x="734" y="260" class="t xs muted" text-anchor="end">独立工作项</text>
+  <text x="468" y="289" class="t s muted">客户</text><text x="508" y="289" class="t s ink">—</text>
+  <text x="468" y="309" class="t s muted">项目</text><text x="508" y="309" class="t s ink">平台项目</text>
+  <text x="468" y="329" class="t s muted">车型</text><text x="508" y="329" class="t s ink">MPV-C</text>
+  <text x="468" y="349" class="t s muted">配置</text><text x="508" y="349" class="t s ink">四驱 / 三温区</text>
+
+  <rect x="452" y="384" width="300" height="128" rx="10" class="panel"/>
+  <rect x="452" y="384" width="300" height="30" rx="10" fill="#f2faf8"/><rect x="452" y="400" width="300" height="14" fill="#f2faf8"/>
+  <text x="468" y="404" class="t m" fill="#2d6a55" font-weight="700">项目 A</text><text x="734" y="404" class="t xs muted" text-anchor="end">独立工作项</text>
+  <text x="468" y="433" class="t s muted">客户</text><text x="508" y="433" class="t s ink">项目 A 客户</text>
+  <text x="468" y="453" class="t s muted">项目</text><text x="508" y="453" class="t s ink">项目 A</text>
+  <text x="468" y="473" class="t s muted">车型</text><text x="508" y="473" class="t s ink">Sedan-D</text>
+  <text x="468" y="493" class="t s muted">配置</text><text x="508" y="493" class="t s ink">标准 / 单温区</text>
+</g>
+<!-- arrows and flow -->
+<defs><marker id="var-arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L9 3.5L0 7Z" fill="#356c7c"/></marker><marker id="var-arrow-back" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L9 3.5L0 7Z" fill="#8a9a9f"/></marker></defs>
+<path d="M374 190 C404 190 410 170 446 166" fill="none" stroke="#356c7c" stroke-width="2" marker-end="url(#var-arrow)"/>
+<path d="M374 250 C404 250 410 300 446 304" fill="none" stroke="#8a9a9f" stroke-width="1.6" marker-end="url(#var-arrow-back)"/>
+<path d="M374 300 C404 300 410 440 446 448" fill="none" stroke="#8a9a9f" stroke-width="1.6" marker-end="url(#var-arrow-back)"/>
+<!-- flow panel -->
+<rect x="800" y="96" width="352" height="416" rx="12" class="panel"/>
+<text x="820" y="124" class="t m ink" font-weight="700">接入主工作项</text>
+<g class="t s">
+  <circle cx="828" cy="152" r="4" fill="#356c7c"/><text x="840" y="156" class="muted">差异预览：正文字数、表格与画板变化</text>
+  <circle cx="828" cy="180" r="4" fill="#356c7c"/><text x="840" y="184" class="muted">并发校验：主工作项 updated + 正文哈希</text>
+  <circle cx="828" cy="208" r="4" fill="#356c7c"/><text x="840" y="212" class="muted">首次接入先捕获「默认」变体</text>
+  <circle cx="828" cy="236" r="4" fill="#356c7c"/><text x="840" y="240" class="muted">画板快照复制并重新绑定目标工作项</text>
+  <circle cx="828" cy="264" r="4" fill="#356c7c"/><text x="840" y="268" class="muted">服务端保存后独立回读核对</text>
+</g>
+<rect x="820" y="292" width="312" height="70" rx="8" fill="#f4f9f8" stroke="#d7e8e3"/>
+<text x="834" y="313" class="t xs" fill="#2c6a58" font-weight="700">撤销接入</text>
+<text x="834" y="331" class="t s muted">保留接入前正文快照；主工作项被再次修改后</text>
+<text x="834" y="347" class="t s muted">不再显示必然失败的撤销入口。</text>
+<rect x="820" y="378" width="148" height="30" rx="7" fill="#356c7c"/><text x="894" y="397" class="t s" fill="#fff" text-anchor="middle">接入主工作项</text>
+<rect x="984" y="378" width="148" height="30" rx="7" fill="#fff" stroke="#dbe4e8"/><text x="1058" y="397" class="t s muted" text-anchor="middle">撤销上次接入</text>
+<text x="820" y="432" class="t s muted">变体工作项不进入主文档，不改变主工作项的</text>
+<text x="820" y="448" class="t s muted">编号、位置、评论与审批。</text>
+<text x="820" y="478" class="t s faint">详细配置与当前接入状态随 Polarion 附件保存，</text>
+<text x="820" y="494" class="t s faint">换机器重新同步即可发现。</text>
+<!-- footer -->
+<rect x="48" y="548" width="1104" height="86" rx="10" fill="#fbfcfc" stroke="#dbe4e8"/>
+<text x="68" y="574" class="t m ink" font-weight="700">安全边界</text>
+<text x="68" y="596" class="t s muted">变体必须与主工作项存在指定角色的链接，并通过回读确认；UI 只能操作已登记的变体，不能直接指定任意工作项。</text>
+<text x="68" y="618" class="t s muted">Polarion 服务端写入仍通过本地草稿 + 明确保存完成；撤销快照只保留最近 20 次。</text>
+</svg>

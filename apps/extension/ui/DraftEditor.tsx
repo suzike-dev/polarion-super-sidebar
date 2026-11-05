@@ -4,13 +4,15 @@ import { Editor, Extension, type JSONContent } from '@tiptap/core';
 import { Plugin } from '@tiptap/pm/state';
 import {Decoration,DecorationSet} from '@tiptap/pm/view';
 import { DOMParser as PMParser } from '@tiptap/pm/model';
-import { Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Quote, Link, Undo2, Redo2, Table2, Plus, Minus, X, Check, Maximize2, Minimize2, ChevronDown, Subscript, Superscript, Eraser, Highlighter, Palette, Code, Columns3, Rows3, PanelTop, WrapText, Search, Download, ImagePlus, MessageSquare, PenTool } from 'lucide-react';
+import { Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Quote, Link, Undo2, Redo2, Table2, Plus, Minus, X, Check, Maximize2, Minimize2, ChevronDown, Subscript, Superscript, Eraser, Highlighter, Palette, Code, Columns3, Rows3, PanelTop, WrapText, Search, Download, ImagePlus, MessageSquare, PenTool, GitBranch } from 'lucide-react';
 import { browser } from 'wxt/browser';
 import { richExtensions,richSchema } from '../../../packages/core/rich-schema';
 import {sameTarget,type Asset,type Draft} from '../../../packages/protocol/index';
 import type { SourceNode } from '../../../packages/core/lossless-html';
 import { rpc } from '../lib/client';
 import { RichSurface } from './RichSurface';
+import { matchWorkItemQuery } from '../lib/workitem-picker';
+import { documentWorkItems, filterWorkItems, type DocumentWorkItem } from '../lib/document-items';
 import {uploadAsset} from '../lib/assets';
 import {editableImage,imageResolver} from '../lib/editor-images';
 import {FormatProperties} from './FormatProperties';
@@ -28,12 +30,13 @@ import {BoardDialog} from './BoardDialog';
 import {DocumentReview} from './DocumentReview';
 import type {BoardRecord,BoardGenerationRequest} from '../../host/boards';
 import {EditorDocTools} from './EditorDocTools';
+import {VariantPanel} from './VariantPanel';
 import './editor-tools.css';
 import {SingleLineToolbar,ToolbarMenu,nativeFontSizes,selectionTypography} from './EditorToolbar';
 import {editorPopoverPlacement} from '../lib/editor-popover';
 type DraftView = Draft & { nodes: SourceNode[]; version: string };
 type RichReply = { editorId: string; draft: DraftView; document: JSONContent };
-type Props = { requestedBoard?:BoardGenerationRequest|null;onBoardOpened:()=>void;draft: DraftView; onUpdate: (d: DraftView) => void; onClose: () => void; onError: (e: unknown) => void; prepareNativeSave: () => Promise<'clean' | 'dirty' | 'unknown'>; onContext: (text: string) => void; onSaved: (saved:DraftView) => Promise<void>;initialScrollTop?:number;aiOpen:boolean;onToggleAI:()=>void;onShowAI:()=>void;onClearBoardContext:()=>void;onPrepareAI:(handler:(()=>Promise<void>)|null)=>void;remoteRevision?:number };
+type Props = { requestedBoard?:BoardGenerationRequest|null;onBoardOpened:()=>void;draft: DraftView; onUpdate: (d: DraftView) => void; onClose: () => void; onError: (e: unknown) => void; prepareNativeSave: () => Promise<'clean' | 'dirty' | 'unknown'>; onContext: (text: string) => void; onSaved: (saved:DraftView) => Promise<void>;initialScrollTop?:number;aiOpen:boolean;onToggleAI:()=>void;onShowAI:()=>void;onClearBoardContext:()=>void;onPrepareAI:(handler:(()=>Promise<void>)|null)=>void;remoteRevision?:number; onOpenVariant:(workItemId:string)=>void; onOpenWorkItem:(workItemId:string)=>void; onVariantChanged:(saved:DraftView,notice:string)=>Promise<void>; onClearError:()=>void };
 const colors = ['#24374b', '#2563eb', '#0f766e', '#c2410c', '#b91c1c', '#7c3aed'];
 const fills = ['#ffffff', '#eff6ff', '#ecfdf5', '#fff7ed', '#fef2f2', '#f5f3ff'];
 const htmlEscape = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
@@ -56,8 +59,10 @@ function editorGuard(onProtected: () => void) {
 }
 
 export function DraftEditor(props: Props) {
-  const { draft, onUpdate, onClose, onError, prepareNativeSave, onContext, onSaved } = props;
+  const { draft, onUpdate, onClose, onError, prepareNativeSave, onContext, onSaved, onOpenVariant, onVariantChanged, onClearError } = props;
   const surface = useRef<HTMLDivElement>(null); const editor = useRef<Editor | null>(null); const latest = useRef(props); latest.current = props;
+  const [variantsOpen,setVariantsOpen]=useState(false);
+  useEffect(()=>{setVariantsOpen(false);},[draft.id]);
   const session = useRef<RichReply | null>(null); const revision = useRef(draft.revision); const pending = useRef<JSONContent | null>(null); const timer = useRef<ReturnType<typeof setTimeout> | null>(null); const inFlight = useRef<Promise<void> | null>(null);
   const checkpointWrites=useRef<Promise<void>>(Promise.resolve());
   const renderFrame=useRef(0);
@@ -70,6 +75,70 @@ export function DraftEditor(props: Props) {
   const [linkText,setLinkText]=useState(''),[caseSensitive,setCaseSensitive]=useState(false);
   const searchState=useRef({query:'',caseSensitive:false});searchState.current={query:popup==='search'?search:'',caseSensitive};
   const openLink=(e:Editor)=>{if(e.state.selection.empty)e.commands.extendMarkRange('link');setLink(e.getAttributes('link').href??'');setLinkText(e.state.doc.textBetween(e.state.selection.from,e.state.selection.to,''));setPopup('link');};
+  // 正文内 @ 引用工作项：尾部 @ 片段触发候选，回车/点击插入原生引用标记。
+  type RefHit = { workItemId: string; title: string; source: 'document' | 'draft' | 'remote' };
+  const [refQuery, setRefQuery] = useState<string | null>(null);
+  const refHits = useRef<RefHit[]>([]); const refIndex = useRef(0); const refRange = useRef<{ from: number; to: number } | null>(null);
+  const refTotal = useRef(0); const refPicker = useRef<HTMLDivElement>(null); const refInput = useRef<HTMLInputElement>(null);
+  const refPos = useRef({ left: 0, top: 0 }); const refTicket = useRef(0);
+  const [refTick, setRefTick] = useState(0);
+  useEffect(() => { refPicker.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }); }, [refTick]);
+  const documentItems = useRef<DocumentWorkItem[] | null>(null);
+  const insertWorkItemRef = (workItemId: string) => {
+    const e = editor.current; const range = refRange.current; setRefQuery(null); refRange.current = null;
+    if (!e || !range) return;
+    // 区间在异步搜索/光标移动后可能已失效：只删除仍然是 @查询 的那一段，避免误删正文。
+    let text = '';
+    try { text = e.state.doc.textBetween(range.from, range.to); } catch { return; }
+    if (!/^@[A-Za-z0-9_-]*$/.test(text)) return;
+    e.chain().focus().deleteRange(range).insertContentAt(range.from, { type: 'workItemRef', attrs: { workItemId } }).insertContent(' ').run();
+  };
+  const insertRefRef = useRef(insertWorkItemRef); insertRefRef.current = insertWorkItemRef;
+  useEffect(() => {
+    if (refQuery === null) { refHits.current = []; refRange.current = null; return; }
+    // 本文档工作项先本地过滤并立即显示，再补上草稿与 Polarion 搜索，保证 @ 一出现就有候选。
+    if (!documentItems.current || refQuery === '') documentItems.current = documentWorkItems();
+    const local = filterWorkItems(documentItems.current, refQuery).map(item => ({ ...item, source: 'document' as const }));
+    refTotal.current = local.length; refHits.current = local.slice(0, 300); refIndex.current = 0; setRefTick(value => value + 1);
+    const ticket = ++refTicket.current; const timer = setTimeout(() => {
+      void rpc<{ workItemId: string; title: string; source: 'draft' | 'remote' }[]>({ method: 'workitems.search', target: draft.target, query: refQuery, limit: 8 }).then(rows => {
+        if (ticket !== refTicket.current) return;
+        const seen = new Set(local.map(item => item.workItemId));
+        const extra = rows.filter(row => !seen.has(row.workItemId));
+        refTotal.current = local.length + extra.length;
+        refHits.current = [...local, ...extra].slice(0, 300); refIndex.current = 0; setRefTick(value => value + 1);
+      }).catch(() => { if (ticket === refTicket.current) setRefTick(value => value + 1); });
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [refQuery, draft.target]);
+  // 滚动、缩放或切走焦点时，@ 候选不能悬在原地。滚动事件不跨 shadow root 冒泡，直接监听编辑画布。
+  useEffect(() => {
+    if (refQuery === null) return;
+    const close = () => setRefQuery(null);
+    const canvas = surface.current?.closest<HTMLElement>('.rich-canvas');
+    canvas?.addEventListener('scroll', close, { passive: true });
+    window.addEventListener('resize', close);
+    return () => { canvas?.removeEventListener('scroll', close); window.removeEventListener('resize', close); };
+  }, [refQuery]);
+  const detectRefQuery = (current: import('@tiptap/core').Editor) => {
+    const { $from } = current.state.selection; if (!$from.parent.inlineContent) { setRefQuery(null); return; }
+    const before = $from.parent.textBetween(0, $from.parentOffset, undefined, '￼');
+    const match = before.match(/(?<![A-Za-z0-9._%+-])@([A-Za-z0-9_-]*)$/u);
+    if (!match) { if (refQueryRef.current !== null) setRefQuery(null); return; }
+    // 只替换 @ 与查询本身，保留前面的分隔空白，避免“参考TEST-728”粘连。
+    refRange.current = { from: $from.pos - (match[1]?.length ?? 0) - 1, to: $from.pos };
+    try { const box = current.view.coordsAtPos($from.pos); refPos.current = { left: Math.max(12, Math.min(window.innerWidth - 372, box.left)), top: Math.max(12, Math.min(box.bottom + 6, window.innerHeight - 346)) }; } catch {}
+    setRefQuery(match[1] ?? '');
+  };
+  const refQueryRef = useRef<typeof refQuery>(null); refQueryRef.current = refQuery;
+  const detectRefQueryRef = useRef(detectRefQuery); detectRefQueryRef.current = detectRefQuery;
+  // 候选框自带的搜索框：输入直接过滤，↑↓/Enter/Esc 不离开候选框；正文里的 @ 片段保持到选中。
+  const refInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === 'Escape') { event.preventDefault(); setRefQuery(null); editor.current?.view.focus(); return; }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); if (refHits.current.length) { refIndex.current = (refIndex.current + (event.key === 'ArrowDown' ? 1 : refHits.current.length - 1)) % refHits.current.length; setRefTick(value => value + 1); } return; }
+    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); const hit = refHits.current[Math.min(refIndex.current, refHits.current.length - 1)]; if (hit) insertRefRef.current(hit.workItemId); }
+  };
   const openLinkRef=useRef(openLink);openLinkRef.current=openLink;
   useEffect(()=>{const e=editor.current;if(e&&!e.isDestroyed)e.view.dispatch(e.state.tr.setMeta('search-update',true).setMeta('addToHistory',false));},[search,caseSensitive,popup]);
   const popupRoot=useRef<HTMLDivElement>(null);
@@ -159,7 +228,7 @@ export function DraftEditor(props: Props) {
   const flushRef = useRef(flush); flushRef.current = flush;
   useEffect(()=>{props.onPrepareAI(()=>flushRef.current());return()=>props.onPrepareAI(null);},[draft.id]);
   const create = (view: RichReply) => {
-    setTableMenu(null);setPopup(null);
+    setTableMenu(null);setPopup(null);setRefQuery(null);
     editor.current?.destroy();imageCleanup.current();const resolver=imageResolver(view.draft);imageCleanup.current=resolver.dispose; session.current = view; revision.current = view.draft.revision; pending.current = null;
     const e = new Editor({ element: surface.current!, extensions: [...richExtensions().map(extension=>extension.name==='image'?editableImage(resolver.resolve):extension.name==='table'?extension.configure({View:DocumentTableView}):extension), Extension.create({name:'documentSearch',addProseMirrorPlugins(){return[new Plugin({props:{decorations(state){const s=searchState.current;if(!s.query)return null;return DecorationSet.create(state.doc,findTextMatches(state.doc,s.query,s.caseSensitive).map(m=>Decoration.inline(m.from,m.to,{class:m.from===state.selection.from&&m.to===state.selection.to?'search-match search-match-current':'search-match'})));}}})];}}),editorGuard(() => setIssue('此操作会移除特殊宏。原始对象已保留，请在其前后编辑正文。'))], content: view.document,
       editorProps: {
@@ -186,10 +255,10 @@ export function DraftEditor(props: Props) {
           if(!cell.classList.contains('selectedCell'))view.dispatch(view.state.tr.setSelection(CellSelection.create(view.state.doc,pos)));
           setBubble(null);setPopup(null);setTableMenu({left:event.clientX,top:event.clientY});return true;
         }},
-        handleKeyDown(_view,event){if(event.isComposing)return false;if((event.ctrlKey||event.metaKey)&&['Home','End'].includes(event.key)){event.preventDefault();editor.current?.commands.focus(event.key==='Home'?'start':'end');return true;}if((event.ctrlKey||event.metaKey)&&['f','h','k'].includes(event.key.toLowerCase())){event.preventDefault();if(event.key.toLowerCase()==='k'&&editor.current)openLinkRef.current(editor.current);else setPopup('search');return true;}if(event.key==='Escape'&&brush.current){brush.current=null;setBrushing(false);return true;}return false;},
+        handleKeyDown(_view,event){if(event.isComposing)return false;if(refQueryRef.current!==null){if(event.key==='Escape'){event.preventDefault();setRefQuery(null);return true;}if(refHits.current.length){if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();refIndex.current=(refIndex.current+(event.key==='ArrowDown'?1:refHits.current.length-1))%refHits.current.length;setRefTick(v=>v+1);return true;}if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();const hit=refHits.current[Math.min(refIndex.current,refHits.current.length-1)];if(hit)insertRefRef.current(hit.workItemId);return true;}}}if((event.ctrlKey||event.metaKey)&&['Home','End'].includes(event.key)){event.preventDefault();editor.current?.commands.focus(event.key==='Home'?'start':'end');return true;}if((event.ctrlKey||event.metaKey)&&['f','h','k'].includes(event.key.toLowerCase())){event.preventDefault();if(event.key.toLowerCase()==='k'&&editor.current)openLinkRef.current(editor.current);else setPopup('search');return true;}if(event.key==='Escape'&&brush.current){brush.current=null;setBrushing(false);return true;}return false;},
       },
       onUpdate({ editor: current }) {
-        const json = current.getJSON(); pending.current = json; setSync('正在编辑'); updateToolbar();
+        const json = current.getJSON(); pending.current = json; setSync('正在编辑'); updateToolbar(); detectRefQuery(current);
         const checkpoint={editorId:view.editorId,revision:revision.current,document:json,draftId:draft.id};checkpointWrites.current=checkpointWrites.current.catch(()=>{}).then(()=>browser.storage.local.set({[checkpointKey]:checkpoint}));
         if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => void flushRef.current().catch(() => {}), 450);
       },
@@ -199,8 +268,10 @@ export function DraftEditor(props: Props) {
         if(!s.empty && s.$from.parent.inlineContent && s.$to.parent.inlineContent){const box=current.view.coordsAtPos(s.from);setBubble({left:Math.max(12,Math.min(window.innerWidth-330,box.left)),top:Math.max(12,box.top-46)});}else setBubble(null);
         if (!s.empty) { const text = current.state.doc.textBetween(s.from, s.to, '\n').trim(); if (text) latest.current.onContext(text.slice(0, 60000)); }
         if(!s.empty&&brush.current){const marks=brush.current;brush.current=null;setBrushing(false);const tr=current.state.tr;for(const name of ['bold','italic','underline','strike','subscript','superscript','code','paint','sourceSpan'])tr.removeMark(s.from,s.to,current.schema.marks[name]);for(const mark of marks)tr.addMark(s.from,s.to,current.schema.marks[mark.type]!.create(mark.attrs));current.view.dispatch(tr);}
+        detectRefQueryRef.current(current);
       },
       onTransaction({transaction}) { if(transaction.docChanged||transaction.selectionSet||transaction.storedMarksSet)updateToolbar(); },
+      onBlur() { setTimeout(() => { const root = refPicker.current?.getRootNode() as ShadowRoot | Document | undefined; const active = root && 'activeElement' in root ? root.activeElement : null; if (!refPicker.current || !active || !refPicker.current.contains(active)) setRefQuery(null); }, 0); },
     });
     editor.current = e; setReady(true); setSync('已保存到本地'); setIssue(''); latest.current.onUpdate(view.draft);
   };
@@ -231,11 +302,12 @@ export function DraftEditor(props: Props) {
   const searchIndex=searchMatches.findIndex(m=>m.from===editor.current?.state.selection.from&&m.to===editor.current?.state.selection.to);
   useEffect(()=>{if(ready&&props.initialScrollTop!==undefined){const canvas=surface.current?.closest<HTMLElement>('.rich-canvas');if(canvas)canvas.scrollTop=props.initialScrollTop;}},[ready,props.initialScrollTop]);
   const save = async (event: React.MouseEvent) => {
-    if (!isUserEvent(event.nativeEvent)) {setIssue('保存没有收到有效的用户点击，请重新点击“保存到 Polarion”。');return;} setBusy(true);setIssue('');setSync('正在同步本地修改…');
+    const background=!!draft.variantOf;
+    if (!isUserEvent(event.nativeEvent)) {setIssue(`保存没有收到有效的用户点击，请重新点击“${background?'保存到变体':'保存到 Polarion'}”。`);return;} setBusy(true);setIssue('');setSync('正在同步本地修改…');
     const panel = document.querySelector<HTMLElement>('.polarion-dle-MainDockPanel'); const wasInert = panel?.inert; if (panel) panel.inert = true;
     editor.current?.setEditable(false,false);
     let verified=false;const canvas=surface.current?.closest<HTMLElement>('.rich-canvas'),scrollTop=canvas?.scrollTop??0;
-    try { await flushRef.current();const nativeState=await prepareNativeSave();setSync('正在写入并回读核对…'); const result = await rpc<DraftView>({ method: 'drafts.save', draftId: draft.id, expectedRevision: revision.current, nativeState }); verified=true;onUpdate(result);revision.current=result.revision;if(session.current)session.current.draft=result;setSync('已写入 Polarion · 回读一致');await onSaved(result); }
+    try { await flushRef.current();const nativeState=background?'clean':await prepareNativeSave();setSync('正在写入并回读核对…'); const result = await rpc<DraftView>({ method: 'drafts.save', draftId: draft.id, expectedRevision: revision.current, nativeState }); verified=true;onUpdate(result);revision.current=result.revision;if(session.current)session.current.draft=result;setSync(background?'已保存到变体 · 主工作项未改动':'已写入 Polarion · 回读一致');onClearError();await onSaved(result); }
     catch (e) {
       if(verified){setSync('已写入 Polarion · 回读一致');setIssue('保存已成功，原生正文尚未同步：'+(e as Error).message);}
       else {onError(e);setSync('保存未完成 · 草稿已保留');setIssue(saveError(e));try{latest.current.onUpdate(await rpc<DraftView>({method:'drafts.read',draftId:draft.id}));}catch{/* Preserve the original write error. */}}
@@ -248,7 +320,7 @@ export function DraftEditor(props: Props) {
   const fontOptions=[['Microsoft YaHei, sans-serif','微软雅黑'],['SimSun, serif','宋体'],['Arial, sans-serif','Arial'],['Consolas, monospace','Consolas']];
   const selectedFont=fontOptions.find(([value])=>typography.font.replaceAll('"','').startsWith(value!.split(',')[0]!))?.[0]??'';
   return <div ref={layer} className={'editor-layer rich-layer ' + (focus ? 'focus-mode ' : '')+(props.aiOpen?'with-ai':'')}><section className="editor rich-workbench" role="dialog" aria-modal="false" aria-label="工作项编辑工作台" onKeyDown={event=>{if(event.key==='Escape'&&!event.nativeEvent.isComposing&&popup){event.preventDefault();event.stopPropagation();closePopup();}}}>
-    <header className="rich-header"><div className="rich-doc-icon"><FileBadge/></div><div className="rich-heading"><span className="eyebrow">工作项 · {draft.workItemId}</span><h2>{draft.title}</h2></div><div className="rich-window-actions"><button className="editor-ai-toggle" aria-pressed={props.aiOpen} onClick={props.onToggleAI}><MessageSquare size={14}/>AI 协作</button><span className={'sync-status ' + (issue ? 'warning' : '')}><i/>{sync}</span><button className="icon" title={focus ? '退出专注编辑' : '专注编辑'} onClick={() => setFocus(v => !v)}>{focus ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}</button><button className="icon" title="关闭，保留本地草稿" disabled={busy} onClick={() => void flushRef.current().then(onClose).catch(onError)}><X size={19}/></button></div></header>
+    <header className="rich-header"><div className="rich-doc-icon"><FileBadge/></div><div className="rich-heading"><span className="eyebrow">{(draft.variantOf?'变体':'工作项')} · {draft.workItemId}</span><h2>{draft.title}</h2>{draft.variantOf&&<button className="variant-chip" title={'返回主工作项 '+draft.variantOf} onClick={()=>onOpenVariant(draft.variantOf!)}><GitBranch size={11}/>主工作项 {draft.variantOf}</button>}</div><div className="rich-window-actions">{!draft.variantOf&&<button className="editor-ai-toggle" aria-pressed={variantsOpen} title="变体管理" onClick={()=>setVariantsOpen(value=>!value)}><GitBranch size={14}/>变体</button>}<button className="editor-ai-toggle" aria-pressed={props.aiOpen} onClick={props.onToggleAI}><MessageSquare size={14}/>AI 协作</button><span className={'sync-status ' + (issue ? 'warning' : '')}><i/>{sync}</span><button className="icon" title={focus ? '退出专注编辑' : '专注编辑'} onClick={() => setFocus(v => !v)}>{focus ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}</button><button className="icon" title="关闭，保留本地草稿" disabled={busy} onClick={() => void flushRef.current().then(onClose).catch(onError)}><X size={19}/></button></div></header>
     <nav className="editor-toolbar rich-tabs"><div>{[['edit','编辑正文'],['preview','阅读预览'],['diff','修改对照']].map(([key,label]) => <button key={key} className={mode === key ? 'selected' : ''} onClick={() => void flushRef.current().then(() => setMode(key as any)).catch(onError)}>{label}</button>)}</div><span>修订 {draft.revision} <b>·</b> {stateLabel}</span></nav>
     <div className="rich-controls" hidden={mode !== 'edit'}>
       <input hidden type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple ref={imageFiles} aria-label="插入正文图片文件" onChange={e=>{if(e.target.files)void importImagesRef.current(Array.from(e.target.files));e.target.value='';}}/>
@@ -291,13 +363,19 @@ export function DraftEditor(props: Props) {
     {draft.state==='conflict'&&<div className="rich-alert"><span>服务端与本地基线不同。先比较两个版本，再决定保留哪份内容。</span><button disabled={!!pending.current||busy} onClick={()=>setReviewing(true)}>比较并处理差异</button></div>}
     {draft.state==='uncertain'&&<div className="rich-alert"><span>上次保存结果尚未确认，编辑已暂停，请先核对服务端。</span></div>}
     {reviewing&&<ConflictReview draftId={draft.id} onClose={()=>setReviewing(false)} onResolved={async()=>{await checkpointWrites.current;await browser.storage.local.remove(checkpointKey);setRecovery(null);create(await rpc<RichReply>({method:'drafts.rich.read',draftId:draft.id}));setReviewing(false);}}/>}
+    {refQuery !== null && ready && mode === 'edit' && <div ref={refPicker} className="workitem-ref-picker" role="listbox" aria-label="引用工作项候选" style={{ position: 'fixed', left: refPos.current.left, top: refPos.current.top }}><div className="workitem-ref-hint"><input ref={refInput} value={refQuery} onChange={event => setRefQuery(event.target.value)} onKeyDown={refInputKeyDown} placeholder="搜索工作项编号或标题…" aria-label="搜索工作项"/><div className="workitem-ref-meta"><span>共 {refTotal.current} 项{refHits.current.length < refTotal.current ? ` · 显示前 ${refHits.current.length}` : ''}</span><small>↑↓ 选择 · Enter 插入 · Esc 关闭</small></div></div>{refHits.current.length ? refHits.current.map((hit, index) => <button key={hit.workItemId} type="button" role="option" aria-selected={index === refIndex.current} className={index === refIndex.current ? 'selected' : ''} onMouseDown={event => event.preventDefault()} onClick={() => insertWorkItemRef(hit.workItemId)}><strong>{hit.workItemId}</strong><span>{hit.title || '未命名工作项'}</span><i>{hit.source === 'document' ? '本文档' : hit.source === 'draft' ? '本地草稿' : 'Polarion'}</i></button>) : <div className="workitem-ref-empty">没有匹配的工作项，继续输入编号或标题</div>}</div>}
     <div className="editor-body rich-canvas" data-mode={mode} onScroll={()=>setBubble(null)}>
-      <div className="rich-paper" hidden={mode !== 'edit'}><div className="tiptap-mount" ref={surface}/>{!ready && <div className={'rich-loading '+(loadError?'failed':'')} role="status">{loadError?<><h3>正文未能载入</h3><p>{loadError}</p><div><button onClick={()=>setLoadAttempt(v=>v+1)}>重新载入</button><button onClick={()=>setMode('preview')}>阅读原始正文</button></div></>:<><span className="loading-indicator"/><span>正在载入正文…</span></>}</div>}</div>
-      {mode === 'preview' && <RichSurface draft={draft} onSelect={() => {}} onContext={onContext}/>}
+      <div className="rich-paper" hidden={mode !== 'edit'}><div className="tiptap-mount" ref={surface} onClickCapture={event => {
+        // 编辑器里的引用 chip 单击即打开完整阅读预览，与正文引用保持同一语义。
+        const chip = (event.target as Element).closest('[data-type="workItem"][data-item-id]'); const id = chip?.getAttribute('data-item-id');
+        if (!id) return; event.preventDefault(); event.stopPropagation(); props.onOpenWorkItem(id);
+      }}/>{!ready && <div className={'rich-loading '+(loadError?'failed':'')} role="status">{loadError?<><h3>正文未能载入</h3><p>{loadError}</p><div><button onClick={()=>setLoadAttempt(v=>v+1)}>重新载入</button><button onClick={()=>setMode('preview')}>阅读原始正文</button></div></>:<><span className="loading-indicator"/><span>正在载入正文…</span></>}</div>}</div>
+      {mode === 'preview' && <RichSurface draft={draft} onSelect={() => {}} onContext={onContext} onWorkItem={props.onOpenWorkItem}/>}
       {mode === 'diff' && <DocumentReview draft={draft} onRead={()=>setMode('preview')}/>}
     </div>
     <div className="rich-statusbar"><span>{characterCount} 字 <b>·</b> {inTable ? '表格编辑 · 右键快捷操作 · Tab 下一格' : selected ? '选区已传入助手上下文' : '手工与 AI 共用本地草稿'}</span><span>本地自动保存 <b>·</b> 服务端需明确保存</span></div>
-    <footer><span className="muted">{draft.workItemId} <b>·</b> {stateLabel}</span>{['uncertain','conflict'].includes(draft.state) && <button className="secondary" disabled={busy} onClick={() => void rpc<DraftView>({ method: 'drafts.reconcile', draftId: draft.id }).then(onUpdate).catch(onError)}>核对服务端</button>}<button className="secondary" disabled={busy || !!pending.current} onClick={async () => { try { await flushRef.current(); create(await rpc<RichReply>({ method: 'drafts.rich.read', draftId: draft.id })); } catch (e) { onError(e); } }}>载入最新草稿</button><button className="primary save-polarion" disabled={busy || !ready || (draft.state !== 'dirty' && !pending.current)} onClick={save}><Check size={15}/>{busy ? '正在核对并保存…' : '保存到 Polarion'}</button></footer>
+    <footer><span className="muted">{draft.workItemId} <b>·</b> {stateLabel}{draft.variantOf?' · 变体不影响主工作项':''}</span>{['uncertain','conflict'].includes(draft.state) && <button className="secondary" disabled={busy} onClick={() => void rpc<DraftView>({ method: 'drafts.reconcile', draftId: draft.id }).then(onUpdate).catch(onError)}>核对服务端</button>}<button className="secondary" disabled={busy || !!pending.current} onClick={async () => { try { await flushRef.current(); create(await rpc<RichReply>({ method: 'drafts.rich.read', draftId: draft.id })); } catch (e) { onError(e); } }}>载入最新草稿</button><button className="primary save-polarion" disabled={busy || !ready || (draft.state !== 'dirty' && !pending.current)} onClick={save}><Check size={15}/>{busy ? '正在核对并保存…' : draft.variantOf ? '保存到变体' : '保存到 Polarion'}</button></footer>
+    {variantsOpen&&!draft.variantOf&&<VariantPanel draft={draft} beforeApply={()=>flushRef.current()} prepareNativeSave={prepareNativeSave} onOpenVariant={onOpenVariant} onChanged={onVariantChanged} onError={onError} onClearError={onClearError} onClose={()=>setVariantsOpen(false)}/>}
   </section>{board&&<BoardDialog draft={draft} record={board.record} generationRequest={board.generationRequest} onSaved={insertBoard} onClose={closeBoard} onContext={onContext} onToggleAI={props.onToggleAI} onShowAI={props.onShowAI}/>}</div>;
 }
 function FileBadge() { return <svg width="23" height="26" viewBox="0 0 23 26" fill="none"><path d="M4 1H14L21 8V23C21 24.1 20.1 25 19 25H4C2.9 25 2 24.1 2 23V3C2 1.9 2.9 1 4 1Z" stroke="currentColor" strokeWidth="1.5"/><path d="M14 1V8H21M6 13H16M6 17H16M6 21H12" stroke="currentColor" strokeWidth="1.5"/></svg>; }

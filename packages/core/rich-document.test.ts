@@ -43,6 +43,13 @@ test('unknown structural macros and empty tables remain protected rather than di
     const d=new RichDocument(html);assert.equal(d.document.content![0]!.type,'protectedBlock');assert.equal(d.serialize(d.document),html);
   }
 });
+test('protected macros expose their visible text without changing serialization',()=>{
+  const html='<div id="polarion_wiki macro name=s1-preserve;params=key=value">opaque fixture</div>';
+  const d=new RichDocument(html);assert.equal(d.document.content![0]!.type,'protectedBlock');
+  assert.equal(d.document.content![0]!.attrs!.text,'opaque fixture','editor shows the macro text instead of the technical placeholder');
+  assert.match(String(d.document.content![0]!.attrs!.label),/s1-preserve/,'the technical name stays in the tooltip metadata');
+  assert.equal(d.serialize(d.document),html);
+});
 test('native div inside inline span exposes its clause and retains exact wrappers',()=>{
  const html='<span style="color:red"><div></div><div>工程条件</div></span>',d=new RichDocument(html);assert.equal(d.serialize(d.document),html);const j=structuredClone(d.document);visit(j,n=>{if(n.text==='工程条件')n.text='工程条件确认';});assert.equal(d.serialize(j),html.replace('工程条件','工程条件确认'));
 });
@@ -112,4 +119,25 @@ test('code block keeps whitespace and special characters through edits and reope
   const source='<pre class="native"><code class="language-c">if (t &lt; 25) {\n  hold = 3;\n}</code></pre>';
   const d=new RichDocument(source);assert.equal(d.serialize(d.document),source);const j=structuredClone(d.document);assert.equal(j.content![0]!.attrs!.language,'c');j.content![0]!.content![0]!.text='if (t < 26) {\n  hold = 4;\n}';
   const html=d.serialize(j);assert.match(html,/&lt; 26/);assert.match(html,/\n  hold = 4;/);assert.equal(new RichDocument(html).document.content![0]!.content![0]!.text,'if (t < 26) {\n  hold = 4;\n}');
+});
+test('polarion work item references survive parse→serialize and new references serialize to native markup', () => {
+  const native = '<p>按下<a href="https://x/">SPE-559</a> 与 <span class="polarion-rte-link" data-type="workItem" id="fake" data-item-id="SPE-950" data-option-id="long"></span> 的默认值处理。</p>';
+  const doc = new RichDocument(native);
+  // 已有引用解析为 workItemRef 而非受保护对象
+  const refs = JSON.stringify(doc.document).match(/"type":"workItemRef"/g) ?? [];
+  assert.equal(refs.length, 1);
+  assert.equal(doc.serialize(doc.document), native, 'unmodified document round-trips byte-for-byte');
+  // 在同一段落插入一个新引用，已有引用仍保真，新引用输出标准标记
+  const paragraph = doc.document.content![0]!;
+  const inserted: typeof doc.document = structuredClone(doc.document);
+  inserted.content![0]!.content!.push({ type: 'workItemRef', attrs: { workItemId: 'TEST-729' } });
+  const out = doc.serialize(inserted);
+  assert.ok(out.includes('data-item-id="SPE-950"'), 'existing reference keeps native markup');
+  assert.ok(out.includes('<span class="polarion-rte-link" data-type="workItem" id="fake" data-item-id="TEST-729" data-option-id="long"></span>'), 'new reference uses canonical markup');
+  assert.ok(out.includes('的默认值处理。'), 'surrounding prose preserved');
+  // 非法编号拒绝序列化
+  const bad = structuredClone(doc.document);
+  bad.content![0]!.content!.push({ type: 'workItemRef', attrs: { workItemId: '../etc' } });
+  assert.throws(() => doc.serialize(bad), /INVALID_WORK_ITEM_REF/);
+  void paragraph;
 });

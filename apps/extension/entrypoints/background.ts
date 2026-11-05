@@ -4,6 +4,8 @@ import { RequestSchema, routeFromUrl, ContextSchema, type Reply } from '../../..
 import {nativeWorkItemRefresh} from '../lib/native-refresh';
 export default defineBackground(() => {
   let port: ReturnType<typeof browser.runtime.connectNative> | undefined;
+  // 并发复制时不重复创建离屏文档，第二个会以“仅允许一个离屏文档”失败。
+  let offscreenReady: Promise<void> | null = null;
   const pending = new Map<string, { resolve: (v: Reply) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   function host() {
     if (port) return port;
@@ -28,6 +30,17 @@ export default defineBackground(() => {
   browser.action.onClicked.addListener(tab => { if (tab.id) void sendTop(tab.id, { type: 'toggle' }); });
   browser.runtime.onMessage.addListener((message, sender) => {
     if (sender.id !== browser.runtime.id) return;
+    if (message?.type === 'copy-board-image' && sender.url?.startsWith(browser.runtime.getURL('/'))) {
+      const dataUrl = String(message.dataUrl ?? '');
+      if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(dataUrl) || dataUrl.length > 24_000_000) return Promise.resolve({ok: false, error: 'INVALID_IMAGE'});
+      return (async () => {
+        const chromeApi = (globalThis as {chrome?: {offscreen?: {hasDocument: () => Promise<boolean>; createDocument: (options: unknown) => Promise<void>}}}).chrome;
+        if (!chromeApi?.offscreen) throw Error('OFFSCREEN_UNSUPPORTED');
+        if (!offscreenReady) offscreenReady = (async () => { if (!await chromeApi.offscreen!.hasDocument()) await chromeApi.offscreen!.createDocument({url: browser.runtime.getURL('/offscreen.html'), reasons: ['CLIPBOARD'], justification: '把工程画板图片写入系统剪贴板'}); })().catch(error => { offscreenReady = null; throw error; });
+        await offscreenReady;
+        return await browser.runtime.sendMessage({type: 'offscreen-copy-image', dataUrl});
+      })().catch(error => ({ok: false, error: String((error as Error)?.message ?? error)}));
+    }
     const target = routeFromUrl(sender.tab?.url ?? '');
     if(message?.type==='native-workitem-refresh'&&target&&sender.frameId===0&&sender.tab?.id){
       if(!/^[\w-]+$/.test(message.workItemId)||!['check','refresh'].includes(message.phase)||(message.expectedHtml!==undefined&&(typeof message.expectedHtml!=='string'||message.expectedHtml.length>2_000_000)))return Promise.resolve({ok:false,error:'INVALID_NATIVE_REFRESH'});
@@ -38,7 +51,9 @@ export default defineBackground(() => {
       const context = result.data; void browser.storage.session.set({ ['selection:' + sender.tab.id]: context });
       return sendTop(sender.tab.id, { type: 'context', context });
     }
-    if (message?.type === 'hover' && target && sender.tab?.id) return sendTop(sender.tab.id, { type: 'hover', workItemId: String(message.workItemId).slice(0, 100), text: String(message.text).slice(0, 700) });
+    if (message?.type === 'preview' && target && sender.tab?.id) return sendTop(sender.tab.id, { type: 'preview', workItemId: String(message.workItemId).slice(0, 100), text: String(message.text).slice(0, 700), rect: message.rect });
+    if (message?.type === 'edit-workitem' && target && sender.tab?.id) return sendTop(sender.tab.id, { type: 'edit-workitem', workItemId: String(message.workItemId).slice(0, 100) });
+    if (message?.type === 'open-workitem' && target && sender.tab?.id) return sendTop(sender.tab.id, { type: 'open-workitem', workItemId: String(message.workItemId).slice(0, 100) });
     if (message?.type === 'rpc' && ((target && sender.frameId === 0) || sender.url?.startsWith(browser.runtime.getURL('/')))) {
       const request = RequestSchema.parse(message.request);
       // The extension is the only NM client; document scripts cannot directly send runtime messages.

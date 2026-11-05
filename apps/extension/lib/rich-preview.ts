@@ -18,6 +18,7 @@ export function richPreview(source: string, nodes: readonly SourceNode[], target
   const parsed = new Parser().parseFromString(html, 'text/html');
   for (const element of Array.from(parsed.body.querySelectorAll('*'))) {
     const tag = element.tagName.toLowerCase();
+    const workItem = tag === 'span' && element.getAttribute('data-type')?.toLowerCase() === 'workitem' ? element.getAttribute('data-item-id')?.trim() ?? '' : '';
     if (!tags.has(tag)) { element.replaceWith(parsed.createTextNode(['script', 'style', 'iframe', 'object', 'embed'].includes(tag) ? '[受保护内容]' : element.textContent ?? '')); continue; }
     for (const attr of Array.from(element.attributes)) {
       const key = attr.name.toLowerCase();
@@ -31,6 +32,8 @@ export function richPreview(source: string, nodes: readonly SourceNode[], target
         try { const url = new URL(attr.value, target.origin + '/polarion/'); if (!['https:', 'http:'].includes(url.protocol)) element.removeAttribute(key); else element.setAttribute(key, url.href); } catch { element.removeAttribute(key); }
       } else if (!attrs.has(key)) element.removeAttribute(key);
     }
+    // 原生引用是空 span，由 Polarion 脚本补文字；本地预览自己补上编号并保留可点击标记。
+    if (workItem) { element.textContent = workItem; element.setAttribute('class', 'preview-workitem-ref'); element.setAttribute('data-workitem-ref', workItem); }
   }
   // Keep explicit source table widths inside a local scroll region. This wrapper is
   // display-only, added after sanitization, and never becomes editable/save content.
@@ -60,6 +63,8 @@ code{background:#eef2f7;padding:2px 5px;color:#af4e66;font-size:.92em;font-famil
 [data-source-node]{cursor:text;border-radius:2px}
 [data-source-node]:hover{background:#eaf2fd;outline:1px dashed #9dbce5}
 [data-protected]{display:inline-block;padding:8px 12px;border:1px dashed #c6d2e3;border-radius:5px;background:#f4f6f9;color:#5b6e85;font-size:12px}
+.preview-workitem-ref{display:inline-block;padding:0 5px;border:1px solid #e6d5bb;border-radius:4px;background:#fbf4e8;color:#7a5316;font-size:12.5px;white-space:nowrap;cursor:pointer;text-decoration:none}
+.preview-workitem-ref:hover{background:#f6ead4;border-color:#d9c19c}
 pre{white-space:pre-wrap;max-width:100%;overflow:auto}
 @media(max-width:600px){body{padding:18px 16px}}
 </style></head><body>${parsed.body.innerHTML}</body></html>`;

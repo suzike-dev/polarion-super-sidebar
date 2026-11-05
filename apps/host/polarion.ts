@@ -6,7 +6,8 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { ROOT } from './paths.ts';
-import type { Draft, Target } from '../../packages/protocol/index.ts';
+import type { Draft, Target, Variant, VariantScope, DocumentOutline } from '../../packages/protocol/index.ts';
+import { sameTarget } from '../../packages/protocol/index.ts';
 import { LosslessHtml } from '../../packages/core/lossless-html.ts';
 import { Store } from './store.ts';
 import { RichDocument } from '../../packages/core/rich-document.ts';
@@ -14,9 +15,32 @@ import type { JSONContent } from '@tiptap/core';
 import { Assets } from './assets.ts';
 import {Boards} from './boards.ts';
 type RichSession = { id: string; draftId: string; source: string; revision: number; imageAliases?:Record<string,string>;saved?:boolean };
-export type RemoteItem = { id: string; title: string; description?: string; updated?: string; status?: string; submittedHtml?: string; uploadedAssets?: {localId:string;attachmentId:string;sha256:string}[] };
-export interface Remote { read(target: Target, workItemId: string): Promise<RemoteItem>; save(draft: Draft): Promise<RemoteItem> }
+export type RemoteItem = { id: string; title: string; description?: string; updated?: string; status?: string; type?: string; attachments?: {id?: string; file_name?: string; title?: string}[]; submittedHtml?: string; uploadedAssets?: {localId:string;attachmentId:string;sha256:string}[] };
+export type RemoteLink = { workItemId: string; role: string };
+export interface Remote {
+  read(target: Target, workItemId: string, scope?: VariantScope): Promise<RemoteItem>;
+  /** 当前文档全部工作项的轻量清单，供需求总览一次取全。 */
+  outline?(target: Target): Promise<DocumentOutline>;
+  search?(target: Target, query: string, limit: number): Promise<{ workItemId: string; title: string }[]>;
+  save(draft: Draft, scope?: VariantScope): Promise<RemoteItem>;
+  image?(target: Target, workItemId: string, src: string, scope?: VariantScope): Promise<unknown>;
+  create?(target: Target, title: string, type: string): Promise<RemoteItem>;
+  link?(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string): Promise<{verified:boolean}>;
+  unlink?(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string): Promise<{verified:boolean}>;
+  roles?(target: Target): Promise<{id:string;name?:string;hidden?:boolean}[]>;
+  backLinks?(target: Target, mainWorkItemId: string): Promise<RemoteLink[]>;
+  rename?(target: Target, workItemId: string, title: string, expectedUpdated: string, scope?: VariantScope): Promise<RemoteItem>;
+  metadataRead?(target: Target, workItemId: string, scope?: VariantScope, name?: string): Promise<Record<string, unknown> | null>;
+  metadataWrite?(target: Target, workItemId: string, details: Record<string, unknown>, scope?: VariantScope, name?: string): Promise<{verified: boolean; updated?: string}>;
+  board?(target: Target, workItemId: string, src: string, scope?: VariantScope): Promise<{manifest: unknown; source: string; preview: string}>;
+}
 export class Polarion implements Remote {
+  async outline(target: Target): Promise<DocumentOutline> {
+    return this.call<DocumentOutline>({ method: 'outline', target });
+  }
+  async search(target: Target, query: string, limit: number): Promise<{ workItemId: string; title: string }[]> {
+    return this.call<{ workItemId: string; title: string }[]>({ method: 'search', projectId: target.projectId, query, limit });
+  }
   assets?: Assets;
   credentialPath?: string;
   constructor(assets?: Assets, credentialPath?: string){this.assets=assets;this.credentialPath=credentialPath;}
@@ -58,37 +82,146 @@ export class Polarion implements Remote {
       this.pending.set(id, { resolve, reject, timer,progress }); this.child!.stdin.write(JSON.stringify({ ...(data as object), id }) + '\n');
     });
   }
-  read(target: Target, workItemId: string) { return this.call({ method: 'read', target, workItemId }); }
+  read(target: Target, workItemId: string, scope?: VariantScope) { return this.call({ method: 'read', target, workItemId, ...(scope ? { variant: scope } : {}) }); }
+  create(target: Target, title: string, type: string) {
+    return this.call<{ item: RemoteItem; verified: boolean; verificationErrors: string[] }>({ method: 'create', target, title, type }).then(value => value.item);
+  }
+  link(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string) {
+    return this.call<{ verified: boolean }>({ method: 'link', target, sourceWorkItemId, targetWorkItemId, role });
+  }
+  unlink(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string) {
+    return this.call<{ verified: boolean }>({ method: 'unlink', target, sourceWorkItemId, targetWorkItemId, role });
+  }
+  roles(target: Target) { return this.call<{ id: string; name?: string; hidden?: boolean }[]>({ method: 'roles', projectId: target.projectId }); }
+  backLinks(target: Target, mainWorkItemId: string) { return this.call<RemoteLink[]>({ method: 'backlinks', target, workItemId: mainWorkItemId }); }
+  rename(target: Target, workItemId: string, title: string, expectedUpdated: string, scope?: VariantScope) {
+    return this.call<{ item: RemoteItem; verified: boolean }>({ method: 'rename', target, workItemId, title, expectedUpdated, ...(scope ? { variant: scope } : {}) }).then(value => value.item);
+  }
+  metadataRead(target: Target, workItemId: string, scope?: VariantScope, name?: string) {
+    return this.call<{ details: Record<string, unknown> | null }>({ method: 'metadata.read', target, workItemId, ...(scope ? { variant: scope } : {}), ...(name ? { name } : {}) }).then(value => value.details);
+  }
+  metadataWrite(target: Target, workItemId: string, details: Record<string, unknown>, scope?: VariantScope, name?: string) {
+    return this.call<{ verified: boolean; updated?: string }>({ method: 'metadata.write', target, workItemId, details, ...(scope ? { variant: scope } : {}), ...(name ? { name } : {}) });
+  }
+  board(target: Target, workItemId: string, src: string, scope?: VariantScope) {
+    return this.call<{ manifest: unknown; source: string; preview: string }>({ method: 'board', target, workItemId, src, ...(scope ? { variant: scope } : {}) });
+  }
   async stop() {
     const child = this.child; if (!child) return;
     if (this.pending.size) throw Error('POLARION_CONNECTION_BUSY');
     await new Promise<void>(resolve => { child.once('close', () => { clearTimeout(timer); resolve(); }); const timer=setTimeout(() => child.kill(),5000);child.stdin.end(); });
   }
-  async image(target:Target,workItemId:string,src:string){
+  async image(target:Target,workItemId:string,src:string,scope?:VariantScope){
     if(!this.assets)throw Error('ASSET_STORE_UNAVAILABLE');
-    const result=await this.call<{name:string;data:string}>({method:'image',target,workItemId,src});const bytes=Buffer.from(result.data,'base64');
-    const asset=this.assets.begin(target,result.name,'application/octet-stream',bytes.length);for(let offset=0;offset<bytes.length;offset+=384*1024)this.assets.chunk(asset.id,offset,bytes.subarray(offset,offset+384*1024).toString('base64'));
+    const result=await this.call<{name:string;data:string}>({method:'image',target,workItemId,src,...(scope?{variant:scope}:{})});const bytes=Buffer.from(result.data,'base64');
+    const ext=(result.name.split('.').pop()??'').toLowerCase();
+    const mime=ext==='png'?'image/png':ext==='jpg'||ext==='jpeg'?'image/jpeg':ext==='gif'?'image/gif':ext==='webp'?'image/webp':'application/octet-stream';
+    const asset=this.assets.begin(target,result.name,mime,bytes.length);for(let offset=0;offset<bytes.length;offset+=384*1024)this.assets.chunk(asset.id,offset,bytes.subarray(offset,offset+384*1024).toString('base64'));
     return this.assets.finish(asset.id);
   }
-  save(draft: Draft) {
+  save(draft: Draft, scope?: VariantScope) {
     const ids=[...new Set([...draft.html.matchAll(/\bsrc=["']polarion-asset:([0-9a-f-]{36})["']/gi)].map(m=>m[1]!))];
     const assets=ids.flatMap(id=>{if(!this.assets)throw Error('ASSET_STORE_UNAVAILABLE');const bundle=new Boards(this.assets.store,this.assets).bundle(id,draft.target,draft.workItemId);if(bundle)return bundle;const a=this.assets.require(id,draft.target);if(a.extraction!=='image')throw Error('IMAGE_ASSET_REQUIRED');return[{id,name:a.name,mime:a.mime,sha256:a.sha256!,data:this.assets.bytes(id).toString('base64')}];});
-    return this.call({ method: 'save', target: draft.target, workItemId: draft.workItemId, html: draft.html, expectedUpdated: draft.baseUpdated, baseHash: createHash('sha256').update(draft.baseHtml).digest('hex'),assets },receipt=>{this.assets?.store.put('attachment-receipt',draft.id+':'+receipt.localId,{draftId:draft.id,revision:draft.revision,at:Date.now(),...receipt});});
+    return this.call({ method: 'save', target: draft.target, workItemId: draft.workItemId, html: draft.html, expectedUpdated: draft.baseUpdated, baseHash: createHash('sha256').update(draft.baseHtml).digest('hex'),assets,...(scope?{variant:scope}:{}) },receipt=>{this.assets?.store.put('attachment-receipt',draft.id+':'+receipt.localId,{draftId:draft.id,revision:draft.revision,at:Date.now(),...receipt});});
   }
 }
+/** 预览摘要：优先正文文字，跳过表格内部单元格（否则只剩一堆字段名），表格占比高时给出提示。 */
+export function previewText(html: string): string {
+  const ranges: [number, number][] = [];
+  const tag = /<table\b[^>]*>|<\/table>/gi;
+  let depth = 0, start = 0, match: RegExpExecArray | null;
+  while ((match = tag.exec(html))) {
+    if (match[0][1] !== '/') { if (depth === 0) start = match.index; depth++; }
+    else if (depth > 0) { depth--; if (depth === 0) ranges.push([start, tag.lastIndex]); }
+  }
+  const clean = (value?: string) => (value ?? '').replace(/\s+/g, ' ').trim();
+  const nodes = new LosslessHtml(html).nodes.filter(node => node.text);
+  const inTable = (node: { start: number; end: number }) => ranges.some(([from, to]) => node.start >= from && node.end <= to);
+  const prose = nodes.filter(node => !inTable(node)).map(node => clean(node.text)).filter(text => text && text !== '\u200b');
+  const tables = (html.match(/<table\b/gi) ?? []).length;
+  const joined = prose.join(' · ').slice(0, 1200);
+  if (joined.length >= 60) return joined;
+  if (joined) return tables ? `${joined}（含 ${tables} 个表格，打开编辑台查看完整内容）` : joined;
+  return tables ? `正文以表格与结构化字段为主（${tables} 个表格），打开编辑台查看。` : '';
+}
+export type WorkItemHit = { workItemId: string; title: string; source: 'draft' | 'remote' };
+/** 用户输入进入 lucene 前必须转义，否则括号/布尔运算符可以突破项目与文档作用域。 */
+function luceneEscape(value: string) { return value.replace(/[+\-!(){}[\]^"~*?:\\/&|]/g, '\\$&'); }
+export type WorkItemPreview = { workItemId: string; title: string; text: string; state?: string; revision?: number; source: 'draft' | 'remote' };
 export class Drafts {
   store: Store; remote: Remote; snapshots = new Map<string, { revision: number; source: LosslessHtml }>();
+  private previews = new Map<string, { at: number; value: WorkItemPreview }>();
+  /** 悬停预览：本地草稿优先，其次远端读取；60 秒内同一工作项复用结果，避免悬停触发频繁请求。 */
+  /** @ 引用的候选来源：本地草稿（编号/标题匹配）优先，远端 lucene 查询补充，按编号直查优先排序。 */
+  async searchItems(target: Target, query: string, limit = 8): Promise<WorkItemHit[]> {
+    const text = query.trim().toLowerCase();
+    const local = this.store.list<Draft>('draft')
+      .filter(d => d?.target?.projectId === target.projectId && (!text || d.workItemId.toLowerCase().includes(text) || String(d.title ?? '').toLowerCase().includes(text)))
+      .sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0))
+      .map(d => ({ workItemId: d.workItemId, title: String(d.title ?? ''), source: 'draft' as const }));
+    let remote: WorkItemHit[] = [];
+    try {
+      const lucene = /^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(text) ? `id:${luceneEscape(text.toUpperCase())}` : /^[A-Za-z][A-Za-z0-9_]*-$/.test(text) ? `id:${luceneEscape(text.toUpperCase())}*` : text ? `title:*${luceneEscape(text)}*` : 'id:*';
+      const rows = await this.remote.search?.(target, lucene, limit) ?? [];
+      remote = rows.map(row => ({ workItemId: row.workItemId, title: row.title ?? '', source: 'remote' as const }));
+    } catch { remote = []; }
+    const seen = new Set<string>(); const merged: WorkItemHit[] = [];
+    for (const hit of [...local, ...remote]) { if (seen.has(hit.workItemId)) continue; seen.add(hit.workItemId); merged.push(hit); if (merged.length >= limit) break; }
+    return merged;
+  }
+  /** 完整只读预览：本地草稿优先，否则读取 Polarion 正文；节点信息供只读渲染使用。 */
+  async readOnly(target: Target, workItemId: string) {
+    const candidates = this.store.list<Draft>('draft').filter(d => d.workItemId === workItemId);
+    const local = candidates.find(d => d.target.projectId === target.projectId) ?? candidates[0];
+    if (local) return { ...this.read(local.id), source: 'draft' as const };
+    const item = await this.remote.read(target, workItemId);
+    const html = item.description ?? '';
+    const parsed = new LosslessHtml(html);
+    return { id: 'remote-' + workItemId, target, workItemId, title: item.title, baseHtml: html, html, baseUpdated: item.updated ?? '', revision: 0, state: 'clean' as const, savedAt: undefined, nodes: parsed.nodes, version: parsed.version, source: 'remote' as const };
+  }
+  async peek(target: Target, workItemId: string): Promise<WorkItemPreview> {
+    const key = `${target.projectId}/${target.document}/${workItemId}`;
+    const cached = this.previews.get(key);
+    if (cached && Date.now() - cached.at < 60_000) return cached.value;
+    const candidates = this.store.list<Draft>('draft').filter(d => d.workItemId === workItemId);
+    const local = candidates.find(d => d.target.projectId === target.projectId) ?? candidates[0];
+    let value: WorkItemPreview;
+    if (local) {
+      const text = this.read(local.id).nodes.filter(n => n.text).map(n => String(n.text).trim()).filter(Boolean).join('\n').slice(0, 1200);
+      value = { workItemId, title: local.title, text, state: local.state, revision: local.revision, source: 'draft' };
+    } else {
+      const item = await this.remote.read(target, workItemId);
+      const text = new LosslessHtml(item.description ?? '').nodes.filter(n => n.text).map(n => String(n.text).trim()).filter(Boolean).join('\n').slice(0, 1200);
+      value = { workItemId, title: item.title, text, source: 'remote' };
+    }
+    this.previews.set(key, { at: Date.now(), value });
+    return value;
+  }
   saving = new Set<string>();
   richModels = new Map<string, RichDocument>();
   constructor(store: Store, remote: Remote) { this.store = store; this.remote = remote; }
+  /** 变体工作项不属于当前文档，读写时必须携带主工作项与链接角色。 */
+  variantFor(target: Target, workItemId: string) {
+    return this.store.list<Variant>('variant').find(v => v.workItemId === workItemId && sameTarget(v.target, target));
+  }
+  scopeFor(target: Target, workItemId: string): VariantScope | undefined {
+    const variant = this.variantFor(target, workItemId);
+    return variant ? { mainWorkItemId: variant.mainWorkItemId, role: variant.linkRole } : undefined;
+  }
   async open(target: Target, workItemId: string) {
+    const variant = this.variantFor(target, workItemId);
+    const scope = variant ? { mainWorkItemId: variant.mainWorkItemId, role: variant.linkRole } : undefined;
     const prior = this.store.drafts(target).find(d => d.workItemId === workItemId);
-    if (prior) return this.read(prior.id);
-    const item = await this.remote.read(target, workItemId);
+    if (prior) {
+      // 旧草稿可能早于变体登记；补上归属，后续保存即可带变体作用域。
+      if (variant && prior.variantOf !== variant.mainWorkItemId) this.store.put('draft', prior.id, { ...prior, variantOf: variant.mainWorkItemId });
+      return this.read(prior.id);
+    }
+    const item = await this.remote.read(target, workItemId, scope);
     // Another request can finish while the remote read is in flight.
     const existing = this.store.drafts(target).find(d => d.workItemId === workItemId);
     if (existing) return this.read(existing.id);
-    const draft: Draft = { id: crypto.randomUUID(), target, workItemId, title: item.title, baseHtml: item.description ?? '', html: item.description ?? '', baseUpdated: item.updated ?? '', revision: 0, state: 'clean' };
+    const draft: Draft = { id: crypto.randomUUID(), target, workItemId, title: item.title, baseHtml: item.description ?? '', html: item.description ?? '', baseUpdated: item.updated ?? '', revision: 0, state: 'clean', ...(variant ? { variantOf: variant.mainWorkItemId } : {}) };
     this.store.put('draft', draft.id, draft); return this.read(draft.id);
   }
   read(id: string) {
@@ -147,10 +280,11 @@ export class Drafts {
     if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
     this.saving.add(id);
     let dispatched = false,knownUnchanged=false; const operationId = crypto.randomUUID();
+    const scope = this.scopeFor(draft.target, draft.workItemId);
     const audit = { id: operationId, draftId: id, target: draft.target, workItemId: draft.workItemId, revision: draft.revision, startedAt: Date.now(), phase: 'preflight', baseHash: createHash('sha256').update(draft.baseHtml).digest('hex'), proposedHash: createHash('sha256').update(draft.html).digest('hex') };
     this.store.put('save', operationId, audit);
     try {
-      const current = await this.remote.read(draft.target, draft.workItemId);
+      const current = await this.remote.read(draft.target, draft.workItemId, scope);
       if (current.updated !== draft.baseUpdated || (current.description ?? '') !== draft.baseHtml) {
         this.store.put('draft', id, { ...draft, state: 'conflict' }); throw Error('REMOTE_CONFLICT');
       }
@@ -158,8 +292,8 @@ export class Drafts {
       this.store.put('draft', id, { ...draft, state: 'uncertain' });
       this.store.put('save', operationId, { ...audit, phase: 'dispatched' }); dispatched = true;
       const outgoing={...draft,html:polarionWriteHtml(draft.html)};
-      const outcome = await this.remote.save(outgoing);
-      const readback = await this.remote.read(draft.target, draft.workItemId);
+      const outcome = await this.remote.save(outgoing, scope);
+      const readback = await this.remote.read(draft.target, draft.workItemId, scope);
       // Allow only serialization-equivalent attributes/entities/style spacing.
       // Text, tags, CSS values/order, images and object references still must match.
       const submitted=outcome.submittedHtml??outgoing.html;
@@ -182,14 +316,14 @@ export class Drafts {
     } finally { this.saving.delete(id); }
   }
   async conflictRead(id:string){
-    const draft=this.store.require<Draft>('draft',id),remote=await this.remote.read(draft.target,draft.workItemId),remoteHtml=remote.description??'';
+    const draft=this.store.require<Draft>('draft',id),remote=await this.remote.read(draft.target,draft.workItemId,this.scopeFor(draft.target,draft.workItemId)),remoteHtml=remote.description??'';
     return{draft,remoteHtml,remoteUpdated:remote.updated??'',remoteHash:createHash('sha256').update(remoteHtml).digest('hex')};
   }
   async resolveConflict(id:string,expectedRevision:number,remoteHash:string,remoteUpdated:string,strategy:'keep-local'|'use-remote'){
     if(this.saving.has(id))throw Error('DRAFT_SAVING');this.saving.add(id);
     try{
       const draft=this.store.require<Draft>('draft',id);if(draft.revision!==expectedRevision)throw Error('STALE_DRAFT');
-      const remote=await this.remote.read(draft.target,draft.workItemId),remoteHtml=remote.description??'';
+      const remote=await this.remote.read(draft.target,draft.workItemId,this.scopeFor(draft.target,draft.workItemId)),remoteHtml=remote.description??'';
       if(createHash('sha256').update(remoteHtml).digest('hex')!==remoteHash||(remote.updated??'')!==remoteUpdated)throw Error('REMOTE_CHANGED_SINCE_REVIEW');
       const html=strategy==='keep-local'?draft.html:remoteHtml;
       this.store.put('conflict-resolution',crypto.randomUUID(),{draftId:id,at:Date.now(),strategy,previous:draft,remoteHtml,remoteUpdated});
@@ -202,7 +336,7 @@ export class Drafts {
     this.saving.add(id);
     try {
       const draft = this.store.require<Draft>('draft', id);
-      const remote = await this.remote.read(draft.target, draft.workItemId);
+      const remote = await this.remote.read(draft.target, draft.workItemId, this.scopeFor(draft.target, draft.workItemId));
       let value: Draft;
       if (equivalentHtml(remote.description??'',polarionWriteHtml(draft.html))) value = { ...draft, html:remote.description??'',revision:draft.revision+(remote.description===draft.html?0:1),baseHtml: remote.description??'', baseUpdated: remote.updated ?? '', state: 'clean', savedAt: Date.now() };
       else if ((remote.description ?? '') === draft.baseHtml && remote.updated === draft.baseUpdated) value = { ...draft, state: 'dirty' };
@@ -211,5 +345,20 @@ export class Drafts {
       this.store.put('reconciliation', crypto.randomUUID(), { draftId: id, at: Date.now(), state: value.state, remoteUpdated: remote.updated, remoteHash: createHash('sha256').update(remote.description ?? '').digest('hex') });
       return this.read(id);
     } finally { this.saving.delete(id); }
+  }
+  /** 批量删除共享草稿及本地会话、检查点与附件回执；正在保存的草稿拒绝删除。 */
+  remove(ids: string[]) {
+    const removed: string[] = [];
+    for (const id of ids) {
+      if (this.saving.has(id)) throw Error('DRAFT_SAVING');
+      this.store.require<Draft>('draft', id);
+      this.store.remove('draft', id);
+      this.store.removeMatching('draft-checkpoint', checkpoint => checkpoint.draftId === id);
+      for (const session of this.store.list<RichSession>('rich-editor')) if (session.draftId === id) { this.store.remove('rich-editor', session.id); this.richModels.delete(session.id); }
+      this.store.removeMatching('attachment-receipt', receipt => receipt.draftId === id);
+      this.snapshots.delete(id);
+      removed.push(id);
+    }
+    return removed;
   }
 }

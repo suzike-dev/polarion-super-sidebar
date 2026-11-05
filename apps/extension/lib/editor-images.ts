@@ -12,7 +12,14 @@ export function imageResolver(draft:Draft){
       if(assetId||src.startsWith('polarion-asset:'))asset=await rpc({method:'assets.metadata',assetId:assetId??src.slice(15)});
       else if(src.startsWith('workitemimg:'))asset=await rpc({method:'images.resolve',target:draft.target,workItemId:draft.workItemId,src});
       if(asset){if(asset.extraction!=='image')throw Error('IMAGE_NOT_AVAILABLE');const blob=await assetBlob(asset);if(disposed)throw Error('EDITOR_CLOSED');const url=URL.createObjectURL(blob);urls.add(url);return url;}
-      if(src.startsWith('attachment:'))return draft.target.origin+'/polarion/module-attachment/'+encodeURIComponent(draft.target.projectId)+'/'+draft.target.document.split('/').map(encodeURIComponent).join('/')+'/'+encodeURIComponent(src.slice(11));
+      if(src.startsWith('attachment:')){
+        // 先按工作项附件解析（LiveDoc 会把工作项附件写成 attachment:<文件名>），失败再回退模块附件 URL。
+        try{
+          const asset=await rpc<Asset>({method:'images.resolve',target:draft.target,workItemId:draft.workItemId,src});
+          if(asset.extraction==='image'){const blob=await assetBlob(asset);if(disposed)throw Error('EDITOR_CLOSED');const url=URL.createObjectURL(blob);urls.add(url);return url;}
+        }catch{/* fall back to module attachment URL */}
+        return draft.target.origin+'/polarion/module-attachment/'+encodeURIComponent(draft.target.projectId)+'/'+draft.target.document.split('/').map(encodeURIComponent).join('/')+'/'+encodeURIComponent(src.slice(11));
+      }
       const url=new URL(src,draft.target.origin+'/polarion/');if(url.origin!==draft.target.origin)throw Error('IMAGE_IMPORT_REQUIRED');return url.href;
     })();pending.set(key,job);return job;
   },dispose(){disposed=true;urls.forEach(url=>URL.revokeObjectURL(url));urls.clear();}};
