@@ -1,8 +1,8 @@
 import type {DocumentOutlineItem} from '../../../packages/protocol/index';
-/** 章节色相：鲜明、彼此差距大，用于区分章容器。 */
-export const OUTLINE_HUES = [174, 205, 248, 286, 330, 28] as const;
-/** 分组色相：同一章内的三级子容器也各自不同色。 */
-export const OUTLINE_GROUP_HUES = [198, 168, 268, 318, 22, 232] as const;
+/** 章节色相：功能卡三元组——绿 142 / 蓝灰 205 / 沙棕 30，粉彩章带。 */
+export const OUTLINE_HUES = [142, 205, 30] as const;
+/** 分组色相：章内三级子容器在三元组上偏移 +16°，保持家族一致。 */
+export const OUTLINE_GROUP_HUES = [158, 218, 44] as const;
 export type OutlineGroup = { num: string; title: string; hue: number; items: DocumentOutlineItem[] };
 export type OutlineChapter = { num: string; title: string; hue: number; groups: OutlineGroup[] };
 

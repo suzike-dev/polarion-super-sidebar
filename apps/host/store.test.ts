@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, rmSync, rmdirSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from './store.ts';
-import type { Context, Draft } from '../../packages/protocol/index.ts';
+import type { Context, Draft, Session } from '../../packages/protocol/index.ts';
 import { CommandSchema } from '../../packages/protocol/index.ts';
 const target = { origin: 'https://polarion.pufafen.com' as const, projectId: 'test01', document: 'Requirements/Fixture' };
 test('fresh and legacy settings use compact answer type without changing engine preferences', () => {
@@ -22,13 +22,13 @@ test('fresh and legacy settings use compact answer type without changing engine 
 
 test('answer font size accepts integer boundaries and rejects invalid settings writes', () => {
   const settings={defaultEngine:'claude',claudeModel:'',codexModel:'gpt-6.1-sol'};
-  for(const assistantFontSize of [12,13,18]) {
+  for(const assistantFontSize of [9,12,18]) {
     const command=CommandSchema.parse({method:'settings.write',settings:{...settings,assistantFontSize}});
     assert.equal(command.method,'settings.write');
     if(command.method!=='settings.write')throw Error('Unexpected command');
     assert.equal(command.settings.assistantFontSize,assistantFontSize);
   }
-  for(const assistantFontSize of [11,19,13.5,NaN,Infinity,'14',null]) {
+  for(const assistantFontSize of [8,19,13.5,NaN,Infinity,'14',null]) {
     assert.equal(CommandSchema.safeParse({method:'settings.write',settings:{...settings,assistantFontSize}}).success,false);
   }
   assert.equal(CommandSchema.safeParse({method:'settings.write',settings:{...settings,defaultPermissionMode:'yolo'}}).success,false);
@@ -195,4 +195,72 @@ test('draft folder ignores unrelated JSON and equivalent path spellings keep dra
     assert.deepEqual(store.list<Draft>('draft').map(item => item.id), [draft.id]);
     assert.ok(existsSync(join(folder, draft.id + '.json')));
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('session archive and group round trip through the store without touching updatedAt', () => {
+  const store=new Store(':memory:');
+  try {
+    const session=store.createSession(target,'新工程会话');
+    const order=session.updatedAt;
+    const archived=CommandSchema.parse({method:'sessions.archive',sessionId:session.id,archived:true});
+    assert.equal(archived.method,'sessions.archive');
+    const current=store.require<Session>('session',session.id);
+    current.archived=true;store.put('session',current.id,current);
+    assert.equal(store.require<Session>('session',session.id).archived,true);
+    const grouped=CommandSchema.parse({method:'sessions.group',sessionId:session.id,group:'  S1 验收  '});
+    assert.equal(grouped.method,'sessions.group');
+    const renamed=store.require<Session>('session',session.id);
+    renamed.group='S1 验收';store.put('session',renamed.id,renamed);
+    const back=store.require<Session>('session',session.id);
+    assert.equal(back.group,'S1 验收');
+    assert.equal(back.archived,true);
+    assert.equal(back.updatedAt,order,'archiving and grouping must not reorder sessions');
+    const clear=CommandSchema.parse({method:'sessions.group',sessionId:session.id,group:''});
+    assert.equal(clear.method,'sessions.group');
+  } finally {store.close();}
+});
+
+test('session delete purges runs, events and request mappings and rejects busy sessions', () => {
+  const store=new Store(':memory:');
+  try {
+    const session=store.createSession(target,'待删除会话');
+    const context:Context={id:'c1',target,text:'上下文',prefix:'',suffix:'',source:'work-item',pinned:false,capturedAt:Date.now()};
+    const {run}=store.startRun(session.id,'req-del-1','你好',[context]);
+    store.event(run,'status',{status:'completed'});
+    assert.ok(store.events(session.id,0).length>=1);
+    // 运行中的会话必须拒绝删除
+    assert.throws(()=>store.deleteSession(session.id),/SESSION_BUSY/);
+    // 结束任务后删除：联动清理 runs/事件/请求映射
+    run.status='completed';run.endedAt=Date.now();store.put('run',run.id,run);
+    const result=store.deleteSession(session.id);
+    assert.deepEqual(result,{deleted:session.id});
+    assert.equal(store.get('session',session.id),undefined);
+    assert.equal(store.list<{sessionId:string}>('run').filter(r=>r.sessionId===session.id).length,0);
+    assert.equal(store.events(session.id,0).length,0);
+    assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM requests').get()?.n,0,'stale request mappings must be purged');
+    assert.throws(()=>store.deleteSession(session.id),/NOT_FOUND/);
+  } finally {store.close();}
+});
+
+test('session groups registry: create dedupes, delete disbands and strips sessions', () => {
+  const store=new Store(':memory:');
+  try {
+    const s1=store.createSession(target,'组内会话');
+    const s2=store.createSession(target,'散会话');
+    s1.group='逻辑';store.put('session',s1.id,s1);
+    const created=store.get<{name:string}>('session-group','逻辑');
+    assert.equal(created,undefined,'registry starts empty; UI creates via command path');
+    store.put('session-group','逻辑',{name:'逻辑',createdAt:Date.now()});
+    store.put('session-group','逻辑',{name:'逻辑',createdAt:Date.now()+1});
+    const rows=store.list<{name:string}>('session-group');
+    assert.equal(rows.length,1,'duplicate create must overwrite same key, not duplicate');
+    assert.equal(store.list<{group?:string}>('session').filter(x=>x.group==='逻辑').length,1);
+    // 解散：清登记 + 清所有会话上的该分组
+    store.remove('session-group','逻辑');
+    for (const s of store.list<{id:string;group?:string}>('session')) if (s.group==='逻辑') store.put('session',s.id,{...s,group:undefined});
+    assert.equal(store.list<{group?:string}>('session-group').length,0);
+    assert.equal(store.require<Session>('session',s1.id).group,undefined);
+    assert.equal(store.require<Session>('session',s2.id).group,undefined);
+    assert.ok(store.get('session',s1.id),'disband must keep sessions themselves');
+  } finally {store.close();}
 });

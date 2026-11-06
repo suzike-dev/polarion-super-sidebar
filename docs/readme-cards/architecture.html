@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1520px; height: 760px; background: #E9EFE2; font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif; position: relative; overflow: hidden; }
+  .num { position: absolute; left: 64px; top: 44px; font-size: 60px; font-weight: 700; color: #B7C6AE; }
+  .eyebrow { position: absolute; left: 168px; top: 62px; font-size: 13px; letter-spacing: .45em; color: #4E6B52; font-weight: 700; }
+  h2 { position: absolute; left: 166px; top: 92px; font-size: 40px; color: #1D3328; font-weight: 700; }
+  .lede { position: absolute; left: 168px; top: 168px; font-size: 17px; color: #55685A; }
+  .stage { position: absolute; left: 64px; top: 240px; width: 1392px; height: 440px; background: #F4F8EF; border: 1px solid #D8E0CB; border-radius: 18px; padding: 30px; }
+  .col { position: absolute; top: 40px; width: 400px; }
+  .col.c1 { left: 40px; }
+  .col.c2 { left: 500px; }
+  .col.c3 { left: 960px; }
+  .card { background: #fff; border: 1px solid #D8E0CB; border-radius: 14px; padding: 18px 22px; margin-bottom: 14px; }
+  .card b { font-size: 16px; color: #1D3328; display: block; margin-bottom: 6px; }
+  .card p { font-size: 12.5px; line-height: 1.8; color: #55685A; }
+  .card.dark { background: #16281E; border-color: #16281E; }
+  .card.dark b { color: #F1F6EC; }
+  .card.dark p { color: #9DB2A0; }
+  .card.dark2 { background: #1E573C; border-color: #1E573C; }
+  .card.dark2 b { color: #fff; }
+  .card.dark2 p { color: #CFE0D2; }
+  .card .tag { display: inline-block; background: #D8EBAD; color: #1E3B24; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 9px; margin-bottom: 8px; }
+  .arrow { position: absolute; height: 2px; background: #4E584C; top: 120px; }
+  .lbl { position: absolute; font-size: 11.5px; color: #55685A; top: 96px; }
+  .side2 { position: absolute; left: 40px; right: 40px; bottom: 30px; display: flex; gap: 14px; }
+  .s2 { flex: 1; background: #fff; border: 1px solid #D8E0CB; border-radius: 12px; padding: 12px 18px; }
+  .s2 b { font-size: 13px; color: #1D3328; display: block; margin-bottom: 4px; }
+  .s2 p { font-size: 11.5px; color: #55685A; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <div class="num">10</div>
+  <div class="eyebrow">LOCAL WORKSPACE & CONNECTION</div>
+  <h2>浏览器、本机 Agent 与 Polarion 各司其职。</h2>
+  <div class="lede">凭据不传入 AI 引擎；属性、追踪与工作流仍走 Polarion 原生界面。</div>
+  <div class="stage">
+    <div class="col c1">
+      <div class="card"><b>浏览器扩展</b><p>上下文 · 编辑 · 预览 · 审阅<br>会话与分组 · 总览矩阵</p></div>
+      <div class="card"><b>本地草稿</b><p>SQLite / JSON 文件夹<br>本地自动保存与恢复</p></div>
+    </div>
+    <div class="arrow" style="left:444px;width:52px"></div>
+    <div class="lbl" style="left:436px">Native Messaging</div>
+    <div class="col c2">
+      <div class="card dark"><span class="tag">本地 Host</span><b>Claude Code 引擎</b><p>复用本机 CLI 配置、Skills 与 MCP<br>会话 · 排队 · 引导打断</p></div>
+      <div class="card"><b>保存编排</b><p>检查与审阅 → 写入 → 回读核对</p></div>
+    </div>
+    <div class="arrow" style="left:904px;width:52px"></div>
+    <div class="lbl" style="left:880px">SOAP（独立凭据进程）</div>
+    <div class="col c3">
+      <div class="card dark2"><span class="tag">凭据隔离</span><b>Polarion 21R2</b><p>正文与附件读写<br>DPAPI 加密凭据</p></div>
+      <div class="card"><b>原生入口</b><p>属性、追踪与工作流<br>仍在 Polarion 原生界面</p></div>
+    </div>
+    <div class="side2">
+      <div class="s2"><b>共享草稿与目录迁移</b><p>默认本地数据库；可切换 JSON 草稿文件夹，保存时迁移，失败保留原存储。</p></div>
+      <div class="s2"><b>草稿清理</b><p>多选删除本地草稿，二次确认；不删除 Polarion 服务端工作项。</p></div>
+      <div class="s2"><b>技术底座</b><p>TypeScript · React 19 · WXT · Tiptap 3 · Excalidraw · Node.js 24 · SQLite · SOAP</p></div>
+    </div>
+  </div>
+</body>
+</html>

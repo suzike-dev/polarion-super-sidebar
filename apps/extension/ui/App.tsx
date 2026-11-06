@@ -10,8 +10,8 @@ import {applyWorkItemPick, matchWorkItemQuery, splitWorkItems} from '../lib/work
 import {documentWorkItems, filterWorkItems} from '../lib/document-items';
 import {answerClipboard} from '../lib/answer-clipboard';
 import {AssistantMarkdown} from './AssistantMarkdown';
-import { PanelRightClose, PanelRightOpen, Plus, ArrowUp, Square, Pin, X, Settings, ListTree, MessageSquare, SlidersHorizontal, FileText, History, ChevronRight, ChevronDown, Check, ExternalLink, GripVertical, TerminalSquare, Paperclip, AlertCircle, Search, PenLine, ListChecks, Quote, RotateCcw, LayoutGrid } from 'lucide-react';
-import type { Context, Draft, Guideline, Run, RunEvent, Session, Target, EngineCapabilities, Asset, PermissionMode, TurnDelivery } from '../../../packages/protocol/index';
+import { PanelRightClose, PanelRightOpen, Plus, ArrowUp, Square, Pin, X, Settings, ListTree, MessageSquare, SlidersHorizontal, FileText, History, ChevronRight, ChevronDown, Check, ExternalLink, GripVertical, TerminalSquare, Paperclip, AlertCircle, Search, PenLine, ListChecks, Quote, RotateCcw, LayoutGrid, Archive, ArchiveRestore, Trash2, FolderPlus } from 'lucide-react';
+import type { Context, Draft, Guideline, Run, RunEvent, Session, SessionGroup, Target, EngineCapabilities, Asset, PermissionMode, TurnDelivery } from '../../../packages/protocol/index';
 import { routeFromUrl, sameTarget, DEFAULT_PERMISSION_MODE, DEFAULT_TURN_DELIVERY, SettingsSchema } from '../../../packages/protocol/index';
 import type {BoardGenerationRequest} from '../../host/boards';
 import type { SourceNode } from '../../../packages/core/lossless-html';
@@ -37,15 +37,33 @@ const errors: Record<string, string> = { NATIVE_EDITOR_DIRTY: '原生文档存�
 const errorText = (e: unknown) => polarionFeedback((e as Error).message) ?? errors[(e as Error).message] ?? (e as Error).message;
 const statusText: Record<string, string> = { running: '正在处理', waiting: '等待工具确认', queued: '已排队 · 等待上一轮', completed: '已完成', failed: '执行失败', cancelled: '已停止', interrupted: '已打断' };
 // 会话历史按今天/昨天/更早分组，避免平铺列表随会话增长失控。
-function sessionGroups(sessions: Session[]) {
+function sessionGroups(sessions: Session[], registered: SessionGroup[]) {
+  const active = sessions.filter(s => !s.archived);
+  // 分组登记独立存在（空分组也显示）；会话按组名归入，登记顺序即展示顺序。
+  const byGroup = new Map<string, Session[]>();
+  const plain: Session[] = [];
+  for (const s of [...active].sort((a, b) => b.updatedAt - a.updatedAt)) {
+    if (s.group) { const rows = byGroup.get(s.group) ?? []; rows.push(s); byGroup.set(s.group, rows); }
+    else plain.push(s);
+  }
+  const named: { label: string; rows: Session[] }[] = [];
+  const seen = new Set<string>();
+  for (const g of registered) {
+    if (seen.has(g.name)) continue;
+    seen.add(g.name);
+    named.push({ label: g.name, rows: byGroup.get(g.name) ?? [] });
+  }
+  for (const [label, rows] of [...byGroup.entries()].sort((a, b) => a[0].localeCompare(b[0], 'zh-CN'))) {
+    if (!seen.has(label)) { seen.add(label); named.push({ label, rows }); }
+  }
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const yesterday = new Date(today.getTime() - 86400000);
-  const groups: { label: string; rows: Session[] }[] = [{ label: '今天', rows: [] }, { label: '昨天', rows: [] }, { label: '更早', rows: [] }];
-  for (const session of sessions) {
+  const buckets: { label: string; rows: Session[] }[] = [{ label: '今天', rows: [] }, { label: '昨天', rows: [] }, { label: '更早', rows: [] }];
+  for (const session of plain) {
     const updated = new Date(session.updatedAt);
-    (updated >= today ? groups[0]! : updated >= yesterday ? groups[1]! : groups[2]!).rows.push(session);
+    (updated >= today ? buckets[0]! : updated >= yesterday ? buckets[1]! : buckets[2]!).rows.push(session);
   }
-  return groups.filter(group => group.rows.length > 0);
+  return [...named, ...buckets.filter(group => group.rows.length > 0)];
 }
 type PreviewRect = { left: number; top: number; right: number; bottom: number };
 type PreviewState = { id: string; text: string; state?: string; source?: 'draft' | 'remote'; loading: boolean; failed?: boolean; rect?: PreviewRect; fallback?: string; revision?: number };
@@ -230,6 +248,7 @@ export function App() {
   useEffect(() => {
     if (!target) return; let disposed = false;
     const refresh = async () => { try { await rpc({ method: 'health' }); if (disposed) return; setHealth(true); const rows = await rpc<Session[]>({ method: 'sessions.list', projectId: target.projectId }); if (disposed) return; setSessions(old=>JSON.stringify(old)===JSON.stringify(rows)?old:rows);
+      const groupRows = await rpc<SessionGroup[]>({ method: 'sessionGroups.list' }); if (!disposed) setSessionGroupRows(old=>JSON.stringify(old)===JSON.stringify(groupRows)?old:groupRows);
       if (!sessionRef.current) { const key = 'active-project-session:' + target.projectId; const legacy = 'active-session:' + JSON.stringify(target); const state = await browser.storage.local.get([key, legacy]); const saved = state[key] ?? state[legacy]; const last = rows.find(s => s.id === saved); if (last && !disposed && !sessionRef.current) setSession(last); }
       const localDrafts = await rpc<Draft[]>({ method: 'drafts.list', target }); if (!disposed) setDrafts(old=>JSON.stringify(old)===JSON.stringify(localDrafts)?old:localDrafts);
     } catch (e) { if (!disposed) { setHealth(false); setError(errorText(e)); } } };
@@ -364,6 +383,56 @@ export function App() {
     if(!uploadCount.current)setUploadProgress('');
   }
   async function newSession() { if (!target) return null;const epoch=routeEpoch.current;const s = await rpc<Session>({ method: 'sessions.create', target, title: '新工程会话' });if(epoch!==routeEpoch.current||!targetRef.current||!sameTarget(target,targetRef.current))return null;setSessions(list => [s, ...list]); setSession(s); setHistory(false); return s; }
+  // ---- 会话管理：重命名 / 归档 / 分组 / 删除。错误统一走 setError，操作后本地更新列表。 ----
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [groupingId, setGroupingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  async function renameSession(s: Session, title: string) {
+    const name = title.trim(); if (!name) { setRenamingId(null); return; }
+    try { const renamed = await rpc<Session>({ method: 'sessions.rename', sessionId: s.id, title: name.slice(0, 100) });
+      setSessions(list => list.map(x => x.id === renamed.id ? renamed : x)); if (session?.id === renamed.id) setSession(renamed);
+      setRenamingId(null);
+    } catch (e) { setError(errorText(e)); }
+  }
+  async function archiveSession(s: Session, archived: boolean) {
+    try { const next = await rpc<Session>({ method: 'sessions.archive', sessionId: s.id, archived });
+      setSessions(list => list.map(x => x.id === next.id ? next : x)); if (session?.id === next.id) setSession(next);
+      setDeletingId(null); setGroupingId(null);
+    } catch (e) { setError(errorText(e)); }
+  }
+  async function setSessionGroup(s: Session, group: string) {
+    try { const next = await rpc<Session>({ method: 'sessions.group', sessionId: s.id, group });
+      setSessions(list => list.map(x => x.id === next.id ? next : x)); if (session?.id === next.id) setSession(next);
+      setGroupingId(null);
+    } catch (e) { setError(errorText(e)); }
+  }
+  async function removeSession(s: Session) {
+    try { await rpc({ method: 'sessions.delete', sessionId: s.id });
+      setSessions(list => list.filter(x => x.id !== s.id)); setDeletingId(null);
+      if (session?.id === s.id) setSession(null);
+    } catch (e) { setError(errorText(e)); }
+  }
+  // ---- 分组登记：顶部栏新建/解散；会话行只从已有分组中选择。 ----
+  const [sessionGroupRows, setSessionGroupRows] = useState<SessionGroup[]>([]);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [disbandArmed, setDisbandArmed] = useState<string | null>(null);
+  const [sectionMarks, setSectionMarks] = useState<Record<string, boolean>>({});
+  async function createSessionGroup() {
+    const name = newGroupName.trim(); if (!name) return;
+    try { const g = await rpc<SessionGroup>({ method: 'sessionGroups.create', name });
+      setSessionGroupRows(list => list.some(x => x.name === g.name) ? list : [...list, g].sort((a, b) => a.createdAt - b.createdAt));
+      setNewGroupName('');
+    } catch (e) { setError(errorText(e)); }
+  }
+  async function disbandSessionGroup(name: string) {
+    try { await rpc({ method: 'sessionGroups.delete', name });
+      setSessionGroupRows(list => list.filter(x => x.name !== name));
+      // 解散后该组会话回到时间桶：本地同步剥离 group 字段，等下一次轮询收敛。
+      setSessions(list => list.map(x => x.group === name ? { ...x, group: undefined } : x));
+      if (session?.group === name) setSession(s => s ? { ...s, group: undefined } : s);
+      setDisbandArmed(null);
+    } catch (e) { setError(errorText(e)); }
+  }
   async function send() {
     if ((!input.trim() && !attachments.length) || !target || sending || uploadCount.current) return;
     const epoch=routeEpoch.current;const stillCurrent=()=>epoch===routeEpoch.current&&!!targetRef.current&&sameTarget(target,targetRef.current);
@@ -395,6 +464,40 @@ export function App() {
   const editorRequest=draftOpenRequest.current,editorRoute=routeEpoch.current;
   const editorStillCurrent=()=>{const page=routeFromUrl(location.href);return !!draft&&draftRef.current?.id===draft.id&&editorRequest===draftOpenRequest.current&&editorRoute===routeEpoch.current&&!!page&&sameTarget(page,draft.target)&&!!targetRef.current&&sameTarget(targetRef.current,draft.target);};
   if (!target || !pageReady) return null;
+  // 可选分组 = 登记分组 ∪ 会话上实际存在的组名（兼容登记前的旧数据）。
+  const groupNames = [...new Set([...sessionGroupRows.map(g => g.name), ...sessions.filter(s => s.group).map(s => s.group!)])];
+  const groupCounts = new Map<string, number>();
+  for (const s of sessions) if (s.group && !s.archived) groupCounts.set(s.group, (groupCounts.get(s.group) ?? 0) + 1);
+  const archivedCount = sessions.filter(s => s.archived).length;
+  // 折叠三态：'+'=展开 '-'=折叠 无标记=默认（当前会话所在节展开，其余折叠）。
+  const sectionOpen = (label: string, rows: Session[]) => sectionMarks['+' + label] === true ? true : sectionMarks['-' + label] === true ? false : rows.some(s => s.id === session?.id);
+  const toggleSection = (label: string, rows: Session[], open: boolean) => setSectionMarks(m => ({ ...m, ['+' + label]: open, ['-' + label]: !open }));
+  function sessionRow(s: Session) {
+    const current = session?.id === s.id;
+    if (renamingId === s.id) return <div className="history-row renaming" key={s.id}>
+      <input className="rename-input" autoFocus defaultValue={s.title} maxLength={100} aria-label="会话名称"
+        onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') void renameSession(s, e.currentTarget.value); if (e.key === 'Escape') setRenamingId(null); }}
+        onBlur={e => void renameSession(s, e.currentTarget.value)} />
+    </div>;
+    return <div className={'history-row' + (deletingId === s.id ? ' deleting' : '')} key={s.id}>
+      <button className={current ? 'history-open current' : 'history-open'} aria-current={current ? 'true' : undefined} onClick={() => { setSession(s); closeHistory(); }}>
+        <span>{s.title}{s.group && <em className="history-group-tag">{s.group}</em>}</span>
+        <small>{s.engine === 'claude' ? 'Claude Code' : 'Codex'} · {new Date(s.updatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</small>
+      </button>
+      {deletingId === s.id ? <span className="history-confirm"><span>删除会话及其全部记录？</span><button className="confirm-yes" onClick={() => void removeSession(s)}>删除</button><button className="confirm-no" onClick={() => setDeletingId(null)}>取消</button></span>
+        : <span className="history-actions">
+          <button className="icon" title="重命名会话" onClick={() => { setGroupingId(null); setDeletingId(null); setRenamingId(s.id); }}><PenLine size={12}/></button>
+          <button className="icon" title="移动到分组" onClick={() => { setRenamingId(null); setDeletingId(null); setGroupingId(v => v === s.id ? null : s.id); }}><FolderPlus size={12}/></button>
+          <button className="icon" title={s.archived ? '恢复到列表' : '归档会话'} onClick={() => void archiveSession(s, !s.archived)}>{s.archived ? <ArchiveRestore size={12}/> : <Archive size={12}/>}</button>
+          <button className="icon danger" title="删除会话" onClick={() => setDeletingId(s.id)}><Trash2 size={12}/></button>
+        </span>}
+      {groupingId === s.id && <div className="group-menu" onKeyDown={e => e.stopPropagation()}>
+        {groupNames.length > 0 ? <div className="group-menu-list">{groupNames.map(name => <button key={name} className={s.group === name ? 'current' : ''} title={s.group === name ? '当前分组' : '归入 ' + name} onClick={() => void setSessionGroup(s, name)}><FolderPlus size={11}/>{name}</button>)}</div>
+          : <p className="group-menu-empty">还没有分组，先在历史面板上方新建。</p>}
+        {s.group && <button className="group-ungroup" onClick={() => void setSessionGroup(s, '')}>移出分组</button>}
+      </div>}
+    </div>;
+  }
 
   return <div className={'workspace-root'+(overview?' overview-open':'')} style={{'--assistant-width':width+'px','--assistant-font-size':(settings&&config?config.assistantFontSize:assistantFontSize)+'px'} as React.CSSProperties}>
     {!open && <button className="reopen" onClick={() => setOpen(true)} title="展开 Polarion 助手"><PanelRightOpen size={18}/><span>助手</span>{active && <i className="running-dot"/>}</button>}
@@ -419,7 +522,28 @@ export function App() {
         {pinnedOutline && <section className="pinned-outline"><div className="section-title"><span>固定大纲</span><button className="icon" title="取消固定大纲" onClick={() => setPinnedOutline(false)}><X size={13}/></button></div>{outlineView}</section>}
         <div className="session-bar"><button ref={historyTrigger} title="会话历史" aria-expanded={history} aria-controls="sidebar-session-history" onClick={() => {if(history)closeHistory();else{setShowCapabilities(false);setHistory(true);}}}><History size={14}/><span>{session?.title ?? '新工程会话'}</span><ChevronDown size={12} className="chevron"/></button><button ref={capabilitiesTrigger} className="icon" title="Claude Code 命令、Skills 与 MCP" aria-expanded={showCapabilities} onClick={() => {if(showCapabilities)closeCapabilities();else{setHistory(false);setShowCapabilities(true);void loadCapabilities();}}}><TerminalSquare size={16}/></button><button className="icon" title="新建会话" onClick={() => void newSession().catch(e => setError(errorText(e)))}><Plus size={17}/></button></div>
         {showCapabilities && <CapabilitiesPanel value={capabilities} loading={loadingCapabilities} error={capabilityError} connected={health&&capabilities?.connected===true} onManage={(action,server)=>void manageCapabilities(action,server)} onRefresh={() => void loadCapabilities(true)} onCommand={chooseCommand} onClose={closeCapabilities}/>}
-        {history && <div ref={historyPanel} id="sidebar-session-history" className="history" aria-label="会话历史" tabIndex={-1} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeHistory();}}}>{sessions.length ? sessionGroups(sessions).map(group => <div className="history-group" key={group.label}><h4>{group.label}</h4>{group.rows.map(s => <button key={s.id} aria-current={session?.id === s.id ? 'true' : undefined} className={session?.id === s.id ? 'current' : ''} onClick={() => { setSession(s);closeHistory(); }}><span>{s.title}</span><small>{s.engine === 'claude' ? 'Claude Code' : 'Codex'} · {new Date(s.updatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</small></button>)}</div>) : <p className="muted">这个项目还没有会话。</p>}</div>}
+        {history && <div ref={historyPanel} id="sidebar-session-history" className="history" aria-label="会话历史" tabIndex={-1} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeHistory();}}}>
+          <div className="group-bar">
+            <input className="group-bar-new" value={newGroupName} placeholder="新建分组" maxLength={40} aria-label="新建分组" onKeyDown={e => { if (e.key === 'Enter') void createSessionGroup(); if (e.key === 'Escape') setNewGroupName(''); }} onChange={e => setNewGroupName(e.target.value)} />
+            <button className="group-bar-add" disabled={!newGroupName.trim()} title="新建分组" onClick={() => void createSessionGroup()}><Plus size={13}/>新建</button>
+            {groupNames.length > 0 && <span className="group-bar-chips">{groupNames.map(name => <span key={name} className={'group-chip' + (disbandArmed === name ? ' armed' : '')}>
+              <em>{name}{groupCounts.get(name) ? <i>·{groupCounts.get(name)}</i> : null}</em>
+              {disbandArmed === name
+                ? <button title="确认解散" onClick={() => void disbandSessionGroup(name)}>解散?</button>
+                : <button title="解散分组（组内会话回到未分组）" onClick={() => setDisbandArmed(name)}><X size={10}/></button>}
+            </span>)}</span>}
+          </div>
+          {sessions.length ? <>
+            {sessionGroups(sessions, sessionGroupRows).map(group => <details className={'history-group' + (group.rows.length === 0 ? ' empty' : '')} key={group.label} open={sectionOpen(group.label, group.rows)} onToggle={e => { const el = e.currentTarget; if (el.open !== sectionOpen(group.label, group.rows)) toggleSection(group.label, group.rows, el.open); }}>
+              <summary><span className="hg-name">{group.label}</span><span className="hg-count">{group.rows.length}</span><ChevronRight size={12} className="hg-chevron"/></summary>
+              {group.rows.map(s => sessionRow(s))}
+            </details>)}
+            {archivedCount > 0 && <details className="history-archive">
+              <summary>归档 · {archivedCount}</summary>
+              {sessions.filter(s => s.archived).map(s => sessionRow(s))}
+            </details>}
+          </> : groupNames.length === 0 ? <p className="muted">这个项目还没有会话。</p> : <p className="muted">还没有会话。可在上方分组，或直接新建会话。</p>}
+        </div>}
         <div className="conversation" ref={scrolling} onScroll={e=>{const el=e.currentTarget;const away=el.scrollHeight-el.scrollTop-el.clientHeight>=100;followOutput.current=!away;setAwayFromLatest(away);}}>{!loadingHistory && events.length === 0 && runs.length === 0 && <div className="welcome"><div className="welcome-mark"><MessageSquare size={13}/><span>从当前文档开始</span></div><h2>把需求对话，<br/>变成可审阅的修改。</h2><p>选中正文或打开工作项，助手会带着准确上下文与你协作。</p><div className="suggestions">{([['检查选区中的歧义与遗漏',Search],['梳理需求对应的验证场景',ListChecks],['改进表述，保留所有工程参数',PenLine]] as [string,React.ElementType][]).map(([text,Icon]) => <button key={text} onClick={() => setInput(text)}><span className="sug-icon"><Icon size={13}/></span><span className="sug-text">{text}</span><ChevronRight size={14}/></button>)}</div><div className="workflow-note"><span>选取上下文</span><ChevronRight size={12}/><span>审阅草稿</span><ChevronRight size={12}/><span>明确保存</span></div></div>}
           {transcript.archived.length>0&&<details className="history-before-reset" key={transcript.boundary!.seq}><summary>查看新对话之前的记录 · {transcript.archived.length} 轮</summary>{transcript.archived.map(run=><Turn key={run.id} run={run} events={byRun.get(run.id)!} recovering={loadingHistory} onDraft={openDraft} onPermission={answerPermission} onDiagram={openDiagram} onRetry={retryTurn} onQuote={quoteAnswer} onWorkItem={openReader} busy={!!active}/>)}</details>}
           {transcript.boundary&&<p className="history-loading" role="status">原生对话已重置；之前的记录已保留，下一条消息使用新的对话上下文。</p>}

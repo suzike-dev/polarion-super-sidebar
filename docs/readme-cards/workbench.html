@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1520px; height: 760px; background: #E9EFE2; font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif; position: relative; overflow: hidden; }
+  .num { position: absolute; left: 64px; top: 44px; font-size: 60px; font-weight: 700; color: #B7C6AE; }
+  .eyebrow { position: absolute; left: 168px; top: 62px; font-size: 13px; letter-spacing: .45em; color: #4E6B52; font-weight: 700; }
+  h2 { position: absolute; left: 166px; top: 92px; font-size: 40px; color: #1D3328; font-weight: 700; }
+  .lede { position: absolute; left: 168px; top: 168px; font-size: 17px; color: #55685A; }
+  .stage { position: absolute; left: 64px; top: 232px; width: 900px; height: 460px; background: #F0F3EA; border: 1px solid #D8E0CB; border-radius: 18px; overflow: hidden; }
+  .bar { height: 58px; background: #F0F3EA; border-bottom: 1px solid #E1E6D8; display: flex; align-items: center; gap: 14px; padding: 0 22px; }
+  .bar .doc { width: 34px; height: 36px; border-radius: 9px; background: #D8EBAD; display: grid; place-items: center; font-size: 18px; }
+  .bar .t b { font-size: 17px; color: #242C24; display: block; }
+  .bar .t span { font-size: 11px; color: #75806F; letter-spacing: .1em; }
+  .bar .acts { margin-left: auto; display: flex; gap: 8px; }
+  .bar .acts span { padding: 7px 14px; border-radius: 9px; background: #fff; border: 1px solid #E1E6D8; font-size: 13px; color: #4E584C; }
+  .bar .acts .go { background: #1E573C; color: #fff; border-color: #1E573C; font-weight: 600; }
+  .tabs { height: 46px; background: #F0F3EA; border-bottom: 1px solid #E1E6D8; display: flex; align-items: flex-end; padding: 0 22px; gap: 20px; }
+  .tabs span { font-size: 14px; color: #75806F; padding: 8px 4px; position: relative; }
+  .tabs span.on { color: #1E573C; font-weight: 700; }
+  .tabs span.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #1E573C; border-radius: 2px 2px 0 0; }
+  .paper { position: absolute; left: 40px; right: 40px; top: 128px; bottom: 56px; background: #fff; border: 1px solid #E2E8DC; border-radius: 6px; box-shadow: 0 2px 12px rgba(34,58,42,.06); padding: 34px 40px; }
+  .paper h4 { font-size: 22px; color: #242C24; margin-bottom: 16px; }
+  .paper p { font-size: 13.5px; line-height: 2; color: #4E584C; }
+  .paper .tb { margin-top: 18px; border: 1px solid #D2DBC8; border-radius: 8px; overflow: hidden; }
+  .paper .tb .r { display: flex; border-bottom: 1px solid #E1E6D8; }
+  .paper .tb .r:last-child { border-bottom: 0; }
+  .paper .tb .c { flex: 1; padding: 9px 14px; font-size: 12.5px; color: #4E584C; border-right: 1px solid #E1E6D8; }
+  .paper .tb .c:last-child { border-right: 0; }
+  .paper .tb .h { background: #EFF3E9; font-weight: 700; color: #37463B; }
+  .paper .tb .hl { background: #E4F0C8; }
+  .status { position: absolute; left: 0; right: 0; bottom: 0; height: 56px; background: #F0F3EA; border-top: 1px solid #E1E6D8; display: flex; align-items: center; padding: 0 22px; gap: 8px; font-size: 12.5px; color: #6A7763; }
+  .status .save { margin-left: auto; background: #1E573C; color: #fff; border-radius: 8px; padding: 8px 16px; font-weight: 600; }
+  .ai { position: absolute; right: 64px; top: 232px; width: 440px; height: 490px; background: #16281E; border-radius: 18px; padding: 26px; }
+  .ai .win { display: flex; gap: 6px; margin-bottom: 16px; }
+  .ai .win i { width: 9px; height: 9px; border-radius: 50%; background: #3E5C46; }
+  .ai h3 { color: #F1F6EC; font-size: 18px; margin-bottom: 6px; }
+  .ai .en { color: #6E8A72; font-size: 11px; letter-spacing: .3em; margin-bottom: 22px; }
+  .ai .msg { background: #1D3527; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+  .ai .msg b { color: #D8EBAD; font-size: 13px; }
+  .ai .msg p { color: #A8BCA6; font-size: 13px; line-height: 1.8; margin-top: 4px; }
+  .ai .input { margin-top: 18px; background: #1D3527; border: 1px solid #2E4A38; border-radius: 10px; height: 46px; display: flex; align-items: center; padding: 0 16px; color: #6E8A72; font-size: 13px; }
+  .ai .input .send { margin-left: auto; width: 30px; height: 30px; border-radius: 8px; background: #D8EBAD; display: grid; place-items: center; color: #1E3B24; font-weight: 700; }
+  .ai .foot { margin-top: 16px; font-size: 11px; letter-spacing: .22em; color: #6E8A72; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="num">02</div>
+  <div class="eyebrow">RICH DOCUMENT WORKBENCH</div>
+  <h2>把工程正文，写得清晰而有层次。</h2>
+  <div class="lede">统一鼠尾草工作台 + 白纸正文；AI 协作紧贴正文，草稿先行，明确保存。</div>
+  <div class="stage">
+    <div class="bar">
+      <div class="doc">📄</div>
+      <div class="t"><b>[SWE] 座椅热舒适控制</b><span>工作项 · TEST-729</span></div>
+      <div class="acts"><span>变体</span><span>AI 协作</span><span class="go">保存到 Polarion</span></div>
+    </div>
+    <div class="tabs"><span class="on">编辑正文</span><span>阅读预览</span><span>修改对照</span><div class="acts" style="margin-left:auto;display:flex;gap:8px"><span style="border:0;background:transparent;padding:0">修订 20 · 与基线一致</span></div></div>
+    <div class="paper">
+      <h4>1. 功能描述</h4>
+      <p>根据占位与环境输入，形成可审阅的控制需求；文字与段落工具条按功能组自适应收起，为正文留出空间。</p>
+      <div class="tb">
+        <div class="r h"><div class="c">输入条件</div><div class="c">有效性</div><div class="c">处理策略</div></div>
+        <div class="r"><div class="c">温度</div><div class="c hl">有效</div><div class="c">更新控制输入</div></div>
+        <div class="r"><div class="c">占位</div><div class="c">去抖确认</div><div class="c">满足前置条件</div></div>
+        <div class="r"><div class="c">信号异常</div><div class="c">无效</div><div class="c">执行降级处理</div></div>
+      </div>
+    </div>
+    <div class="status">405 字 · 本地自动保存<span class="save">✓ 保存到 Polarion</span></div>
+  </div>
+  <div class="ai">
+    <div class="win"><i></i><i></i><i></i></div>
+    <h3>Claude Code</h3>
+    <div class="en">LOCAL AGENT COLLABORATION</div>
+    <div class="msg"><b>已将建议写入共享本地草稿。</b><p>检查歧义，保留所有工程参数。请审阅后明确保存到 Polarion。</p></div>
+    <div class="msg"><b>草稿已更新</b><p>文字与段落 · 表格 · 插入与查找，工具条按功能组自适应收起。</p></div>
+    <div class="input">继续补充验证场景…<span class="send">↑</span></div>
+    <div class="foot">ONE CONTEXT. ONE DRAFT. REVIEWED WRITEBACK.</div>
+  </div>
+</body>
+</html>

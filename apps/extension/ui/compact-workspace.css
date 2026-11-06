@@ -123,7 +123,7 @@
 /* Original two-window geometry follows the existing assistant resize control. */
 :host .workspace.floating-assistant { width: var(--assistant-panel-width, 410px) !important; min-width: 0; top: 18px !important; right: 18px; bottom: 18px; left: auto; height: auto; border: 1px solid #c1cfd6; border-radius: 11px; box-shadow: var(--ui-shadow); }
 :host .workspace.floating-assistant > .resize-grip { display: flex; left: 0; width: 7px; color: var(--ui-muted); touch-action: none; }
-:host .workspace.floating-assistant > .resize-grip:hover { color: var(--ui-secondary); background: #20272516; }
+:host .workspace.floating-assistant > .resize-grip:hover { color: var(--ui-secondary); background: #223a2a16; }
 :host .workspace.floating-assistant .collaboration-bar { height: 41px; padding: 0 12px; gap: 7px; }
 :host .workspace.floating-assistant .collaboration-bar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :host .workspace.floating-assistant .session-bar { height: 36px; background: #fff; }

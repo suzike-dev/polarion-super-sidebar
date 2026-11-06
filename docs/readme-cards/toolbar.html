@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1520px; height: 760px; background: #E9EFE2; font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif; position: relative; overflow: hidden; }
+  .num { position: absolute; left: 64px; top: 44px; font-size: 60px; font-weight: 700; color: #B7C6AE; }
+  .eyebrow { position: absolute; left: 168px; top: 62px; font-size: 13px; letter-spacing: .45em; color: #4E6B52; font-weight: 700; }
+  h2 { position: absolute; left: 166px; top: 92px; font-size: 40px; color: #1D3328; font-weight: 700; }
+  .lede { position: absolute; left: 168px; top: 168px; font-size: 17px; color: #55685A; }
+  .stage { position: absolute; left: 64px; top: 232px; width: 840px; height: 460px; background: #F0F3EA; border: 1px solid #D8E0CB; border-radius: 18px; overflow: hidden; }
+  .ribbon-tabs { height: 44px; background: #F0F3EA; border-bottom: 1px solid #E1E6D8; display: flex; align-items: flex-end; padding: 0 20px; gap: 18px; }
+  .ribbon-tabs span { font-size: 13.5px; color: #75806F; padding: 8px 4px; position: relative; }
+  .ribbon-tabs span.on { color: #1E573C; font-weight: 700; }
+  .ribbon-tabs span.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #1E573C; border-radius: 2px 2px 0 0; }
+  .ribbon { height: 52px; background: #F6F8F2; border-bottom: 1px solid #E1E6D8; display: flex; align-items: center; padding: 0 16px; gap: 8px; }
+  .ribbon .g { display: flex; align-items: center; gap: 5px; padding: 0 10px; border-right: 1px solid #E1E6D8; height: 32px; }
+  .ribbon .g:last-child { border-right: 0; }
+  .ribbon .g span { padding: 5px 10px; border-radius: 6px; font-size: 12.5px; color: #4E584C; background: transparent; }
+  .ribbon .g span.on { background: #E4EFDC; color: #1E573C; font-weight: 700; }
+  .ribbon .g b { font-size: 12px; color: #4E584C; font-weight: 600; }
+  .paper { position: absolute; left: 34px; right: 34px; top: 120px; bottom: 40px; background: #fff; border: 1px solid #E2E8DC; border-radius: 6px; padding: 30px 36px; }
+  .paper h4 { font-size: 20px; color: #242C24; margin-bottom: 12px; }
+  .paper p { font-size: 13px; line-height: 1.9; color: #4E584C; }
+  .paper .tb { margin-top: 14px; border: 1px solid #D2DBC8; border-radius: 8px; overflow: hidden; }
+  .paper .tb .r { display: flex; border-bottom: 1px solid #E1E6D8; }
+  .paper .tb .r:last-child { border-bottom: 0; }
+  .paper .tb .c { flex: 1; padding: 8px 14px; font-size: 12px; color: #4E584C; border-right: 1px solid #E1E6D8; }
+  .paper .tb .c:last-child { border-right: 0; }
+  .paper .tb .h { background: #EFF3E9; font-weight: 700; color: #37463B; }
+  .paper .tb .hl { background: #E4F0C8; }
+  .side { position: absolute; left: 960px; top: 240px; width: 500px; display: flex; flex-direction: column; gap: 20px; }
+  .point { background: #fff; border: 1px solid #D8E0CB; border-radius: 14px; padding: 20px 24px; }
+  .point h3 { font-size: 19px; color: #1D3328; margin-bottom: 8px; }
+  .point h3 i { font-style: normal; color: #2E5B41; margin-right: 8px; }
+  .point p { font-size: 14.5px; line-height: 1.9; color: #55685A; }
+</style>
+</head>
+<body>
+  <div class="num">06</div>
+  <div class="eyebrow">ENGINEERING TABLES</div>
+  <h2>让工程表格，支持精细编辑。</h2>
+  <div class="lede">单元选区、行列结构、合并拆分与精确属性；青柠高亮当前选区。</div>
+  <div class="stage">
+    <div class="ribbon-tabs"><span class="on">文字与段落</span><span>表格</span><span>插入与查找</span></div>
+    <div class="ribbon">
+      <div class="g"><span>↶</span><span>↷</span></div>
+      <div class="g"><b>正文 ▾</b><b>Segoe UI ▾</b><b>12 pt ▾</b></div>
+      <div class="g"><span><b>B</b></span><span><i>I</i></span><span><u>U</u></span></div>
+      <div class="g"><span>文字色</span><span>高亮</span><span>对齐</span><span>列表</span></div>
+    </div>
+    <div class="paper">
+      <h4>工程参数表 · 单元格选区</h4>
+      <div class="tb">
+        <div class="r h"><div class="c">输入</div><div class="c">有效性</div><div class="c">处理策略</div></div>
+        <div class="r"><div class="c">温度</div><div class="c hl">有效</div><div class="c">更新控制输入</div></div>
+        <div class="r"><div class="c">占位</div><div class="c">去抖确认</div><div class="c">满足前置条件</div></div>
+        <div class="r"><div class="c">信号异常</div><div class="c">无效</div><div class="c">执行降级处理</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="side">
+    <div class="point"><h3><i>▪</i>选区与结构</h3><p>单元格、整行、整列、全表选择；插入、删除、移动行列与表头切换。</p></div>
+    <div class="point"><h3><i>▪</i>合并与拆分</h3><p>合并选区、拆分单元格；支持嵌套表格与合并结构。</p></div>
+    <div class="point"><h3><i>▪</i>精确属性</h3><p>表宽、单元格尺寸、垂直对齐、底色、边框与表格/单元格属性。</p></div>
+  </div>
+</body>
+</html>

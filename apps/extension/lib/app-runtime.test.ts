@@ -80,6 +80,7 @@ test('App keeps asynchronous replies bound to the submitted input and document',
           case 'engine.context':value={connected:false};break;
           case 'sessions.list':value=withSession&&command.projectId===target.projectId?[session]:[];break;
           case 'sessions.read':value={session,runs:options.runs??[],events:[]};break;
+          case 'sessionGroups.list':value=[];break;
           case 'drafts.list':value=['A','B','C'].map(draft);break;
           case 'runs.start':value=await send.promise;break;
           case 'sessions.create':value=await create.promise;break;

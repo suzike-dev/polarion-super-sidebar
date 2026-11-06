@@ -95,7 +95,7 @@ export function SettingsPanel({config,defaultFontSize,guidelines,loading,saving,
         </>}
         {panelTab==='appearance'&&<div className="sp-card"><div className="sp-card-head"><span className="sp-icon"><Type size={14}/></span><div><h4>回答外观</h4><p>只影响 AI 回答，不改变需求正文。</p></div></div>
           <div className="sp-font">
-            <div className="sp-font-scale">{[12,13,14,15,16,17,18].map(size=><button key={size} type="button" className={config.assistantFontSize===size?'on':''} disabled={saving} onClick={()=>onConfig({...config,assistantFontSize:size})}>{size}<small>px</small></button>)}</div>
+            <div className="sp-font-scale">{[9,10,11,12,13,14,15,16,17,18].map(size=><button key={size} type="button" className={config.assistantFontSize===size?'on':''} disabled={saving} onClick={()=>onConfig({...config,assistantFontSize:size})}>{size}<small>px</small></button>)}</div>
             <button type="button" className="sp-link" disabled={saving||config.assistantFontSize===defaultFontSize} onClick={()=>onConfig({...config,assistantFontSize:defaultFontSize})}>恢复默认 {defaultFontSize}px</button>
           </div>
           <div className="sp-font-preview" aria-label="AI 回答字号预览"><AssistantMarkdown text={'### 回答预览\n需求分析保留清晰层级，参数 `setpoint` 与正文一起调整。'}/></div>

@@ -46,7 +46,7 @@ export type Context = z.infer<typeof ContextSchema>;
 export const SettingsSchema = z.object({
   defaultEngine: z.enum(['claude', 'codex']), claudeModel: z.string().max(120),
   codexModel: z.literal('gpt-6.1-sol'),
-  assistantFontSize: z.number().int().min(12).max(18).default(13),
+  assistantFontSize: z.number().int().min(9).max(18).default(13),
   defaultPermissionMode: PermissionModeSchema.default(DEFAULT_PERMISSION_MODE),
   defaultTurnDelivery: TurnDeliverySchema.default(DEFAULT_TURN_DELIVERY),
   draftsFolder: z.string().max(1000).default(''),
@@ -130,6 +130,12 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('sessions.list'), projectId: z.string().max(160) }),
   z.object({ method: z.literal('sessions.create'), target: TargetSchema, title: z.string().min(1).max(100) }),
   z.object({ method: z.literal('sessions.rename'), sessionId: id, title: z.string().min(1).max(100) }),
+  z.object({ method: z.literal('sessions.archive'), sessionId: id, archived: z.boolean() }),
+  z.object({ method: z.literal('sessions.group'), sessionId: id, group: z.string().max(40) }),
+  z.object({ method: z.literal('sessions.delete'), sessionId: id }),
+  z.object({ method: z.literal('sessionGroups.list') }),
+  z.object({ method: z.literal('sessionGroups.create'), name: z.string().min(1).max(40) }),
+  z.object({ method: z.literal('sessionGroups.delete'), name: z.string().min(1).max(40) }),
   z.object({ method: z.literal('sessions.read'), sessionId: id, after: z.number().int().nonnegative().default(0) }),
   z.object({ method: z.literal('runs.start'), permissionMode:PermissionModeSchema.default(DEFAULT_PERMISSION_MODE), delivery:TurnDeliverySchema.default(DEFAULT_TURN_DELIVERY), guidelineId:z.string().uuid().optional(), sessionId: id, requestId: id, target: TargetSchema, prompt: z.string().min(1).max(40000), contexts: z.array(ContextSchema).max(12), attachments: z.array(id).max(12).default([]) }),
   z.object({ method: z.literal('assets.begin'), target: TargetSchema, name: z.string().min(1).max(240), mime: z.string().max(160), size: z.number().int().positive().max(25*1024*1024) }),
@@ -187,7 +193,8 @@ export type DocumentOutline = { documentId: string; title: string; items: Docume
 export const RequestSchema = z.object({ protocol: z.literal(PROTOCOL), id, command: CommandSchema });
 export type Request = z.infer<typeof RequestSchema>;
 export type Reply = { protocol: 1; id: string; ok: true; value: unknown } | { protocol: 1; id: string; ok: false; error: string };
-export type Session = { id: string; target: Target; title: string; engine: 'claude' | 'codex'; model: string; nativeId?: string; createdAt: number; updatedAt: number };
+export type Session = { id: string; target: Target; title: string; engine: 'claude' | 'codex'; model: string; nativeId?: string; createdAt: number; updatedAt: number; archived?: boolean; group?: string };
+export type SessionGroup = { name: string; createdAt: number };
 export type ContextUsage = { usedTokens: number; windowTokens: number; percentage: number; model: string; updatedAt: number; categories: { name: string; tokens: number; kind: string }[] };
 export type EngineContext = { usage: ContextUsage | null; connected: boolean; compacting: boolean };
 export type Run = { permissionMode?:PermissionMode; delivery?:TurnDelivery; guidelineId?:string; id: string; sessionId: string; requestId: string; target: Target; prompt: string; contexts: Context[]; attachments?: string[]; status: 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'interrupted'; startedAt: number; endedAt?: number; error?: string };

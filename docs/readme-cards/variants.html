@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1520px; height: 760px; background: #E9EFE2; font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif; position: relative; overflow: hidden; }
+  .num { position: absolute; left: 64px; top: 44px; font-size: 60px; font-weight: 700; color: #B7C6AE; }
+  .eyebrow { position: absolute; left: 168px; top: 62px; font-size: 13px; letter-spacing: .45em; color: #4E6B52; font-weight: 700; }
+  h2 { position: absolute; left: 166px; top: 92px; font-size: 40px; color: #1D3328; font-weight: 700; }
+  .lede { position: absolute; left: 168px; top: 168px; font-size: 17px; color: #55685A; }
+  .stage { position: absolute; left: 64px; top: 232px; width: 820px; height: 460px; background: #F4F8EF; border: 1px solid #D8E0CB; border-radius: 18px; padding: 30px; position: relative; }
+  .main { position: absolute; left: 30px; top: 170px; width: 200px; height: 130px; background: #16281E; border-radius: 14px; padding: 18px; }
+  .main b { color: #F1F6EC; font-size: 17px; display: block; }
+  .main span { color: #9DB2A0; font-size: 12px; display: block; margin-top: 6px; }
+  .main em { position: absolute; top: -12px; left: 18px; background: #D8EBAD; color: #1E3B24; font-style: normal; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 10px; }
+  .var { position: absolute; top: 40px; width: 220px; height: 120px; background: #fff; border: 1px solid #D8E0CB; border-radius: 14px; padding: 16px; }
+  .var b { color: #1D3328; font-size: 15px; display: block; }
+  .var span { color: #75806F; font-size: 12px; display: block; margin-top: 6px; line-height: 1.6; }
+  .var .tag { position: absolute; top: -12px; right: 14px; background: #2E5B41; color: #fff; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 2px 10px; }
+  .var.v1 { left: 300px; }
+  .var.v2 { left: 560px; }
+  .var .linkline { position: absolute; }
+  .line { position: absolute; height: 2px; background: #B9C9AE; }
+  .line.v { width: 2px; }
+  .l1 { left: 230px; top: 228px; width: 76px; }
+  .l2 { left: 490px; top: 228px; width: 76px; }
+  .l3 { left: 126px; top: 100px; width: 210px; }
+  .l3v { left: 126px; top: 100px; height: 70px; }
+  .acts { position: absolute; left: 30px; right: 30px; bottom: 26px; display: flex; gap: 10px; }
+  .acts span { flex: 1; text-align: center; background: #fff; border: 1px solid #D8E0CB; border-radius: 999px; padding: 9px 0; font-size: 13px; color: #37463B; font-weight: 600; }
+  .acts .dark2 { background: #1E573C; color: #fff; border-color: #1E573C; }
+  .side { position: absolute; left: 940px; top: 240px; width: 520px; display: flex; flex-direction: column; gap: 20px; }
+  .point { background: #fff; border: 1px solid #D8E0CB; border-radius: 14px; padding: 20px 24px; }
+  .point h3 { font-size: 19px; color: #1D3328; margin-bottom: 8px; }
+  .point h3 i { font-style: normal; color: #2E5B41; margin-right: 8px; }
+  .point p { font-size: 14.5px; line-height: 1.9; color: #55685A; }
+  .stat { position: absolute; left: 940px; bottom: 56px; background: #16281E; border-radius: 14px; padding: 18px 26px; display: flex; gap: 34px; align-items: center; }
+  .stat b { font-size: 30px; color: #D8EBAD; }
+  .stat span { font-size: 13px; color: #9DB2A0; }
+</style>
+</head>
+<body>
+  <div class="num">05</div>
+  <div class="eyebrow">REQUIREMENT VARIANTS</div>
+  <h2>一个需求槽位，管理多个客户与配置。</h2>
+  <div class="lede">变体是 Polarion 项目级独立工作项，通过可配置链接角色与主工作项关联。</div>
+  <div class="stage">
+    <div class="var v1"><span class="tag">默认变体</span><b>默认变体</b><span>首次接入前捕获主正文<br>保护主文档槽位</span></div>
+    <div class="var v2"><span class="tag">客户 A</span><b>客户 A · 配置 01</b><span>独立编辑与保存<br>记录客户/车型/配置</span></div>
+    <div class="main"><em>主工作项</em><b>座椅热舒适控制</b><span>文档槽位稳定，变体按需接入</span></div>
+    <div class="line l1"></div>
+    <div class="line l2"></div>
+    <div class="acts"><span>接入主工作项（差异预览）</span><span class="dark2">撤销快照</span></div>
+  </div>
+  <div class="side">
+    <div class="point"><h3><i>▪</i>创建与详细配置</h3><p>同类型独立工作项；记录客户、项目、车型、配置与备注，存于工作项附件，跨机器可重新发现。</p></div>
+    <div class="point"><h3><i>▪</i>独立编辑与保护</h3><p>变体正文复用悬浮编辑器，保存只写变体；主工作项保持原状，接入前自动捕获。</p></div>
+  </div>
+  <div class="stat"><b>20</b><span>次接入前快照<br>撤销有底</span></div>
+</body>
+</html>

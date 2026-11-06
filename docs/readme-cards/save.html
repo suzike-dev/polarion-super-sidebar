@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1520px; height: 760px; background: #16281E; font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif; position: relative; overflow: hidden; }
+  .num { position: absolute; left: 64px; top: 44px; font-size: 60px; font-weight: 700; color: #3E5C46; }
+  .eyebrow { position: absolute; left: 168px; top: 62px; font-size: 13px; letter-spacing: .45em; color: #6E8A72; font-weight: 700; }
+  h2 { position: absolute; left: 166px; top: 92px; font-size: 40px; color: #F1F6EC; font-weight: 700; }
+  .lede { position: absolute; left: 168px; top: 168px; font-size: 17px; color: #9DB2A0; }
+  .flow { position: absolute; left: 64px; top: 250px; width: 1392px; display: flex; align-items: stretch; gap: 0; }
+  .step { flex: 1; background: #1D3527; border: 1px solid #2E4A38; border-radius: 14px; padding: 22px 24px; position: relative; }
+  .step + .step { margin-left: 34px; }
+  .step + .step::before { content: '→'; position: absolute; left: -27px; top: 50%; transform: translateY(-50%); color: #D8EBAD; font-size: 22px; }
+  .step em { font-style: normal; font-size: 12px; letter-spacing: .3em; color: #6E8A72; font-weight: 700; display: block; margin-bottom: 10px; }
+  .step b { font-size: 20px; color: #F1F6EC; display: block; margin-bottom: 10px; }
+  .step p { font-size: 13.5px; line-height: 1.85; color: #9DB2A0; }
+  .step .lime { color: #D8EBAD; }
+  .notes { position: absolute; left: 64px; bottom: 70px; width: 1392px; display: flex; gap: 18px; }
+  .note { flex: 1; background: #1D3527; border-radius: 12px; padding: 16px 22px; }
+  .note b { color: #D8EBAD; font-size: 14px; display: block; margin-bottom: 6px; }
+  .note p { color: #9DB2A0; font-size: 12.5px; line-height: 1.75; }
+  .foot { position: absolute; left: 64px; bottom: 34px; font-size: 11px; letter-spacing: .3em; color: #5E7A64; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="num">08</div>
+  <div class="eyebrow">REVIEWED NATIVE WRITEBACK</div>
+  <h2 style="color:#F1F6EC">本地自动存草稿，明确保存才写回。</h2>
+  <div class="lede">同一份草稿人机协作；冲突进差异审阅；写回后独立回读核对。</div>
+  <div class="flow">
+    <div class="step"><em>01</em><b>共享草稿</b><p>人工与 AI 共用本地草稿和修订；<span class="lime">本地自动保存</span>、未同步编辑恢复与备份导出。</p></div>
+    <div class="step"><em>02</em><b>检查与审阅</b><p>原生状态 / 归属 / 版本核对；冲突进入<span class="lime">差异审阅</span>。</p></div>
+    <div class="step"><em>03</em><b>远端写入</b><p>正文与画板附件经 SOAP 写回；写入结果未确认时<span class="lime">保留草稿</span>。</p></div>
+    <div class="step"><em>04</em><b>独立回读</b><p>保存后<span class="lime">独立回读</span>，核对后同步原生正文；免刷新继续编辑。</p></div>
+  </div>
+  <div class="notes">
+    <div class="note"><b>图像与画板完整往返</b><p>画板源文件与 PNG 随保存处理；保存后可重新打开继续修改。</p></div>
+    <div class="note"><b>免刷新继续编辑</b><p>已验收的适配路径保留页面、编辑器、会话与滚动位置。</p></div>
+    <div class="note"><b>误删防护</b><p>运行中的会话拒绝删除；共享草稿不等于多人实时协作。</p></div>
+  </div>
+  <div class="foot">ONE CONTEXT. ONE DRAFT. REVIEWED WRITEBACK.</div>
+</body>
+</html>

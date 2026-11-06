@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1520px; height: 760px; background: #E9EFE2; font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif; position: relative; overflow: hidden; }
+  .num { position: absolute; left: 64px; top: 44px; font-size: 60px; font-weight: 700; color: #B7C6AE; }
+  .eyebrow { position: absolute; left: 168px; top: 62px; font-size: 13px; letter-spacing: .45em; color: #4E6B52; font-weight: 700; }
+  h2 { position: absolute; left: 166px; top: 92px; font-size: 40px; color: #1D3328; font-weight: 700; }
+  .lede { position: absolute; left: 168px; top: 168px; font-size: 17px; color: #55685A; }
+  .stage { position: absolute; left: 64px; top: 232px; width: 820px; height: 460px; background: #FBFCF8; border: 1px solid #D8E0CB; border-radius: 18px; padding: 20px; overflow: hidden; }
+  .bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .bar .ph { flex: 1; height: 34px; border: 1px solid #E1E6D8; border-radius: 999px; background: #fff; color: #9AA596; font-size: 13px; display: flex; align-items: center; padding: 0 14px; }
+  .bar .add { height: 34px; padding: 0 16px; border-radius: 999px; background: #1E573C; color: #fff; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+  .chips { display: flex; gap: 6px; margin-bottom: 12px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid #E1E6D8; border-radius: 999px; background: #fff; font-size: 12px; color: #4E584C; font-weight: 600; }
+  .chip i { font-style: normal; color: #9AA596; }
+  .sec { border-top: 1px solid #EEF1E7; padding-top: 8px; margin-top: 4px; }
+  .head { display: flex; align-items: center; gap: 8px; padding: 4px 6px; }
+  .head .name { flex: 1; font-size: 12px; font-weight: 700; letter-spacing: .08em; color: #75806F; }
+  .head .name.on { color: #1E573C; }
+  .head .cnt { min-width: 22px; height: 16px; border-radius: 999px; background: #F0F3EA; border: 1px solid #E1E6D8; color: #75806F; font-size: 10px; display: grid; place-items: center; }
+  .head .chev { color: #9AA596; font-size: 13px; transform: none; }
+  .head .chev.on { transform: rotate(90deg); }
+  .row { display: flex; align-items: center; background: #F6F8F2; border-radius: 8px; padding: 9px 12px; margin: 3px 0 3px 8px; }
+  .row.cur { background: #EDF2E3; }
+  .row span { flex: 1; font-size: 13px; color: #37463B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row em { font-style: normal; font-size: 10px; background: #D8EBAD; color: #2C4A22; border-radius: 999px; padding: 1px 7px; margin-left: 8px; font-weight: 600; }
+  .row small { color: #9AA596; font-size: 11px; }
+  .arch { margin-top: 10px; border-top: 1px solid #EEF1E7; padding: 10px 6px 0; font-size: 12px; color: #9AA596; letter-spacing: .06em; }
+  .side { position: absolute; left: 940px; top: 240px; width: 520px; display: flex; flex-direction: column; gap: 20px; }
+  .point { background: #fff; border: 1px solid #D8E0CB; border-radius: 14px; padding: 20px 24px; }
+  .point h3 { font-size: 19px; color: #1D3328; margin-bottom: 8px; }
+  .point h3 i { font-style: normal; color: #2E5B41; margin-right: 8px; }
+  .point p { font-size: 14.5px; line-height: 1.9; color: #55685A; }
+  .stat { position: absolute; left: 940px; bottom: 56px; background: #16281E; border-radius: 14px; padding: 18px 26px; display: flex; gap: 34px; align-items: center; }
+  .stat b { font-size: 30px; color: #D8EBAD; }
+  .stat span { font-size: 13px; color: #9DB2A0; }
+</style>
+</head>
+<body>
+  <div class="num">03</div>
+  <div class="eyebrow">SESSIONS & GROUPS</div>
+  <h2>会话按分组折叠，历史清晰可整理。</h2>
+  <div class="lede">顶部分组栏：新建分组、解散分组；会话行内操作：重命名 / 归档 / 归组 / 删除。</div>
+  <div class="stage">
+    <div class="bar"><span class="ph">新建分组</span><span class="add">＋ 新建</span></div>
+    <div class="chips"><span class="chip">回归验证组 <i>·3</i> ×</span><span class="chip">逻辑 <i>·1</i> ×</span></div>
+    <div class="sec">
+      <div class="head"><span class="name on">回归验证组</span><span class="cnt">3</span><span class="chev on">›</span></div>
+      <div class="row cur"><span>座椅热舒适控制验证 <em>回归验证组</em></span><small>Claude Code · 15:14</small></div>
+      <div class="row"><span>模式仲裁场景梳理 <em>回归验证组</em></span><small>Claude Code · 12:52</small></div>
+    </div>
+    <div class="sec"><div class="head"><span class="name">今天</span><span class="cnt">1</span><span class="chev">›</span></div></div>
+    <div class="sec"><div class="head"><span class="name">昨天</span><span class="cnt">8</span><span class="chev">›</span></div></div>
+    <div class="sec"><div class="head"><span class="name">更早</span><span class="cnt">11</span><span class="chev">›</span></div></div>
+    <div class="arch">归档 · 2</div>
+  </div>
+  <div class="side">
+    <div class="point"><h3><i>▪</i>分组栏</h3><p>新建分组一键完成；解散分组二次确认，组内会话自动回到未分组。</p></div>
+    <div class="point"><h3><i>▪</i>行内操作</h3><p>重命名、移动到分组、归档、删除（确认条二次确认），当前会话所在节自动展开。</p></div>
+    <div class="point"><h3><i>▪</i>归档收纳</h3><p>归档会话收进底部折叠区，需要时一键恢复，历史永不丢失。</p></div>
+  </div>
+  <div class="stat"><b>4</b><span>项行内操作<br>解散自动回归</span></div>
+</body>
+</html>

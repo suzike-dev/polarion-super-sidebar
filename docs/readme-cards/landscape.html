@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1520px; height: 760px; background: #E9EFE2; font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif; position: relative; overflow: hidden; }
+  .num { position: absolute; left: 64px; top: 44px; font-size: 60px; font-weight: 700; color: #B7C6AE; }
+  .eyebrow { position: absolute; left: 168px; top: 62px; font-size: 13px; letter-spacing: .45em; color: #4E6B52; font-weight: 700; }
+  h2 { position: absolute; left: 166px; top: 92px; font-size: 40px; color: #1D3328; font-weight: 700; }
+  .lede { position: absolute; left: 168px; top: 168px; font-size: 17px; color: #55685A; }
+  .stage { position: absolute; left: 64px; top: 230px; width: 780px; height: 460px; background: #F4F8EF; border: 1px solid #D8E0CB; border-radius: 18px; padding: 24px; }
+  .band { border-radius: 10px; padding: 10px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 14px; }
+  .band b { font-size: 15px; font-weight: 700; }
+  .band .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .band .chips span { background: #fff; border: 1px solid #ffffff; border-radius: 8px; padding: 4px 12px; font-size: 12.5px; color: #37463B; box-shadow: 0 1px 3px rgba(34,58,42,.08); }
+  .b1 { background: #D5E3CB; } .b1 b { color: #2E5B41; }
+  .b2 { background: #CFD9DD; } .b2 b { color: #35505E; }
+  .b3 { background: #E9DCC6; } .b3 b { color: #6B5637; }
+  .side { position: absolute; left: 900px; top: 240px; width: 560px; display: flex; flex-direction: column; gap: 22px; }
+  .point { background: #fff; border: 1px solid #D8E0CB; border-radius: 14px; padding: 20px 24px; }
+  .point h3 { font-size: 19px; color: #1D3328; margin-bottom: 8px; }
+  .point h3 i { font-style: normal; color: #2E5B41; margin-right: 8px; }
+  .point p { font-size: 14.5px; line-height: 1.9; color: #55685A; }
+  .stat { position: absolute; left: 900px; bottom: 60px; background: #16281E; border-radius: 14px; padding: 18px 26px; display: flex; gap: 34px; align-items: center; }
+  .stat b { font-size: 30px; color: #D8EBAD; }
+  .stat span { font-size: 13px; color: #9DB2A0; }
+</style>
+</head>
+<body>
+  <div class="num">01</div>
+  <div class="eyebrow">REQUIREMENTS LANDSCAPE</div>
+  <h2>整份 LiveDoc，一屏读懂结构。</h2>
+  <div class="lede">章节矩阵替代逐层展开：先定位，再阅读，最后进入编辑。</div>
+  <div class="stage">
+    <div class="band b1"><b>01 输入与诊断</b><div class="chips"><span>输入有效性</span><span>状态管理</span><span>故障处理</span></div></div>
+    <div class="band b2"><b>02 模式与仲裁</b><div class="chips"><span>模式进入</span><span>优先级仲裁</span><span>退出条件</span></div></div>
+  <div class="band b3"><b>03 舒适性控制</b><div class="chips"><span>设定值推荐</span><span>座椅控制</span><span>用户覆盖</span></div></div>
+    <div class="band b1"><b>04 执行与反馈</b><div class="chips"><span>扭矩输出</span><span>故障降级</span></div></div>
+    <div class="band b2"><b>05 诊断通信</b><div class="chips"><span>报文解析</span><span>冻结帧</span></div></div>
+    <div class="band b3"><b>06 数据存储</b><div class="chips"><span>快照</span><span>UDS 响应</span></div></div>
+  </div>
+  <div class="side">
+    <div class="point"><h3><i>▪</i>按章节平铺</h3><p>二级章色带、三级分组块；大分组按 18 项切块，扁平大章多列铺开。</p></div>
+    <div class="point"><h3><i>▪</i>搜索即定位</h3><p>编号、名称即时过滤；单击条目打开完整只读预览。</p></div>
+    <div class="point"><h3><i>▪</i>编辑现场可恢复</h3><p>总览与编辑层切换保留现场；本地缓存优先，后台刷新。</p></div>
+  </div>
+  <div class="stat"><b>258</b><span>可导航条目<br>24 个分组块</span></div>
+</body>
+</html>

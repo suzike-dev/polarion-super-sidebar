@@ -110,6 +110,25 @@ export class Store {
     const session: Session = { id: crypto.randomUUID(), target, title, engine: settings.defaultEngine, model: settings.defaultEngine === 'claude' ? settings.claudeModel : settings.codexModel, createdAt: Date.now(), updatedAt: Date.now() };
     this.put('session', session.id, session); return session;
   }
+  /** 删除会话并联动清理其全部任务、事件与请求映射；有未结束任务时拒绝，避免丢运行中的记录。 */
+  deleteSession(id: string) {
+    const session = this.require<Session>('session', id);
+    const runs = this.list<Run>('run').filter(r => r.sessionId === id);
+    if (runs.some(r => ['running', 'waiting', 'queued'].includes(r.status))) throw Error('SESSION_BUSY');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const run of runs) this.remove('run', run.id);
+      this.db.prepare('DELETE FROM events WHERE session_id=?').run(id);
+      const remaining = new Set(this.list<Run>('run').map(r => r.id));
+      for (const row of this.db.prepare('SELECT run_id FROM requests').all()) {
+        const runId = String(row.run_id);
+        if (!remaining.has(runId)) this.db.prepare('DELETE FROM requests WHERE run_id=?').run(runId);
+      }
+      this.remove('session', id);
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    return { deleted: session.id };
+  }
   event(run: Run, kind: string, data: unknown) {
     const at = Date.now();
     const result = this.db.prepare('INSERT INTO events(session_id,run_id,kind,data,at) VALUES(?,?,?,?,?)').run(run.sessionId, run.id, kind, JSON.stringify(data), at);

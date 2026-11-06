@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1520px; height: 760px; background: #E9EFE2; font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif; position: relative; overflow: hidden; }
+  .num { position: absolute; left: 64px; top: 44px; font-size: 60px; font-weight: 700; color: #B7C6AE; }
+  .eyebrow { position: absolute; left: 168px; top: 62px; font-size: 13px; letter-spacing: .45em; color: #4E6B52; font-weight: 700; }
+  h2 { position: absolute; left: 166px; top: 92px; font-size: 40px; color: #1D3328; font-weight: 700; }
+  .lede { position: absolute; left: 168px; top: 168px; font-size: 17px; color: #55685A; }
+  .stage { position: absolute; left: 64px; top: 232px; width: 820px; height: 460px; background: #FBFCF8; border: 1px solid #D8E0CB; border-radius: 18px; padding: 18px; }
+  .hd { display: flex; align-items: center; gap: 10px; padding: 4px 6px 12px; }
+  .hd .mk { width: 34px; height: 34px; border-radius: 9px; background: #D8EBAD; display: grid; place-items: center; color: #1E3B24; font-weight: 700; }
+  .hd b { font-size: 16px; color: #1D3328; }
+  .hd span { margin-left: auto; font-size: 12px; color: #9AA596; }
+  .nav { display: flex; gap: 4px; background: #F0F3EA; border: 1px solid #E1E6D8; border-radius: 10px; padding: 3px; margin-bottom: 12px; }
+  .nav span { flex: 1; text-align: center; padding: 8px 0; border-radius: 8px; font-size: 13px; color: #75806F; }
+  .nav span.on { background: #fff; color: #2E5B41; font-weight: 700; box-shadow: 0 1px 3px rgba(34,58,42,.1); }
+  .card { background: #fff; border: 1px solid #E1E6D8; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  .card b.t { font-size: 14px; color: #1D3328; display: block; margin-bottom: 4px; }
+  .card p { font-size: 12px; color: #75806F; margin-bottom: 10px; }
+  .font-scale { display: flex; gap: 5px; }
+  .font-scale span { flex: 1; text-align: center; padding: 8px 0; border: 1px solid #E1E6D8; border-radius: 8px; font-size: 12px; color: #4E584C; background: #fff; }
+  .font-scale span.on { background: #EDF2E3; border-color: #B7CBA9; color: #2E5B41; font-weight: 700; }
+  .font-scale span small { color: #9AA596; font-size: 9px; }
+  .row2 { display: flex; gap: 8px; margin-top: 10px; }
+  .row2 .f { flex: 1; border: 1px solid #E1E6D8; border-radius: 8px; padding: 8px 10px; }
+  .row2 .f small { display: block; color: #9AA596; font-size: 10.5px; margin-bottom: 3px; }
+  .row2 .f b { font-size: 12.5px; color: #4E584C; font-weight: 600; }
+  .guide { background: #fff; border: 1px solid #E1E6D8; border-radius: 12px; padding: 12px 16px; margin-top: 10px; }
+  .guide .r { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #F1F3EA; font-size: 13px; color: #37463B; }
+  .guide .r:last-child { border-bottom: 0; }
+  .guide .r i { font-style: normal; width: 22px; height: 22px; border-radius: 6px; background: #EDF2E3; display: grid; place-items: center; font-size: 11px; }
+  .guide .r small { margin-left: auto; color: #9AA596; font-size: 10.5px; }
+  .footbar { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
+  .footbar span { padding: 8px 18px; border-radius: 8px; border: 1px solid #E1E6D8; font-size: 12.5px; color: #4E584C; background: #fff; }
+  .footbar .save { background: #1E573C; color: #fff; border-color: #1E573C; font-weight: 700; }
+  .side { position: absolute; left: 940px; top: 240px; width: 520px; display: flex; flex-direction: column; gap: 20px; }
+  .point { background: #fff; border: 1px solid #D8E0CB; border-radius: 14px; padding: 20px 24px; }
+  .point h3 { font-size: 19px; color: #1D3328; margin-bottom: 8px; }
+  .point h3 i { font-style: normal; color: #2E5B41; margin-right: 8px; }
+  .point p { font-size: 14.5px; line-height: 1.9; color: #55685A; }
+</style>
+</head>
+<body>
+  <div class="num">09</div>
+  <div class="eyebrow">REUSABLE GUIDELINES & PREFERENCES</div>
+  <h2>把常用规范，变成随手可用的指令。</h2>
+  <div class="lede">随发送附加与通用指令库；字号 9–18px 即时预览；偏好持久保存。</div>
+  <div class="stage">
+    <div class="hd"><span class="mk">⚙</span><b>助手设置</b><span>账号 · 默认行为 · 外观 · 存储</span></div>
+    <div class="nav"><span class="on">常规</span><span>外观</span><span>存储</span><span>指令 2</span></div>
+    <div class="card">
+      <b class="t">AI 回答字号</b>
+      <p>即时预览，保存后立即生效。</p>
+      <div class="font-scale"><span>9</span><span>10</span><span>11</span><span>12</span><span class="on">13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span></div>
+    </div>
+    <div class="card">
+      <b class="t">预设指令</b>
+      <p>随发送附加 / 通用指令库；每条可关联多个本地文件。</p>
+      <div class="guide">
+        <div class="r"><i>📝</i>需求措辞检查<small>2 个文件 · 随发送附加</small></div>
+        <div class="r"><i>📐</i>SWRS 模板规范<small>1 个文件 · 通用指令库</small></div>
+      </div>
+    </div>
+    <div class="footbar"><span>取消</span><span class="save">保存全部设置</span></div>
+  </div>
+  <div class="side">
+    <div class="point"><h3><i>▪</i>随发送附加</h3><p>输入框下拉选择后随本条消息发送；每次独立选择，默认不附加。</p></div>
+    <div class="point"><h3><i>▪</i>通用指令库</h3><p>索引每轮提供，由 Agent 按当前需求查阅；每条可关联多个本地文本文件，使用时重新读取。</p></div>
+    <div class="point"><h3><i>▪</i>偏好持久保存</h3><p>模型、批准方式、新输入方式与字号等默认偏好持久保存，跨会话生效。</p></div>
+  </div>
+</body>
+</html>

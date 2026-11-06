@@ -15,7 +15,7 @@
 .assistant-message blockquote p:last-child { margin-bottom: 0; }
 .assistant-message a { color: var(--ui-accent); text-decoration: underline; text-underline-offset: 3px; }
 .assistant-message hr { border: 0; border-top: 1px solid var(--ui-line); margin: 18px 0; }
-.assistant-message :not(pre) > code { font-family: var(--ui-mono); font-size: max(12px, .92em); background: #f3f4f1; color: #40454a; padding: 1px 5px; border: 1px solid var(--ui-soft-line); border-radius: var(--ui-radius-xs); word-break: break-word; }
+.assistant-message :not(pre) > code { font-family: var(--ui-mono); font-size: max(9px, .92em); background: #f3f4f1; color: #40454a; padding: 1px 5px; border: 1px solid var(--ui-soft-line); border-radius: var(--ui-radius-xs); word-break: break-word; }
 .answer-table { overflow-x: auto; max-width: 100%; overscroll-behavior-x: contain; }
 .answer-code-wrap { position: relative; margin: 12px 0; }
 .answer-code { border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); background: var(--ui-subtle); max-width: 100%; overflow: hidden; margin: 0; }
@@ -123,7 +123,7 @@ li[data-status='failed'] .step-icon { color: var(--ui-danger); }
 .ghost-action:hover:not(:disabled) { background: var(--ui-accent-soft); color: var(--ui-accent-ink); }
 .ghost-action:disabled { opacity: .45; }
 .history-more { display: block; width: 100%; margin: 6px 0 2px; padding: 7px; border: 1px dashed var(--ui-line); border-radius: var(--ui-radius-sm); font-size: 11px; color: var(--ui-muted); background: transparent; }
-.history-more:hover { background: var(--ui-subtle); color: var(--ui-secondary); border-color: #cfd8d3; }
+.history-more:hover { background: var(--ui-subtle); color: var(--ui-secondary); border-color: #cfd8c4; }
 @media (prefers-reduced-motion: reduce) { .answer-actions { transition: none; } }
 
 /* 拖拽投放提示：覆盖在输入区上的虚线目标，离开即消失。 */

@@ -1,6 +1,6 @@
 /* 变体管理：悬浮编辑器右侧抽屉；主工作项正文保持可见可编辑。 */
-.variant-chip { display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; margin-top: 3px; padding: 1px 6px; border: 1px solid #d9e3de; border-radius: 999px; background: #f1f6f3; color: #4d6a63; font-size: 9.5px; line-height: 1.5; }
-.variant-chip:hover { background: #e8f0eb; border-color: #c9d8d1; }
+.variant-chip { display: inline-flex; align-items: center; gap: 3px; align-self: flex-start; margin-top: 3px; padding: 1px 6px; border: 1px solid #d9e3d3; border-radius: 999px; background: #f0f4ea; color: #3e6649; font-size: 9.5px; line-height: 1.5; }
+.variant-chip:hover { background: #e9f0e0; border-color: #cbdcc4; }
 .variant-panel {
   position: absolute;
   top: 85px;
@@ -15,86 +15,86 @@
   overflow: hidden;
   pointer-events: auto;
   color: #3f413d;
-  background: #fbfaf8;
-  border-left: 1px solid #e2dfd9;
+  background: #f9faf4;
+  border-left: 1px solid #e1e5d9;
   border-radius: 0 0 12px 0;
   box-shadow: -10px 0 30px #20272514;
 }
-.variant-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #eceae6; background: linear-gradient(180deg, #fdfdfc, #faf9f7); flex: none; }
-.variant-title { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; color: #4d6a63; }
+.variant-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #ecefe4; background: linear-gradient(180deg, #fcfcf8, #fafbf5); flex: none; }
+.variant-title { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; color: #3e6649; }
 .variant-title strong { display: block; font-size: 12.5px; font-weight: 650; color: #3c3d3b; }
-.variant-title small { display: block; margin-top: 1px; font-size: 10px; color: #96938d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
-.variant-note { margin: 0; padding: 8px 12px; font-size: 10.5px; line-height: 1.55; color: #8b8880; border-bottom: 1px solid #f0eeea; flex: none; }
-.variant-note code, .variant-row-meta code, .variant-undo code { font-family: var(--ui-mono, 'Cascadia Code', Consolas, monospace); font-size: 10px; color: #5d7a71; background: #f1f3ef; border-radius: 4px; padding: 1px 4px; }
+.variant-title small { display: block; margin-top: 1px; font-size: 10px; color: #95988c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+.variant-note { margin: 0; padding: 8px 12px; font-size: 10.5px; line-height: 1.55; color: #8a8d80; border-bottom: 1px solid #f0f1e6; flex: none; }
+.variant-note code, .variant-row-meta code, .variant-undo code { font-family: var(--ui-mono, 'Cascadia Code', Consolas, monospace); font-size: 10px; color: #5d7f62; background: #f1f3ea; border-radius: 4px; padding: 1px 4px; }
 .variant-alert { display: flex; align-items: flex-start; gap: 6px; margin: 8px 12px 0; padding: 7px 9px; border: 1px solid #ecdcc4; border-radius: 7px; background: #fdf8ef; color: #7a5f2e; font-size: 10.5px; line-height: 1.5; flex: none; }
 .variant-alert.error { border-color: #ecd3cd; background: #fbf1ef; color: #8f3f37; }
 .variant-alert span { flex: 1; min-width: 0; }
 .variant-alert .icon { flex: none; }
-.variant-actions { display: flex; gap: 6px; padding: 9px 12px; border-bottom: 1px solid #f0eeea; flex: none; }
+.variant-actions { display: flex; gap: 6px; padding: 9px 12px; border-bottom: 1px solid #f0f1e6; flex: none; }
 .variant-actions .primary { flex: 1; }
 .variant-panel button.primary, .variant-panel button.secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   padding: 6px 10px; border-radius: 7px; font-size: 11px; font-weight: 550; line-height: 1.2;
   transition: background .15s, border-color .15s, color .15s;
 }
-.variant-panel button.primary { border: 1px solid #3f5d55; background: #3f5d55; color: #fff; }
-.variant-panel button.primary:hover:not(:disabled) { background: #34504a; border-color: #34504a; }
-.variant-panel button.secondary { border: 1px solid #d9d5ce; background: #fff; color: #55564f; }
-.variant-panel button.secondary:hover:not(:disabled) { background: #f5f4f1; border-color: #c9c5bd; }
+.variant-panel button.primary { border: 1px solid #2e5b41; background: #2e5b41; color: #fff; }
+.variant-panel button.primary:hover:not(:disabled) { background: #244837; border-color: #244837; }
+.variant-panel button.secondary { border: 1px solid #d8dbcf; background: #fff; color: #55584d; }
+.variant-panel button.secondary:hover:not(:disabled) { background: #f5f4f1; border-color: #c8ccbf; }
 .variant-panel button.primary.danger-confirm { background: #a34c43; border-color: #a34c43; }
-.variant-create { display: flex; flex-direction: column; gap: 8px; margin: 9px 12px 0; padding: 10px; border: 1px solid #e6e3de; border-radius: 9px; background: #fff; flex: none; }
-.variant-create label { display: flex; flex-direction: column; gap: 4px; font-size: 10.5px; font-weight: 550; color: #6d6b64; }
-.variant-create label small { font-weight: 400; color: #a3a099; font-size: 9.5px; }
+.variant-create { display: flex; flex-direction: column; gap: 8px; margin: 9px 12px 0; padding: 10px; border: 1px solid #e5e8dc; border-radius: 9px; background: #fff; flex: none; }
+.variant-create label { display: flex; flex-direction: column; gap: 4px; font-size: 10.5px; font-weight: 550; color: #6b6f62; }
+.variant-create label small { font-weight: 400; color: #a2a59a; font-size: 9.5px; }
 .variant-create input[type="text"], .variant-create input:not([type]), .variant-create select, .variant-inline input {
-  width: 100%; min-height: 30px; padding: 6px 8px; border: 1px solid #e2dfd9; border-radius: 7px;
-  background: #fff; color: #4b4c48; font-size: 12px;
+  width: 100%; min-height: 30px; padding: 6px 8px; border: 1px solid #e1e5d9; border-radius: 7px;
+  background: #fff; color: #4a4d44; font-size: 12px;
 }
-.variant-create input:focus, .variant-create select:focus, .variant-inline input:focus { border-color: #9fb6ae; box-shadow: 0 0 0 3px #6f8f8417; outline: none; }
-.variant-check { flex-direction: row !important; align-items: flex-start; gap: 6px !important; font-weight: 400 !important; color: #7a776f !important; line-height: 1.5; }
+.variant-create input:focus, .variant-create select:focus, .variant-inline input:focus { border-color: #9bba9a; box-shadow: 0 0 0 3px #5e8c5e17; outline: none; }
+.variant-check { flex-direction: row !important; align-items: flex-start; gap: 6px !important; font-weight: 400 !important; color: #7a7d6f !important; line-height: 1.5; }
 .variant-check input { margin: 2px 0 0; width: 13px; height: 13px; flex: none; }
 .variant-create-actions { display: flex; gap: 6px; }
 .variant-create-actions .primary { flex: 1; }
 .variant-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; }
-.variant-row { border: 1px solid #e8e5e0; border-radius: 10px; background: #fff; padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; flex: none; position: relative; }
-.variant-hover { display: none; position: absolute; left: 6px; right: 6px; top: calc(100% - 2px); z-index: 12; padding: 8px 10px; border: 1px solid #dcd8d1; border-radius: 8px; background: #fff; box-shadow: 0 10px 24px #2027251f, 0 2px 6px #2027250a; pointer-events: none; font-size: 10.5px; line-height: 1.5; color: #55564f; }
+.variant-row { border: 1px solid #e8eae0; border-radius: 10px; background: #fff; padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; flex: none; position: relative; }
+.variant-hover { display: none; position: absolute; left: 6px; right: 6px; top: calc(100% - 2px); z-index: 12; padding: 8px 10px; border: 1px solid #dcdfd2; border-radius: 8px; background: #fff; box-shadow: 0 10px 24px #2027251f, 0 2px 6px #2027250a; pointer-events: none; font-size: 10.5px; line-height: 1.5; color: #55584d; }
 .variant-row:hover .variant-hover, .variant-row:focus-within .variant-hover { display: block; }
 .variant-hover strong { display: block; font-size: 11px; color: #3c3d3b; margin-bottom: 4px; }
 .variant-hover dl { display: grid; grid-template-columns: 34px 1fr; gap: 2px 6px; margin: 0; }
-.variant-hover dt { color: #96938d; }
+.variant-hover dt { color: #95988c; }
 .variant-hover dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.variant-hover p { margin: 5px 0 0; max-height: 56px; overflow: hidden; color: #6d6b64; }
+.variant-hover p { margin: 5px 0 0; max-height: 56px; overflow: hidden; color: #6b6f62; }
 .variant-badge.default { background: #eef1f4; color: #5c6b78; border: 1px solid #dbe2e8; }
-.variant-field { display: flex; flex-direction: column; gap: 4px; font-size: 10.5px; font-weight: 550; color: #6d6b64; }
-.variant-field small { font-weight: 400; color: #a3a099; font-size: 9.5px; }
-.variant-field input, .variant-field textarea { width: 100%; padding: 6px 8px; border: 1px solid #e2dfd9; border-radius: 7px; background: #fff; color: #4b4c48; font-size: 12px; font-family: inherit; }
+.variant-field { display: flex; flex-direction: column; gap: 4px; font-size: 10.5px; font-weight: 550; color: #6b6f62; }
+.variant-field small { font-weight: 400; color: #a2a59a; font-size: 9.5px; }
+.variant-field input, .variant-field textarea { width: 100%; padding: 6px 8px; border: 1px solid #e1e5d9; border-radius: 7px; background: #fff; color: #4a4d44; font-size: 12px; font-family: inherit; }
 .variant-field textarea { min-height: 70px; resize: vertical; line-height: 1.55; }
-.variant-field input:focus, .variant-field textarea:focus { border-color: #9fb6ae; box-shadow: 0 0 0 3px #6f8f8417; outline: none; }
+.variant-field input:focus, .variant-field textarea:focus { border-color: #9bba9a; box-shadow: 0 0 0 3px #5e8c5e17; outline: none; }
 .variant-row-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .variant-row-head strong { flex: 1; min-width: 0; font-size: 12px; font-weight: 620; color: #454641; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.variant-row-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 10px; color: #96938d; }
+.variant-row-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 10px; color: #95988c; }
 .variant-row-actions { display: flex; flex-wrap: wrap; gap: 4px 8px; padding-top: 2px; }
-.variant-row-actions button { display: inline-flex; align-items: center; gap: 3px; padding: 3px 2px; font-size: 10.5px; color: #5d7a71; border-radius: 4px; }
-.variant-row-actions button:hover:not(:disabled) { color: #34504a; background: #f1f4f1; }
+.variant-row-actions button { display: inline-flex; align-items: center; gap: 3px; padding: 3px 2px; font-size: 10.5px; color: #5d7f62; border-radius: 4px; }
+.variant-row-actions button:hover:not(:disabled) { color: #244837; background: #f1f4f1; }
 .variant-row-actions button.danger { color: #a34c43; }
 .variant-row-actions button.danger:hover:not(:disabled) { background: #fbf1ef; }
 .variant-badge { flex: none; padding: 1px 6px; border-radius: 999px; font-size: 9px; font-weight: 600; letter-spacing: .02em; }
-.variant-badge.active { background: #e6efe9; color: #3f7a5e; border: 1px solid #cbded2; }
+.variant-badge.active { background: #e6efe9; color: #3e7a52; border: 1px solid #cbded2; }
 .variant-badge.pending { background: #fdf8ef; color: #8a6a34; border: 1px solid #ecdcc4; }
 .variant-badge.dirty { background: #fbf1ef; color: #a34c43; border: 1px solid #ecd3cd; }
 .variant-inline { display: flex; align-items: center; gap: 6px; padding-top: 4px; }
 .variant-inline input { flex: 1; min-width: 0; }
 .variant-inline.confirm { align-items: flex-start; flex-wrap: wrap; font-size: 10.5px; line-height: 1.5; color: #7a5f2e; }
 .variant-inline.confirm span { flex: 1 1 100%; }
-.variant-empty { margin: 4px 2px; font-size: 11px; line-height: 1.6; color: #96938d; }
-.variant-undo { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid #eceae6; background: #fdfdfc; flex: none; font-size: 10.5px; color: #8b8880; }
+.variant-empty { margin: 4px 2px; font-size: 11px; line-height: 1.6; color: #95988c; }
+.variant-undo { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid #ecefe4; background: #fcfcf8; flex: none; font-size: 10.5px; color: #8a8d80; }
 .variant-undo span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.variant-preview { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: 7px; padding: 11px 12px; background: #fbfaf8; overflow-y: auto; scrollbar-width: thin; }
+.variant-preview { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: 7px; padding: 11px 12px; background: #f9faf4; overflow-y: auto; scrollbar-width: thin; }
 .variant-preview > header { display: flex; align-items: center; gap: 8px; }
 .variant-preview > header strong { flex: 1; font-size: 12.5px; color: #3c3d3b; }
-.variant-preview-note { margin: 0; font-size: 10.5px; line-height: 1.55; color: #8b8880; }
+.variant-preview-note { margin: 0; font-size: 10.5px; line-height: 1.55; color: #8a8d80; }
 .variant-preview section { display: flex; flex-direction: column; gap: 4px; }
-.variant-preview h4 { margin: 0; font-size: 10.5px; font-weight: 600; color: #6d6b64; }
-.variant-preview pre { margin: 0; max-height: 150px; overflow: auto; padding: 8px; border: 1px solid #e8e5e0; border-radius: 7px; background: #fff; color: #55564f; font-family: inherit; font-size: 10.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; scrollbar-width: thin; }
+.variant-preview h4 { margin: 0; font-size: 10.5px; font-weight: 600; color: #6b6f62; }
+.variant-preview pre { margin: 0; max-height: 150px; overflow: auto; padding: 8px; border: 1px solid #e8eae0; border-radius: 7px; background: #fff; color: #55584d; font-family: inherit; font-size: 10.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; scrollbar-width: thin; }
 .variant-preview > footer { display: flex; gap: 6px; justify-content: flex-end; padding-top: 3px; }
 @media (max-width: 760px) {
   .variant-panel { width: 100%; max-width: none; border-radius: 0; }

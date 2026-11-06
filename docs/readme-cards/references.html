@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 1520px; height: 760px; background: #E9EFE2; font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif; position: relative; overflow: hidden; }
+  .num { position: absolute; left: 64px; top: 44px; font-size: 60px; font-weight: 700; color: #B7C6AE; }
+  .eyebrow { position: absolute; left: 168px; top: 62px; font-size: 13px; letter-spacing: .45em; color: #4E6B52; font-weight: 700; }
+  h2 { position: absolute; left: 166px; top: 92px; font-size: 40px; color: #1D3328; font-weight: 700; }
+  .lede { position: absolute; left: 168px; top: 168px; font-size: 17px; color: #55685A; }
+  .stage { position: absolute; left: 64px; top: 232px; width: 780px; height: 460px; background: #FBFCF8; border: 1px solid #D8E0CB; border-radius: 18px; padding: 22px; }
+  .composer { background: #fff; border: 1px solid #E1E6D8; border-radius: 12px; padding: 14px 16px; }
+  .composer .label { font-size: 12px; color: #75806F; margin-bottom: 8px; letter-spacing: .06em; }
+  .composer .line { background: #F6F8F2; border-radius: 8px; padding: 10px 12px; font-size: 13.5px; color: #37463B; }
+  .composer .line b { color: #1E573C; font-family: Consolas, monospace; }
+  .cand { margin-top: 14px; background: #fff; border: 1px solid #E1E6D8; border-radius: 12px; overflow: hidden; }
+  .cand .hd { padding: 8px 14px; font-size: 11px; color: #75806F; border-bottom: 1px solid #EEF1E7; background: #F6F8F2; letter-spacing: .08em; }
+  .cand .it { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #F1F3EA; font-size: 13.5px; }
+  .cand .it:last-child { border-bottom: 0; }
+  .cand .it.sel { background: #EDF2E3; }
+  .cand .it b { color: #1E573C; font-family: Consolas, monospace; font-size: 12.5px; min-width: 90px; }
+  .cand .it span { flex: 1; color: #4E584C; }
+  .cand .it i { font-style: normal; font-size: 10.5px; color: #9AA596; }
+  .side { position: absolute; left: 900px; top: 240px; width: 560px; display: flex; flex-direction: column; gap: 20px; }
+  .point { background: #fff; border: 1px solid #D8E0CB; border-radius: 14px; padding: 20px 24px; }
+  .point h3 { font-size: 19px; color: #1D3328; margin-bottom: 8px; }
+  .point h3 i { font-style: normal; color: #2E5B41; margin-right: 8px; }
+  .point p { font-size: 14.5px; line-height: 1.9; color: #55685A; }
+  .dark { position: absolute; left: 900px; bottom: 56px; width: 560px; background: #16281E; border-radius: 14px; padding: 20px 24px; }
+  .dark b { color: #D8EBAD; font-size: 16px; display: block; margin-bottom: 8px; }
+  .dark p { color: #9DB2A0; font-size: 13.5px; line-height: 1.8; }
+</style>
+</head>
+<body>
+  <div class="num">04</div>
+  <div class="eyebrow">CONTEXTUAL REFERENCES</div>
+  <h2>@ 工作项，让引用直接成为上下文。</h2>
+  <div class="lede">编辑器与聊天均可 @ 引用；候选来自本文档、本地草稿与 Polarion 搜索。</div>
+  <div class="stage">
+    <div class="composer">
+      <div class="label">参考 @</div>
+      <div class="line">检查 <b>TEST-729</b> 的验证场景覆盖，保留工程参数。</div>
+    </div>
+    <div class="cand">
+      <div class="hd">本文档候选 · 按编号去重 · 最多 300 条</div>
+      <div class="it sel"><b>TEST-729</b><span>座椅热舒适控制</span><i>本文档</i></div>
+      <div class="it"><b>TEST-731</b><span>模式与优先级仲裁</span><i>本文档</i></div>
+      <div class="it"><b>TEST-732</b><span>传感器有效性处理</span><i>本地草稿</i></div>
+    </div>
+  </div>
+  <div class="side">
+    <div class="point"><h3><i>▪</i>中文紧邻 @ 也可触发</h3><p>输入即列候选；编号、标题即时过滤；方向键选择、回车插入。</p></div>
+    <div class="point"><h3><i>▪</i>保存为原生引用</h3><p>插入的是 Polarion 原生引用标记，保存回写后仍是原生工作项链接，往返编辑不丢。</p></div>
+  </div>
+  <div class="dark"><b>只读预览，单击即读。</b><p>标题、修订、正文、表格与图片；需要修改时再打开编辑工作台。阅读预览不改草稿、不写服务端。</p></div>
+</body>
+</html>
