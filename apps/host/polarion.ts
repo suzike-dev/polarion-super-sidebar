@@ -17,10 +17,37 @@ import {Boards} from './boards.ts';
 type RichSession = { id: string; draftId: string; source: string; revision: number; imageAliases?:Record<string,string>;saved?:boolean };
 export type RemoteItem = { id: string; title: string; description?: string; updated?: string; status?: string; type?: string; attachments?: {id?: string; file_name?: string; title?: string}[]; submittedHtml?: string; uploadedAssets?: {localId:string;attachmentId:string;sha256:string}[] };
 export type RemoteLink = { workItemId: string; role: string };
+/** 变更基准快照：一次取出整篇文档的工作项正文，避免逐项 SOAP 往返。 */
+export type SnapshotItem = { id: string; title: string; type: string; status: string; outline: string; created?: string; updated: string; html: string };
+export type BulkSnapshot = { documentTitle: string; items: SnapshotItem[] };
+export type HistoryChange = {revision: string; date: string; user?: {id?: string; name?: string}; diffs: {field: string; before?: unknown; after?: unknown}[]};
+export type ChangeRemoteRow = { workItemId: string; title: string; description: string; created: string; updated: string; author?: {id?: string; name?: string}; type: string; status: string; attachments?: {id?: string; file_name?: string; title?: string}[] };
+export type ChangeWriteInput = {
+  target: Target;
+  workItemId?: string;
+  expectedUpdated?: string;
+  type?: string;
+  title: string;
+  description: string;
+  fileName: string;
+  attachmentTitle: string;
+  dataBase64: string;
+  removeAttachments?: string[];
+};
+export type ChangeWriteResult = { workItemId: string; updated: string; attachmentId: string; uri: string };
 export interface Remote {
   read(target: Target, workItemId: string, scope?: VariantScope): Promise<RemoteItem>;
   /** 当前文档全部工作项的轻量清单，供需求总览一次取全。 */
   outline?(target: Target): Promise<DocumentOutline>;
+  /** 整篇文档的正文快照，供变更管理设定基准/结束比对。 */
+  bulkRead?(target: Target): Promise<BulkSnapshot>;
+  /** 单个工作项的字段级历史，用于按时间点还原正文。 */
+  history?(target: Target, workItemId: string): Promise<HistoryChange[]>;
+  /** 项目级变更记录工作项（按项目查询，天然隔离）。 */
+  changeList?(target: Target, limit: number): Promise<ChangeRemoteRow[]>;
+  changeRead?(target: Target, workItemId: string, fileName: string): Promise<{workItemId: string; attachmentId: string; dataBase64: string; updated: string}>;
+  changeWrite?(input: ChangeWriteInput): Promise<ChangeWriteResult>;
+  changeDelete?(target: Target, workItemId: string, expectedUpdated?: string): Promise<{deleted: boolean}>;
   search?(target: Target, query: string, limit: number): Promise<{ workItemId: string; title: string }[]>;
   save(draft: Draft, scope?: VariantScope): Promise<RemoteItem>;
   image?(target: Target, workItemId: string, src: string, scope?: VariantScope): Promise<unknown>;
@@ -37,6 +64,24 @@ export interface Remote {
 export class Polarion implements Remote {
   async outline(target: Target): Promise<DocumentOutline> {
     return this.call<DocumentOutline>({ method: 'outline', target });
+  }
+  bulkRead(target: Target): Promise<BulkSnapshot> {
+    return this.call<BulkSnapshot>({ method: 'bulkRead', target });
+  }
+  history(target: Target, workItemId: string): Promise<HistoryChange[]> {
+    return this.call<HistoryChange[]>({ method: 'history', target, workItemId });
+  }
+  changeList(target: Target, limit: number): Promise<ChangeRemoteRow[]> {
+    return this.call<ChangeRemoteRow[]>({ method: 'change.list', target, limit });
+  }
+  changeRead(target: Target, workItemId: string, fileName: string) {
+    return this.call<{workItemId: string; attachmentId: string; dataBase64: string; updated: string}>({ method: 'change.read', target, workItemId, fileName });
+  }
+  changeWrite(input: ChangeWriteInput): Promise<ChangeWriteResult> {
+    return this.call<ChangeWriteResult>({ method: 'change.write', ...input });
+  }
+  changeDelete(target: Target, workItemId: string, expectedUpdated?: string): Promise<{deleted: boolean}> {
+    return this.call<{deleted: boolean}>({ method: 'change.delete', target, workItemId, ...(expectedUpdated ? {expectedUpdated} : {}) });
   }
   async search(target: Target, query: string, limit: number): Promise<{ workItemId: string; title: string }[]> {
     return this.call<{ workItemId: string; title: string }[]>({ method: 'search', projectId: target.projectId, query, limit });
@@ -78,7 +123,7 @@ export class Polarion implements Remote {
     this.start(); const id = crypto.randomUUID();
     return new Promise<T>((resolve, reject) => {
       const authentication=(data as {method?:string}).method==='authenticate';
-      const timer = setTimeout(() => { this.pending.delete(id); reject(Error(authentication?'POLARION_CONNECTION_FAILED':'POLARION_TIMEOUT_VERIFY_BEFORE_RETRY')); }, authentication?40000:90000);
+      const timer = setTimeout(() => { this.pending.delete(id); reject(Error(authentication?'POLARION_CONNECTION_FAILED':'POLARION_TIMEOUT_VERIFY_BEFORE_RETRY')); }, authentication?40000:150000);
       this.pending.set(id, { resolve, reject, timer,progress }); this.child!.stdin.write(JSON.stringify({ ...(data as object), id }) + '\n');
     });
   }

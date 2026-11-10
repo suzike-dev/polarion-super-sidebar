@@ -15,7 +15,7 @@ test('fresh and legacy settings use compact answer type without changing engine 
     assert.equal(store.settings().defaultTurnDelivery,'queue');
     const legacy={defaultEngine:'codex',claudeModel:'existing-local-model',codexModel:'gpt-6.1-sol'};
     store.put('settings','global',legacy);
-    assert.deepEqual(store.settings(),{...legacy,assistantFontSize:13,defaultPermissionMode:'auto',defaultTurnDelivery:'queue',draftsFolder:'',variantLinkRole:''});
+    assert.deepEqual(store.settings(),{...legacy,assistantFontSize:13,defaultPermissionMode:'auto',defaultTurnDelivery:'queue',draftsFolder:'',variantLinkRole:'',changeRecordType:''});
     assert.deepEqual(store.get('settings','global'),legacy,'reading old settings must not write them');
   } finally {store.close();}
 });

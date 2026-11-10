@@ -1,6 +1,6 @@
 # Polarion 超级侧边栏
 
-[![Version 0.6.0](https://img.shields.io/badge/Version-v0.6.0-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.6.0)
+[![Version 0.7.0](https://img.shields.io/badge/Version-v0.7.0-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.7.0)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-087EA4?style=for-the-badge&logo=react&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -11,9 +11,9 @@
 
 面向工程需求编写与评审的 Windows 浏览器扩展。需求总览把整份 LiveDoc 铺成章节矩阵；独立富文本窗口与 AI 侧栏并排工作；正文、工程表格和画板保留各自的编辑方式；Claude Code 使用本机已有配置、Skills 与 MCP。
 
-[安装与更新](#安装与更新) · [需求总览](#从需求全景开始) · [变体](#同一需求多个变体) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
+[安装与更新](#安装与更新) · [需求总览](#从需求全景开始) · [变更管理](#变更管理把一次修改变成可回看的记录) · [变体](#同一需求多个变体) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
-**[0.6.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.6.0)。** 前端全面切换到「深林绿 + 鼠尾草 + 青柠」设计体系（深色品牌带、青柠状态徽标、统一鼠尾草工作台）；会话历史支持重命名 / 归档 / 删除与分组整理——顶部分组栏新建、解散分组，列表按分组折叠展开；AI 回答字号下限放宽到 9px。本轮同时修复运行中会话误删防护、字体保存校验与编辑工作台表面割裂问题。
+**[0.7.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.7.0)。** 新增「变更管理」模块：显式设定基准、结束后生成记录，或从最近变更时间线补建；每个工作项左右两栏完整对照，未变内容灰显，修改/新增/删除按规则高亮，表格做到行与单元格级；AI 结构化总结、人工补充说明、项目内记录与内网分享页一并落地。记录写入 Polarion 项目工作项并按项目隔离，项目成员看到同一份。
 
 [![Polarion 超级侧边栏：让需求工程拥有 AI 协作侧翼（自绘功能卡）](docs/assets/readme-hero.png)](docs/assets/readme-hero.png)
 
@@ -38,6 +38,32 @@
 | `Esc` | 关闭当前层，不误关其他弹层 |
 
 本地缓存秒开、后台刷新；跨文档工作项会被拒绝。
+
+## 变更管理：把一次修改变成可回看的记录
+
+头部「变更」按钮打开独立工作台。修改前点「设定基准」，系统把此刻整篇文档写入当前 Polarion 项目；期间保存多少次都不打扰别人；改完点「结束并生成」，自动逐项对比并生成记录。忘了点基准，可从最近变更时间线里选「对比这次」，或任选前后基准补建。
+
+[![功能示意：两个工作项的左右完整对照，未变内容灰显，修改/新增/删除按规则高亮，使用虚构编号与内容](docs/assets/readme-change-diff.png)](docs/assets/readme-change-diff.png)
+
+*自绘示意，使用虚构项目与需求内容。*
+
+每个变更工作项固定左右两栏：左栏完整变更前、右栏完整变更后；未变化的段落与表格也完整保留并灰显。变更前黑色加粗（纯删除加删除线）、变更后修改红色加粗、纯新增绿色加粗；悬停变更片段，两侧对应位置联动描边并浮出原文/新文。表格按行与单元格比对，未变行灰字白底，变化单元格与新增/删除行着色。
+
+[![功能示意：结构化 AI 总结、最近变更时间线、项目内记录与分享页，使用虚构示例](docs/assets/readme-change-share.png)](docs/assets/readme-change-share.png)
+
+*自绘示意，使用虚构项目与需求内容。*
+
+| 能力 | 行为 |
+|---|---|
+| 基准与结束 | 显式设定基准；结束才生成记录；可取消基准并清理快照 |
+| 时间线补建 | 聚合工作项更新与历史 revision；选“最后一次/上上次/今天开始”即可，不手写时间 |
+| 完整对照 | 左右两栏完整内容；未变灰显；块/词级 + 表格行/单元格级高亮；悬停联动 |
+| AI 总结 | 结论 → 按章节的变更要点 → 影响提示；可重新生成，失败保留自动摘要 |
+| 人工补充 | 补充“为什么改、影响谁”；与 AI 总结一起写入项目记录 |
+| 记录存储 | 每次变更一个 Polarion 项目工作项 + 压缩附件；按项目隔离，项目成员共享 |
+| 分享 | 内网分享页按天回看、完整对照、悬停联动；复制链接/飞书文案；下载单文件 HTML |
+
+**记录不落在个人电脑上。** 基准快照、最终记录、AI 总结与补充说明都写入当前项目的 Polarion 工作项和附件；本机只缓存列表与正文，换电脑或换人后读取同一份项目记录。记录顶部与分享页顶部都会标注所属项目。
 
 ## @ 引用工作项，单击即读
 
@@ -135,6 +161,7 @@
 | 内容编辑 | Tiptap 3 · Excalidraw · 源 HTML 映射 |
 | 本地 Host | Node.js 24.22.2 · SQLite · Native Messaging |
 | 协议与状态 | Zod 校验 · 上下文快照 · 草稿修订 · 运行事件 |
+| 变更管理 | 块级 LCS · 词级 diff · 表格行/单元格 diff · Polarion 项目记录 |
 | Polarion 连接 | 独立凭据进程 · SOAP 读写 · 保存后独立回读 |
 
 会话、草稿与项目目录默认位于 `%LOCALAPPDATA%\Nanju\PolarionSidebar`；凭据走 Windows DPAPI 加密，只进入独立 Polarion 进程，不传入 AI 引擎。共享草稿文件夹里的其他 JSON 不会被当作草稿。
@@ -167,12 +194,12 @@ docs/                   规格、验证报告与自绘功能示意图
 
 ### 首次安装
 
-获取有访问权限的私有仓库。以下命令针对 `v0.6.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
+获取有访问权限的私有仓库。以下命令针对 `v0.7.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
 
 ```powershell
 git clone https://github.com/suzike-dev/polarion-super-sidebar.git
 cd polarion-super-sidebar
-git switch --detach v0.6.0
+git switch --detach v0.7.0
 node scripts/setup-runtime.mjs
 $node = '.\.runtime\node-v24.22.2-win-x64\node.exe'
 $npmCli = Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -189,7 +216,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-dev-host.ps1
 ```
 
-`setup-runtime.mjs` 下载并校验项目专用 Node 运行时，不修改全局 PATH；`check.ps1` 执行类型检查、305 项测试与构建；`install-dev-host.ps1` 为当前 Windows 用户注册 Native Messaging Host。首次安装尚未在设置中保存账号时，诊断可能报告凭据文件缺失；先完成安装，在设置中保存并连接后，再用 `--strict` 复查。
+`setup-runtime.mjs` 下载并校验项目专用 Node 运行时，不修改全局 PATH；`check.ps1` 执行类型检查、330 项测试与构建；`install-dev-host.ps1` 为当前 Windows 用户注册 Native Messaging Host。首次安装尚未在设置中保存账号时，诊断可能报告凭据文件缺失；先完成安装，在设置中保存并连接后，再用 `--strict` 复查。
 
 `$npmCli` 仅定位用户已安装的 npm，随后由项目私有 Node 执行；上面的定位适用于普通 Windows Node/npm 安装。如果工具管理器提供的是另一层 shim，请把变量设为该 npm 安装中的实际 `npm-cli.js`，无需修改系统 PATH。
 
@@ -205,7 +232,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-polarion-w
 
 1. 在浏览器扩展管理页启用开发者模式，选择“加载已解压的扩展程序”。
 2. 加载仓库中的 `apps/extension/.output/chrome-mv3` 目录。
-3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.6.0）。
+3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.7.0）。
 4. 打开已适配的 Polarion 文档，点击侧栏右上角设置，在“Polarion 账号”输入自己的用户名和密码，点击“保存并连接”。成功后即可打开编辑工作台，无需重启 Host。已用终端配置的账号可点“检查已保存的连接”。
 5. 首次写回使用有授权的测试工作项，核对服务端回读与原生正文显示。
 

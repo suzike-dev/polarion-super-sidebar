@@ -1055,14 +1055,26 @@ export class PolarionSoapClient {
       "TrackerWebService", TRACKER_SERVICE_NAMESPACE, "generateHistory",
       `<svc:workitemURI>${escapeXml(item.uri)}</svc:workitemURI>`
     );
-    return asArray(unwrapSoapReturn(xml, "generateHistoryReturn")).filter(isRecord).map((change) => ({
-      revision: stringValue(change.revision), date: stringValue(change.date), user: normalizeUser(change.user),
-      creation: booleanValue(change.creation), empty: booleanValue(change.empty), invalid: booleanValue(change.invalid),
-      diffs: arrayMembers(change.diffs, "FieldDiff").filter(isRecord).map((diff) => ({
-        field_name: stringValue(diff.fieldName), before: diff.before, after: diff.after,
-        added: diff.added, removed: diff.removed, collection: booleanValue(diff.collection)
-      }))
-    }));
+    return asArray(unwrapSoapReturn(xml, "generateHistoryReturn")).filter(isRecord).map((change) => {
+      // Polarion 21 R2 把字段差异放在 diffs/item 下；旧版本/部分适配器使用 diffs/FieldDiff。
+      // 两种结构都要接受，否则字段名会变成空串，变更历史看起来“什么都没有改”。
+      const diffs = change.diffs;
+      const members = isRecord(diffs) && Object.hasOwn(diffs, "FieldDiff")
+        ? asArray(diffs.FieldDiff)
+        : isRecord(diffs) && Object.hasOwn(diffs, "item")
+          ? asArray(diffs.item)
+          : asArray(diffs);
+      // Text 字段的 content 仍是 XML 转义后的 HTML；统一还原成字符串，调用方才能直接参与比对。
+      const historyValue = (value: unknown) => isRecord(value) && Object.hasOwn(value, "content") ? stringValue(value.content) : stringValue(value);
+      return {
+        revision: stringValue(change.revision), date: stringValue(change.date), user: normalizeUser(change.user),
+        creation: booleanValue(change.creation), empty: booleanValue(change.empty), invalid: booleanValue(change.invalid),
+        diffs: members.filter(isRecord).map((diff) => ({
+          field_name: stringValue(diff.fieldName), before: historyValue(diff.before), after: historyValue(diff.after),
+          added: historyValue(diff.added), removed: historyValue(diff.removed), collection: booleanValue(diff.collection)
+        }))
+      };
+    });
   }
 
   public async queryBaselines(query: string, sort: string): Promise<PolarionBaseline[]> {

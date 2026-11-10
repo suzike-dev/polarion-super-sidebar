@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1520px;height:760px;overflow:hidden}
+  body{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;background:#F1F5EA;color:#1B272E}
+  .top{height:54px;background:#16281E;display:flex;align-items:center;gap:12px;padding:0 26px;color:#EAF2E2}
+  .mark{width:28px;height:28px;border-radius:8px;background:#2E4A38;border:1px solid #4E6B52;display:grid;place-items:center;font-size:14px;font-weight:700;color:#D8EBAD}
+  .top b{font-size:15px}.project{padding:3px 10px;border:1px solid #4E6B52;border-radius:999px;font-size:11px;color:#D8EBAD}
+  .top .spacer{flex:1}.top .share{font-size:11px;color:#AFC4AC;letter-spacing:.06em}
+  .body{padding:18px 24px;display:grid;grid-template-columns:660px 1fr;gap:16px;height:706px}
+  .card{background:#fff;border:1px solid #DCE5D4;border-radius:12px;box-shadow:0 12px 34px rgba(26,44,31,.07);overflow:hidden}
+  .card-head{display:flex;align-items:center;gap:8px;padding:11px 16px;background:#FAFCF6;border-bottom:1px solid #E7EDDF;font-size:12px;font-weight:700;color:#405344}
+  .spark{width:21px;height:21px;border-radius:6px;background:#EAF2E3;border:1px solid #D6E4CB;display:grid;place-items:center;color:#1E573C;font-size:11px}
+  .ready{margin-left:auto;font-size:9px;color:#1E573C;background:#E9F1E4;border:1px solid #D0E2C5;border-radius:99px;padding:1px 7px}
+  .summary{padding:14px 18px;font-size:13px;line-height:1.85;color:#405344}
+  .summary h3{margin:10px 0 4px;font-size:12.5px;color:#234332;letter-spacing:.02em}
+  .summary h3:first-child{margin-top:0}
+  .summary ul{margin:2px 0 6px;padding-left:18px}
+  .summary li{margin:2px 0}
+  .summary b{color:#1B272E}
+  .note-box{margin:14px 18px 0;padding:10px 12px;border-left:3px solid #C7DD8F;background:#F7FBF2;border-radius:0 7px 7px 0;font-size:11.5px;line-height:1.65;color:#5D7462}
+  .note-box b{display:block;color:#1E573C;margin-bottom:2px;font-size:10.5px;letter-spacing:.04em}
+  .mini-detail{margin:8px 18px 0;font-size:10.5px;color:#9AA69B}
+  .mini-detail b{color:#5D7462;margin-right:5px}
+  .history{padding:4px 14px 12px;display:flex;flex-direction:column;gap:3px;font-size:10px;color:#8A958C}
+  .history b{color:#5D7462;margin-bottom:2px;font-size:10.5px}
+  .history span{padding-left:2px}
+  .right{display:flex;flex-direction:column;gap:16px;min-height:0}
+  .timeline{flex:0 0 auto}
+  .events{padding:10px 14px 12px;display:flex;flex-direction:column;gap:4px}
+  .ev{display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid #E3E8DA;border-radius:7px;background:#fff}
+  .ev.hot{border-color:#BFD0B4;background:#F8FBF3}
+  .ev time{flex:0 0 105px;font:10px ui-monospace,Consolas,monospace;color:#5D7462}
+  .ev span{flex:1;font-size:11px;color:#8A958C}
+  .ev b{font-size:10.5px;color:#1E573C}
+  .pills{display:flex;gap:8px;padding:0 14px 12px}
+  .pill{flex:1;padding:6px 9px;border:1px solid #DCE5D4;border-radius:6px;background:#FBFCF7;font-size:10px;color:#5D7462}
+  .pill b{display:block;margin-top:2px;font-size:11px;color:#1B272E}
+  .sharemini{flex:1;min-height:0;display:flex;flex-direction:column}
+  .hero{margin:12px 14px 0;border-radius:10px;background:linear-gradient(135deg,#123B28,#1E573C 60%,#3F704F);padding:14px 16px;color:#F4F8EE}
+  .hero small{font-size:9px;letter-spacing:.14em;color:#CFE28F;font-weight:700}
+  .hero h2{margin:4px 0 2px;font-size:18px;line-height:1.35}
+  .hero p{font-size:10.5px;color:#DCEBCF}
+  .stats{display:flex;gap:8px;margin-top:10px}
+  .stat{flex:1;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);border-radius:7px;padding:6px 8px}
+  .stat b{display:block;font-size:16px}.stat span{display:block;margin-top:1px;font-size:8.5px;color:#D8E7CD}
+  .share-body{padding:10px 14px 14px;display:flex;flex-direction:column;gap:7px}
+  .row{display:flex;align-items:center;gap:7px;font-size:10px;color:#5D7462}
+  .row .badge{padding:2px 6px;border-radius:4px;background:#EAF2E3;border:1px solid #D6E4CB;color:#1E573C;font-weight:700}
+  .row .link{flex:1;height:25px;border:1px solid #E1E8D8;border-radius:5px;background:#FBFCF7;padding:0 7px;display:flex;align-items:center;color:#405344;font:9.5px ui-monospace,Consolas,monospace;overflow:hidden;white-space:nowrap}
+  .btn{height:26px;padding:0 10px;border-radius:5px;background:#174630;color:#F4F8EE;font-size:10px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+  .btn.light{background:#fff;color:#1E573C;border:1px solid #D6E4CB}
+  .foot{padding:8px 14px;border-top:1px solid #EEF2E7;background:#FAFCF6;font-size:9.5px;color:#9AA69B;letter-spacing:.02em}
+</style>
+</head>
+<body>
+<div class="top"><div class="mark">P＋</div><b>变更管理</b><span class="project">项目 DEMO-ECU-01</span><span class="spacer"></span><span class="share">POLARION · 项目共享</span></div>
+<div class="body">
+  <div class="card">
+    <div class="card-head"><span class="spark">✦</span>AI 变更总结<span class="ready">已生成</span></div>
+    <div class="summary">
+      <h3>结论</h3>
+      <ul><li>本次共变更 <b>12 个工作项</b>，集中在电池冷却阈值、快充请求与故障降级。</li><li>涉及热管理控制、HMI 显示与测试基线，研发与测试需同步复核。</li></ul>
+      <h3>变更要点</h3>
+      <ul><li><b>第 3 章 · 热管理</b></li><li><b>REQ-1042 电池冷却请求</b>：请求阈值 45°C → 50°C，迟滞 2°C → 3°C。</li><li><b>REQ-1051 快充冷却</b>：快充预热由“关闭”改为“按需开启”。</li><li><b>REQ-1063 故障降级</b>：新增压缩机转速异常时的降级请求。</li><li><b>第 4 章 · HMI</b></li><li><b>REQ-1120 冷却状态显示</b>：新增“降级”图标与说明文案。</li></ul>
+      <h3>影响提示</h3>
+      <ul><li>阈值与迟滞变化会改变台架判定边界，历史用例需更新。</li><li>快充预热新增按需开启，需补充能耗与噪声验证。</li><li>降级状态新增 HMI 图标，需同步 UI 规范与翻译。</li></ul>
+    </div>
+    <div class="note-box"><b>补充说明</b>阈值调整按客户 2026-11 评审意见执行；台架用例与 HMI 文案已同步更新。</div>
+    <div class="mini-detail"><b>变更明细</b>修改 9 · 新增 2 · 删除 1 · 涉及 3 个章节</div>
+  </div>
+  <div class="right">
+    <div class="card timeline">
+      <div class="card-head"><span class="spark">◷</span>最近变更 · 选择基准</div>
+      <div class="events">
+        <div class="ev hot"><time>11-10 17:15</time><span>5 个工作项更新</span><b>对比这次</b></div>
+        <div class="ev"><time>11-10 17:11</time><span>1 个工作项更新</span><b>对比这次</b></div>
+        <div class="ev"><time>11-10 17:08</time><span>1 个工作项更新</span><b>对比这次</b></div>
+      </div>
+      <div class="pills"><div class="pill">变更前<b>变更前 · 11-10 17:15</b></div><div class="pill">变更后<b>变更后 · 11-10 17:15</b></div></div>
+    </div>
+    <div class="card sharemini">
+      <div class="card-head"><span class="spark">↗</span>分享页 · 单文件 HTML</div>
+      <div class="hero"><small>项目 DEMO-ECU-01 · CHANGE RECORD</small><h2>整车热管理需求</h2><p>11-10 08:12 → 11-10 17:15 · 历时 9 小时</p>
+        <div class="stats"><div class="stat"><b>12</b><span>变更工作项</span></div><div class="stat"><b>9</b><span>修改</span></div><div class="stat"><b>2</b><span>新增</span></div><div class="stat"><b>1</b><span>删除</span></div></div>
+      </div>
+      <div class="share-body"><div class="row"><span class="badge">项目</span><span>DEMO-ECU-01</span><span class="spacer"></span><span>按天回看历史</span></div><div class="row"><span class="link">http://intranet/demo-ecu-01/changes/8f3a…</span><span class="btn light">复制链接</span><span class="btn">复制飞书消息</span></div></div>
+      <div class="history"><b>历史记录</b><span>11-09 18:20 · 8 个工作项更新</span><span>11-08 09:10 · 3 个工作项更新</span></div>
+      <div class="foot">完整左右对照 · 悬停联动 · 历史记录 · 下载 HTML · 只读分享</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

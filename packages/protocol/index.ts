@@ -52,6 +52,8 @@ export const SettingsSchema = z.object({
   draftsFolder: z.string().max(1000).default(''),
   /** 变体工作项与主工作项的 Polarion 链接角色；留空时首次创建自动选择。 */
   variantLinkRole: z.string().max(120).default(''),
+  /** 变更记录工作项类型；留空时自动尝试项目已有的常见类型。 */
+  changeRecordType: z.string().max(120).default(''),
 });
 /** 变体工作项：项目级独立工作项，通过 Polarion 链接归属到一个主工作项。 */
 export const VariantSchema = z.object({
@@ -158,6 +160,20 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('workitems.read'), target: TargetSchema, workItemId: z.string().min(1).max(100) }),
   /** 当前文档的全部工作项（含 outline 序号），供「软件需求分析总览」一次取全。 */
   z.object({ method: z.literal('document.outline'), target: TargetSchema }),
+  z.object({ method: z.literal('changes.workspace.read'), target: TargetSchema }),
+  z.object({ method: z.literal('changes.session.start'), target: TargetSchema, note: z.string().max(2000).default('') }),
+  z.object({ method: z.literal('changes.session.cancel'), sessionId: id }),
+  z.object({ method: z.literal('changes.session.finish'), sessionId: id }),
+  /** 补建变更：按两个时间点还原整篇文档后直接生成记录，不依赖事先设定的基准。 */
+  z.object({ method: z.literal('changes.compare.options'), target: TargetSchema }),
+  z.object({ method: z.literal('changes.compare.create'), target: TargetSchema, beforeAt: z.number().int().positive(), afterAt: z.number().int().positive() }),
+  z.object({ method: z.literal('changes.job.read'), jobId: id }),
+  z.object({ method: z.literal('changes.record.read'), recordId: id }),
+  z.object({ method: z.literal('changes.record.note'), recordId: id, note: z.string().max(4000) }),
+  z.object({ method: z.literal('changes.record.delete'), recordId: id }),
+  z.object({ method: z.literal('changes.record.summarize'), recordId: id, force: z.boolean().default(false) }),
+  z.object({ method: z.literal('changes.share.publish'), recordId: id }),
+  z.object({ method: z.literal('changes.share.stop') }),
   z.object({ method: z.literal('drafts.list'), target: TargetSchema }),
   z.object({ method: z.literal('drafts.delete'), draftIds: z.array(z.string().uuid()).min(1).max(100) }),
   z.object({ method: z.literal('drafts.open'), target: TargetSchema, workItemId: z.string().min(1).max(100) }),
@@ -190,6 +206,148 @@ export type Command = z.infer<typeof CommandSchema>;
 /** 总览用的轻量条目：只要编号、标题、状态与 outline 序号。 */
 export type DocumentOutlineItem = { id: string; title: string; status: string; type: string; outline: string };
 export type DocumentOutline = { documentId: string; title: string; items: DocumentOutlineItem[] };
+
+/* ------------------------------------------------------------------ */
+/* 变更管理：基准会话、变更记录、分享。                                */
+/* ------------------------------------------------------------------ */
+
+export type ChangeSessionState = 'starting' | 'active' | 'finishing' | 'failed';
+export type ChangeSession = {
+  id: string;
+  target: Target;
+  state: ChangeSessionState;
+  documentTitle: string;
+  startedAt: number;
+  baselineAt: number;
+  itemCount: number;
+  /** 设定基准时填写的本次修改目的；结束时作为记录的人工说明。 */
+  note?: string;
+  snapshotId?: string;
+  jobId?: string;
+  error?: string;
+  /** Polarion 中承载本次变更的工作项（记录本体与基线附件都挂在它上面）。 */
+  workItemId?: string;
+  attachmentName?: string;
+  author?: string;
+  source?: 'polarion' | 'cache';
+};
+
+export type ChangeJobView = {
+  id: string;
+  kind: 'start' | 'finish' | 'compare';
+  state: 'running' | 'done' | 'failed';
+  phase: string;
+  done: number;
+  total: number;
+  error?: string;
+  /** 仅用于诊断未识别错误；不包含凭据，最长 800 字。 */
+  detail?: string;
+  recordId?: string;
+};
+
+export type ChangeSessionView = ChangeSession & {job?: ChangeJobView};
+
+export type ChangeAiSummary = {
+  status: 'pending' | 'ready' | 'failed';
+  text: string;
+  model?: string;
+  at?: number;
+  error?: string;
+};
+
+export type ChangeRecordSummary = {
+  id: string;
+  target: Target;
+  documentTitle: string;
+  baselineAt: number;
+  endedAt: number;
+  itemCount: number;
+  changedItems: number;
+  added: number;
+  removed: number;
+  modified: number;
+  moved: number;
+  aiStatus: ChangeAiSummary['status'];
+  /** AI 总结首句，列表里用来快速识别这次改了什么。 */
+  headline: string;
+  /** Polarion 工作项与附件；跨电脑/跨用户时靠它们定位同一条记录。 */
+  workItemId?: string;
+  attachmentName?: string;
+};
+
+export type ChangeChapterSummary = {
+  num: string;
+  title: string;
+  items: number;
+  added: number;
+  removed: number;
+  modified: number;
+  moved: number;
+};
+
+export type ChangeField = {name: string; before: string; after: string};
+
+/** 与 packages/core/change-diff.ts 的 ChangeBlock 结构一致（仅类型，避免协议层依赖比对实现）。 */
+export type ChangeBlock = {
+  kind: 'same' | 'added' | 'removed' | 'modified';
+  tag: string;
+  /** 未变更块的完整 HTML，用于左右完整对照。 */
+  html?: string;
+  text?: string;
+  before?: string;
+  after?: string;
+};
+
+export type ChangeItem = {
+  workItemId: string;
+  title: string;
+  outlineBefore: string;
+  outlineAfter: string;
+  chapterBefore: string;
+  chapterAfter: string;
+  kind: 'modified' | 'added' | 'removed' | 'moved';
+  fields: ChangeField[];
+  blocks: ChangeBlock[];
+  counts: {added: number; removed: number; modified: number};
+};
+
+export type ChangeRecord = ChangeRecordSummary & {
+  chapters: ChangeChapterSummary[];
+  changes: ChangeItem[];
+  /** 记录生成时已解析的图片：src → data URL。 */
+  images: Record<string, string>;
+  heuristicSummary: string;
+  aiSummary: ChangeAiSummary;
+  note?: string;
+  /** 期间观察到的保存次数（来自 Host 的保存审计）。 */
+  saveCount?: number;
+  share?: {token: string; publishedAt: number; port: number};
+  /** Polarion 工作项的最近更新时间；用于乐观并发写入。 */
+  updated?: string;
+};
+
+export type ChangeShareStatus = {
+  running: boolean;
+  port?: number;
+  urls?: string[];
+  historyUrl?: string;
+};
+
+export type ChangePoint = {at: number; label: string; hint?: string; kind: 'before' | 'after' | 'now' | 'start' | 'record'};
+export type ChangeCompareEvent = {at: number; beforeAt: number; label: string; count: number};
+export type ChangeCompareOptions = {documentTitle: string; itemCount: number; points: ChangePoint[]; events: ChangeCompareEvent[]};
+
+export type ChangeWorkspace = {
+  session: ChangeSessionView | null;
+  /** 当前文档的变更记录。 */
+  records: ChangeRecordSummary[];
+  /** 当前项目的全部变更记录（跨文档），按项目隔离。 */
+  projectRecords: ChangeRecordSummary[];
+  share: ChangeShareStatus;
+  /** Polarion 查询是否成功；离线时列表来自本机缓存。 */
+  online: boolean;
+  warning?: string;
+};
 export const RequestSchema = z.object({ protocol: z.literal(PROTOCOL), id, command: CommandSchema });
 export type Request = z.infer<typeof RequestSchema>;
 export type Reply = { protocol: 1; id: string; ok: true; value: unknown } | { protocol: 1; id: string; ok: false; error: string };

@@ -5,6 +5,7 @@ import { Capabilities } from './capabilities.ts';
 import { Assets } from './assets.ts';
 import {Boards} from './boards.ts';
 import {Variants} from './variants.ts';
+import {Changes} from './changes.ts';
 import {Credentials} from './credentials.ts';
 import {validateGuideline} from './guidelines.ts';
 import {pickFolder, pickFiles} from './dialogs.ts';
@@ -14,15 +15,16 @@ export class Service {
   capabilities: Capabilities;
   assets: Assets;
   variants: Variants;
+  changes: Changes;
   credentials?: Credentials;
-  constructor(store: Store, drafts?: Drafts) { this.store = store; this.assets = new Assets(store); this.drafts = drafts ?? new Drafts(store, new Polarion(this.assets)); this.engines = new Engines(store, this.drafts, this.assets); this.capabilities = new Capabilities(store); this.variants = new Variants(store, this.drafts, this.assets); }
+  constructor(store: Store, drafts?: Drafts) { this.store = store; this.assets = new Assets(store); this.drafts = drafts ?? new Drafts(store, new Polarion(this.assets)); this.engines = new Engines(store, this.drafts, this.assets); this.capabilities = new Capabilities(store); this.variants = new Variants(store, this.drafts, this.assets); this.changes = new Changes(store, this.drafts, this.assets); }
   async request(input: unknown): Promise<Reply> {
     // 解析失败也要带回请求 id，否则客户端只能等 100 秒超时，看不到具体校验错误。
     let id = input && typeof input === 'object' && typeof (input as { id?: unknown }).id === 'string' ? String((input as { id?: unknown }).id) : '';
     try {
       const request = RequestSchema.parse(input); id = request.id; const c = request.command; let value: unknown;
       switch (c.method) {
-        case 'health': value = { protocol: PROTOCOL, version: '0.6.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
+        case 'health': value = { protocol: PROTOCOL, version: '0.7.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
         case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;const capabilities=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);value={...capabilities,connected:!!runtime};break;}
         case 'engine.manage': value=await this.engines.manage(c.sessionId,c.action,c.server);break;
         case 'engine.context': this.store.require<Session>('session',c.sessionId);value=await this.engines.contextUsage.read(c.sessionId,c.refresh);break;
@@ -80,6 +82,19 @@ export class Service {
           value = await this.drafts.remote.outline(c.target);
           break;
         }
+        case 'changes.workspace.read': value = await this.changes.workspace(c.target); break;
+        case 'changes.session.start': value = await this.changes.start(c.target, c.note); break;
+        case 'changes.session.cancel': value = await this.changes.cancel(c.sessionId); break;
+        case 'changes.session.finish': value = await this.changes.finish(c.sessionId); break;
+        case 'changes.compare.options': value = await this.changes.compareOptions(c.target); break;
+        case 'changes.compare.create': value = await this.changes.compare(c.target, c.beforeAt, c.afterAt); break;
+        case 'changes.job.read': value = this.changes.jobRead(c.jobId); break;
+        case 'changes.record.read': value = await this.changes.readRecord(c.recordId); break;
+        case 'changes.record.note': value = await this.changes.setNote(c.recordId, c.note); break;
+        case 'changes.record.delete': value = await this.changes.deleteRecord(c.recordId); break;
+        case 'changes.record.summarize': value = await this.changes.summarize(c.recordId, c.force); break;
+        case 'changes.share.publish': value = await this.changes.publish(c.recordId); break;
+        case 'changes.share.stop': value = this.changes.stopShare(); break;
         case 'drafts.delete': value = { removed: this.drafts.remove(c.draftIds) }; break;
         case 'guidelines.list': value = this.store.guidelines(); break;
         case 'guidelines.save': validateGuideline(c.guideline); this.store.put('guideline', c.guideline.id, normalizeGuideline(c.guideline)); value = normalizeGuideline(c.guideline); break;

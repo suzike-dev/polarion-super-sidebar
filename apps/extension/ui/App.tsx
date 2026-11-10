@@ -10,7 +10,7 @@ import {applyWorkItemPick, matchWorkItemQuery, splitWorkItems} from '../lib/work
 import {documentWorkItems, filterWorkItems} from '../lib/document-items';
 import {answerClipboard} from '../lib/answer-clipboard';
 import {AssistantMarkdown} from './AssistantMarkdown';
-import { PanelRightClose, PanelRightOpen, Plus, ArrowUp, Square, Pin, X, Settings, ListTree, MessageSquare, SlidersHorizontal, FileText, History, ChevronRight, ChevronDown, Check, ExternalLink, GripVertical, TerminalSquare, Paperclip, AlertCircle, Search, PenLine, ListChecks, Quote, RotateCcw, LayoutGrid, Archive, ArchiveRestore, Trash2, FolderPlus } from 'lucide-react';
+import { PanelRightClose, PanelRightOpen, Plus, ArrowUp, Square, Pin, X, Settings, ListTree, MessageSquare, SlidersHorizontal, FileText, History, ChevronRight, ChevronDown, Check, ExternalLink, GripVertical, TerminalSquare, Paperclip, AlertCircle, Search, PenLine, ListChecks, Quote, RotateCcw, LayoutGrid, Archive, ArchiveRestore, Trash2, FolderPlus, FileDiff } from 'lucide-react';
 import type { Context, Draft, Guideline, Run, RunEvent, Session, SessionGroup, Target, EngineCapabilities, Asset, PermissionMode, TurnDelivery } from '../../../packages/protocol/index';
 import { routeFromUrl, sameTarget, DEFAULT_PERMISSION_MODE, DEFAULT_TURN_DELIVERY, SettingsSchema } from '../../../packages/protocol/index';
 import type {BoardGenerationRequest} from '../../host/boards';
@@ -21,6 +21,7 @@ import {polarionFeedback} from '../lib/polarion-feedback';
 import {SettingsPanel} from './SettingsPanel';
 import {WorkItemReader, type WorkItemView} from './WorkItemReader';
 import {RequirementsOverview} from './RequirementsOverview';
+import {ChangeWorkbench} from './ChangeWorkbench';
 
 import { DraftEditor } from './DraftEditor';
 import { CapabilitiesPanel } from './CapabilitiesPanel';
@@ -123,6 +124,8 @@ export function App() {
   const readerRequest = useRef(0);
   /** 软件需求分析总览：覆盖文档区，不挤占侧边栏；入口只有头部一个按钮。 */
   const [overview, setOverview] = useState(false);
+  /** 变更管理：整个变更工作台，记录写入 Polarion 项目。 */
+  const [changes, setChanges] = useState(false);
   const previewCache = useRef(new Map<string, { text: string; state?: string; revision?: number; source?: 'draft' | 'remote'; at: number }>());
   const previewTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const previewHideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -340,6 +343,15 @@ export function App() {
     catch(e){if(ticket===settingsRequest.current)setSettingsError('读取设置失败：'+errorText(e));}
     finally{if(ticket===settingsRequest.current)setSettingsLoading(false);}
   };
+  // 总览和变更管理都是覆盖文档区的大工作台，同时只保留一个；打开任一个都收起设置。
+  const toggleOverview=()=>{
+    if(overview){setOverview(false);return;}
+    setChanges(false);if(settings)closeSettings();setOverview(true);
+  };
+  const toggleChanges=()=>{
+    if(changes){setChanges(false);return;}
+    setOverview(false);if(settings)closeSettings();setChanges(true);
+  };
   const saveSettings=async()=>{
     if(!config||settingsSaveBusy.current)return;
     const drafts=guidelineDrafts??[];
@@ -499,12 +511,12 @@ export function App() {
     </div>;
   }
 
-  return <div className={'workspace-root'+(overview?' overview-open':'')} style={{'--assistant-width':width+'px','--assistant-font-size':(settings&&config?config.assistantFontSize:assistantFontSize)+'px'} as React.CSSProperties}>
+  return <div className={'workspace-root'+(overview?' overview-open':'')+(changes?' changes-open':'')} style={{'--assistant-width':width+'px','--assistant-font-size':(settings&&config?config.assistantFontSize:assistantFontSize)+'px'} as React.CSSProperties}>
     {!open && <button className="reopen" onClick={() => setOpen(true)} title="展开 Polarion 助手"><PanelRightOpen size={18}/><span>助手</span>{active && <i className="running-dot"/>}</button>}
     {(draft?editorAI:open) && <aside className={'workspace '+(draft&&editorAI?'floating-assistant':'')} style={{ width, top: geometry.top }} aria-label={draft&&editorAI?'编辑工作台 AI 协作':'Polarion 超级侧边栏'}>
-      {draft&&editorAI&&<div className="collaboration-bar"><MessageSquare size={15}/><span>{draft.workItemId} · AI 协作</span><i className={'connection '+(health?'online':'')} title={health?'本地 Host 已连接':'本地 Host 未连接'}/><button className="icon" title={overview?'收起需求总览':'软件需求分析总览'} aria-pressed={overview} onClick={()=>setOverview(value=>!value)}><LayoutGrid size={15}/></button><button className="icon" title="设置" aria-expanded={settings} disabled={settingsSaving} onClick={e=>void toggleSettings(e.currentTarget)}><Settings size={15}/></button><button className="icon" title="收起编辑区 AI" onClick={()=>setEditorAI(false)}><PanelRightClose size={16}/></button></div>}
+      {draft&&editorAI&&<div className="collaboration-bar"><MessageSquare size={15}/><span>{draft.workItemId} · AI 协作</span><i className={'connection '+(health?'online':'')} title={health?'本地 Host 已连接':'本地 Host 未连接'}/><button className="icon" title={overview?'收起需求总览':'软件需求分析总览'} aria-pressed={overview} onClick={toggleOverview}><LayoutGrid size={15}/></button><button className="icon" title={changes?'收起变更管理':'变更记录与变更管理'} aria-pressed={changes} onClick={toggleChanges}><FileDiff size={15}/></button><button className="icon" title="设置" aria-expanded={settings} disabled={settingsSaving} onClick={e=>void toggleSettings(e.currentTarget)}><Settings size={15}/></button><button className="icon" title="收起编辑区 AI" onClick={()=>setEditorAI(false)}><PanelRightClose size={16}/></button></div>}
       <div className="resize-grip" onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) setWidth(Math.max(340, Math.min(560, innerWidth * .45, innerWidth - event.clientX))); }} onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)}><GripVertical size={12}/></div>
-      {!(draft&&editorAI)&&<header className="brand"><div className="brand-mark">P<span>＋</span></div><div><strong>工程助手</strong><small>Polarion 工作区</small></div><span className={'connection ' + (health ? 'online' : '')} title={health ? '本地 Host 已连接' : '本地 Host 未连接'}/><button className="icon" title={overview?'收起需求总览':'软件需求分析总览'} aria-pressed={overview} onClick={()=>setOverview(value=>!value)}><LayoutGrid size={16}/></button><button className="icon" title="设置" aria-expanded={settings} disabled={settingsSaving} onClick={e=>void toggleSettings(e.currentTarget)}><Settings size={16}/></button><button className="icon" title="收起助手，任务继续运行" onClick={() => setOpen(false)}><PanelRightClose size={18}/></button></header>}
+      {!(draft&&editorAI)&&<header className="brand"><div className="brand-mark">P<span>＋</span></div><div><strong>工程助手</strong><small>Polarion 工作区</small></div><span className={'connection ' + (health ? 'online' : '')} title={health ? '本地 Host 已连接' : '本地 Host 未连接'}/><button className="icon" title={overview?'收起需求总览':'软件需求分析总览'} aria-pressed={overview} onClick={toggleOverview}><LayoutGrid size={16}/></button><button className="icon" title={changes?'收起变更管理':'变更记录与变更管理'} aria-pressed={changes} onClick={toggleChanges}><FileDiff size={16}/></button><button className="icon" title="设置" aria-expanded={settings} disabled={settingsSaving} onClick={e=>void toggleSettings(e.currentTarget)}><Settings size={16}/></button><button className="icon" title="收起助手，任务继续运行" onClick={() => { setOpen(false); setChanges(false); }}><PanelRightClose size={18}/></button></header>}
       <div className="document-path"><span>{target.projectId}</span><ChevronRight size={12}/><strong title={target.document}>{target.document.split('/').at(-1)}</strong></div>
       <nav className="tabs" aria-label="工作区模式">{[['outline','大纲',ListTree],['ai','AI 助手',MessageSquare],['properties','属性',SlidersHorizontal]].map(([key,label,Icon]: any) => <button key={key} className={tab === key ? 'selected' : ''} onClick={() => setTab(key)}><Icon size={15}/>{label}</button>)}</nav>
       {geometry.overlay && <div className="compact-note">窄屏浮层模式 · 收起助手可查看完整正文</div>}
@@ -570,6 +582,7 @@ export function App() {
     {previewAsset && <AttachmentPreview asset={previewAsset} onClose={()=>setPreviewAsset(null)}/>}
     {reader && <WorkItemReader view={reader} onClose={() => setReader(null)} onWorkItem={id => { setReader(null); void openReader(id); }} onOpenEditor={() => { const id = reader.workItemId; setReader(null); void openDraft(id); }}/>}
     {overview && target && <RequirementsOverview key={target.projectId + ':' + target.document} target={target} right={draft ? (editorAI ? width + 18 : 0) : open ? width : 0} top={geometry.top} onClose={() => setOverview(false)} onOpenItem={id => void openReader(id)}/>}
+    {changes && target && <ChangeWorkbench key={target.projectId + ':' + target.document} target={target} right={draft ? (editorAI ? width + 18 : 0) : open ? width : 0} top={geometry.top} onClose={() => setChanges(false)} onOpenItem={id => void openReader(id)}/>}
     {draft && <DraftEditor key={draft.id} draft={draft} requestedBoard={requestedBoard} onBoardOpened={()=>setRequestedBoard(null)} initialScrollTop={restoredEditorScroll} onUpdate={updateCurrentDraft} onClose={() => {draftOpenRequest.current++;setContexts(list=>list.filter(c=>!c.text.startsWith('BOARD_GENERATION_CONTEXT\n')&&!c.text.startsWith('画板对象协作上下文')));setDraft(null);setRestoredEditorScroll(undefined);prepareAI.current=null;setTab(priorTab.current);}} aiOpen={editorAI} onToggleAI={()=>{setEditorAI(v=>!v);setTab('ai');}} onShowAI={()=>{setEditorAI(true);setTab('ai');}} onClearBoardContext={()=>setContexts(list=>list.filter(c=>!(c.workItemId===draft.workItemId&&(c.text.startsWith('BOARD_GENERATION_CONTEXT\n')||c.text.startsWith('画板对象协作上下文')))))} onPrepareAI={handler=>{prepareAI.current=handler;}} remoteRevision={drafts.find(d=>d.id===draft.id)?.revision} onError={e => setError(errorText(e))} prepareNativeSave={async()=>{if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');const snapshot=native.current.captureVerification();const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:draft.workItemId,phase:'check'});if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');if(!result?.ok)throw Error(result?.error??'NATIVE_REFRESH_UNSUPPORTED');native.current.acceptVerifiedClean(snapshot);return native.current.state();}} onSaved={async saved => {
       // The remote save has already been verified. A stale view must not refresh
       // another document or turn that verified success into a write failure.

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1520px;height:760px;overflow:hidden}
+  body{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;background:#F1F5EA;color:#1B272E}
+  .top{height:54px;background:#16281E;display:flex;align-items:center;gap:12px;padding:0 26px;color:#EAF2E2}
+  .mark{width:28px;height:28px;border-radius:8px;background:#2E4A38;border:1px solid #4E6B52;display:grid;place-items:center;font-size:14px;font-weight:700;color:#D8EBAD}
+  .top b{font-size:15px;letter-spacing:.02em}
+  .project{padding:3px 10px;border:1px solid #4E6B52;border-radius:999px;font-size:11px;color:#D8EBAD;letter-spacing:.04em}
+  .top .spacer{flex:1}
+  .top .share{font-size:11px;color:#AFC4AC;letter-spacing:.06em}
+  .body{padding:18px 24px}
+  .panel{height:668px;background:#fff;border:1px solid #DCE5D4;border-radius:12px;overflow:hidden;box-shadow:0 14px 40px rgba(26,44,31,.08)}
+  .item-head{display:flex;align-items:flex-start;gap:10px;padding:13px 18px;background:#FAFCF6;border-bottom:1px solid #E7EDDF}
+  .item-head.second{padding:10px 18px;background:#FBFCF7}
+  .item-head.second h1{font-size:14px}
+  .item-sep{height:1px;background:#E7EDDF}
+  .kind{font-size:10px;font-weight:700;color:#80651D;background:#FBF3DC;border:1px solid #EAD9A9;border-radius:99px;padding:2px 7px;margin-top:2px}
+  .title{flex:1}
+  .title h1{font-size:16px;font-weight:700;letter-spacing:.01em}
+  .title small{display:block;margin-top:2px;font-size:11px;color:#8A958C}
+  .counts{font-size:11px;color:#7D8A80;padding-top:3px}
+  .head-row{display:grid;grid-template-columns:1fr 1fr;background:#F3F6ED;border-bottom:1px solid #E3E9DA}
+  .head-row span{padding:7px 18px;font-size:11px;font-weight:700;letter-spacing:.08em;color:#5D7462}
+  .head-row span:first-child{border-right:1px solid #E3E9DA}
+  .grid{display:flex;flex-direction:column}
+  .row{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #EEF2E7}
+  .row:first-child{border-top:0}
+  .cell{padding:11px 18px;font-size:13.5px;line-height:1.8;color:#8A958C;background:#FBFCFA}
+  .cell:first-child{border-right:1px solid #E7EDDF}
+  .row.changed{background:#FFFDF7}
+  .same{color:#8A958C}
+  .before{color:#1B272E;font-weight:700}
+  .deleted{color:#1B272E;font-weight:700;text-decoration:line-through}
+  .after{color:#B42318;font-weight:700}
+  .added{color:#2F7048;font-weight:700}
+  .void{font-size:11px;color:#A2ACA0;font-style:italic}
+  table{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff;margin-top:2px}
+  th,td{border:1px solid #E2E8D9;padding:4px 6px;text-align:left;color:#8A958C;background:#fff}
+  th{background:#F3F6ED;font-weight:700;color:#7D8A80}
+  td.hit-b{color:#1B272E;font-weight:700;background:#F2F2EF}
+  td.hit-a{color:#B42318;font-weight:700;background:#FFF5F4}
+  tr.add td{color:#2F7048;font-weight:700;background:#F3FAF0}
+  tr.del td{color:#1B272E;font-weight:700;text-decoration:line-through;background:#F6F2F0}
+  .hover-note{position:relative;margin:8px 18px 0;padding:8px 11px;border:1px solid #CFE0C4;border-radius:7px;background:#F7FBF2;font-size:11px;color:#5D7462;line-height:1.55}
+  .hover-note b{color:#1E573C}
+  .legend{display:flex;align-items:center;gap:16px;padding:13px 18px;border-top:1px solid #E7EDDF;background:#FAFCF6;font-size:11px;color:#7D8A80}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .l1{background:#C9D2C9}.l2{background:#1B272E}.l3{background:#B42318}.l4{background:#2F7048}.l5{background:#F8DCD7;border:1px solid #B42318}
+  .legend .right{margin-left:auto;color:#9AA69B;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="mark">P＋</div><b>变更管理</b>
+  <span class="project">项目 DEMO-ECU-01</span>
+  <span class="spacer"></span><span class="share">POLARION · 项目共享</span>
+</div>
+<div class="body"><div class="panel">
+  <div class="item-head">
+    <span class="kind">修改</span>
+    <div class="title"><h1>REQ-1042 电池冷却请求</h1><small>3.2.1 · 热管理功能需求</small></div>
+    <span class="counts">改写 1 段 · 表格 2 行 · 新增 1 项</span>
+  </div>
+  <div class="head-row"><span>变更前</span><span>变更后</span></div>
+  <div class="grid">
+    <div class="row"><div class="cell"><span class="same">系统应根据电池温度与整车热负荷计算冷却请求，并在请求超过阈值时开启压缩机。</span></div><div class="cell"><span class="same">系统应根据电池温度与整车热负荷计算冷却请求，并在请求超过阈值时开启压缩机。</span></div></div>
+    <div class="row changed"><div class="cell"><span class="same">冷却请求阈值为 </span><span class="before">45°C</span><span class="same">，迟滞 </span><span class="before">2°C</span><span class="same">；低于 </span><span class="before">-20°C</span><span class="same"> 时退出。</span></div><div class="cell"><span class="same">冷却请求阈值为 </span><span class="after">50°C</span><span class="same">，迟滞 </span><span class="after">3°C</span><span class="same">；低于 </span><span class="same">-20°C</span><span class="same"> 时退出。</span></div></div>
+    <div class="row"><div class="cell"><table><tr><th>信号</th><th>阈值</th><th>单位</th></tr><tr><td>BattTemp</td><td>45</td><td>°C</td></tr><tr><td>CoolReq</td><td>30</td><td>%</td></tr></table></div><div class="cell"><table><tr><th>信号</th><th>阈值</th><th>单位</th></tr><tr><td>BattTemp</td><td class="hit-a">50</td><td>°C</td></tr><tr><td>CoolReq</td><td>30</td><td>%</td></tr></table></div></div>
+    <div class="row changed"><div class="cell"><table><tr><th>场景</th><th>请求</th></tr><tr class="del"><td>快充预热</td><td>关闭</td></tr><tr><td>高温行车</td><td>开启</td></tr></table></div><div class="cell"><table><tr><th>场景</th><th>请求</th></tr><tr class="add"><td>快充预热</td><td>按需开启</td></tr><tr><td>高温行车</td><td>开启</td></tr></table></div></div>
+    <div class="row"><div class="cell"><span class="same">未变化：停机后延时 10 s 关闭压缩机。</span></div><div class="cell"><span class="same">未变化：停机后延时 10 s 关闭压缩机。</span></div></div>
+  </div>
+  <div class="item-sep"></div>
+  <div class="item-head second">
+    <span class="kind">修改</span>
+    <div class="title"><h1>REQ-1051 快充冷却请求</h1><small>3.2.2 · 热管理功能需求</small></div>
+    <span class="counts">新增 1 段</span>
+  </div>
+  <div class="grid">
+    <div class="row"><div class="cell"><span class="same">快充阶段冷却请求由 BMS 与热管理控制器共同确认。</span></div><div class="cell"><span class="same">快充阶段冷却请求由 BMS 与热管理控制器共同确认。</span></div></div>
+    <div class="row changed"><div class="cell"><span class="void">（此处为新增内容）</span></div><div class="cell"><span class="same">快充预热阶段</span><span class="added">按需开启压缩机</span><span class="same">，并在电池温度低于 10°C 时优先使用加热回路。</span></div></div>
+  </div>
+  <div class="legend"><span><i class="l1"></i>未变</span><span><i class="l2"></i>变更前</span><span><i class="l3"></i>修改</span><span><i class="l4"></i>新增</span><span><i class="l5"></i>删除</span><span class="right">悬停联动 · 完整左右两栏 · 不折叠未变内容</span></div>
+</div></div>
+</body>
+</html>
