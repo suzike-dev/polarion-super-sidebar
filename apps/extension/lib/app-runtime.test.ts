@@ -160,6 +160,7 @@ test('App keeps asynchronous replies bound to the submitted input and document',
     await run('queue strip lists queued inputs above the composer with steer, cancel and stop',async fixture=>{
       await act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
       assert(document.querySelector('.composer-wrap .queue-strip'),'队列条位于输入框上方');
+      assert.equal(document.querySelectorAll('.user-message').length,0,'排队尚未开始执行，不应出现在会话正文');
       const rows=[...document.querySelectorAll('.queue-row')];
       assert.equal(rows.length,2);
       assert.equal(rows[0]!.querySelector('.queue-text')!.textContent,'first queued');
@@ -170,7 +171,7 @@ test('App keeps asynchronous replies bound to the submitted input and document',
       assert(fixture.calls.some(command=>command.method==='runs.cancel'&&command.runId==='q2'));
       await click(document.querySelector('.queue-stop'));
       assert(fixture.calls.some(command=>command.method==='runs.cancel'&&command.runId==='active-run'));
-    },true,{runs:[activeRun,queuedRun('q1',2,'first queued'),queuedRun('q2',3,'second queued')]});
+    },true,{runs:[activeRun,queuedRun('q1',2,'first queued'),queuedRun('q2',3,'second queued')],events:[{seq:1,sessionId:'s',runId:'q1',kind:'user',data:{text:'first queued'},at:1}]});
 
     await run('more than three queued inputs collapse by default and expand on demand',async fixture=>{
       await act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});

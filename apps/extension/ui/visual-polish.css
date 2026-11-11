@@ -193,6 +193,8 @@
 :host .workspace .composer { background: var(--ui-surface); border-color: var(--ui-line); border-radius: var(--ui-radius-lg); box-shadow: 0 1px 2px #223a2a08; overflow: visible; transition: border-color var(--ui-fast) var(--ui-ease), box-shadow var(--ui-fast) var(--ui-ease); }
 :host .workspace .composer:focus-within { border-color: #9bbb9b; box-shadow: 0 0 0 3px #1e573c14; }
 :host .workspace .composer textarea { color: var(--ui-ink); font-size: 13px; line-height: 22px; border-radius: var(--ui-radius-lg) var(--ui-radius-lg) 0 0; background: transparent; }
+/* 占位提示：更小、更灰、更简短，不与正文输入抢视觉。 */
+:host .workspace .composer textarea::placeholder { font-size: 10.5px; color: #a3ada2; opacity: 1; letter-spacing: .01em; }
 :host .workspace .composer textarea:focus-visible { outline: none; }
 :host .workspace .composer-footer { border-top: 1px solid var(--ui-soft-line); }
 :host .workspace .composer-footer > span { color: var(--ui-muted); font-size: 11px; }

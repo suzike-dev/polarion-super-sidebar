@@ -1,6 +1,6 @@
 # Polarion 超级侧边栏
 
-[![Version 0.9.0](https://img.shields.io/badge/Version-v0.9.0-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.9.0)
+[![Version 0.9.1](https://img.shields.io/badge/Version-v0.9.1-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.9.1)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-087EA4?style=for-the-badge&logo=react&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -13,7 +13,7 @@
 
 [安装与更新](#安装与更新) · [需求总览](#从需求全景开始) · [变更管理](#变更管理把一次修改变成可回看的记录) · [变体](#同一需求多个变体) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
-**[0.9.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.9.0)。** 运行中继续输入改为**队列条**：新指令排在输入框上方，逐条可「引导」打断插队，超过 3 条默认折叠，输入框下方功能栏保持恒定；新增**经验沉淀**：把会话里你的纠正提炼成本地经验，后续每轮自动注入、避免重犯。0.8.0 的飞书群机器人卡片分享、0.7.0 的变更管理继续可用。
+**[0.9.1 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.9.1)。** 运行中继续输入改为**队列条**：新指令排在输入框上方，逐条可「引导」打断插队，超过 3 条默认折叠，输入框下方功能栏保持恒定；新增**经验沉淀**：把会话里你的纠正提炼成本地经验，后续每轮自动注入、避免重犯。0.9.1 修复排队指令在开始执行前提前出现在正文、输入法确认候选词误发送，占位提示更小更灰。0.8.0 的飞书群机器人卡片分享、0.7.0 的变更管理继续可用。
 
 [![Polarion 超级侧边栏：让需求工程拥有 AI 协作侧翼（自绘功能卡）](docs/assets/readme-hero.png)](docs/assets/readme-hero.png)
 
@@ -210,12 +210,12 @@ docs/                   规格、验证报告与自绘功能示意图
 
 ### 首次安装
 
-从公开仓库克隆。以下命令针对 `v0.9.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
+从公开仓库克隆。以下命令针对 `v0.9.1` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
 
 ```powershell
 git clone https://github.com/suzike-dev/polarion-super-sidebar.git
 cd polarion-super-sidebar
-git switch --detach v0.9.0
+git switch --detach v0.9.1
 node scripts/setup-runtime.mjs
 $node = '.\.runtime\node-v24.22.2-win-x64\node.exe'
 $npmCli = Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -248,7 +248,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-polarion-w
 
 1. 在浏览器扩展管理页启用开发者模式，选择“加载已解压的扩展程序”。
 2. 加载仓库中的 `apps/extension/.output/chrome-mv3` 目录。
-3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.9.0）。
+3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.9.1）。
 4. 打开已适配的 Polarion 文档，点击侧栏右上角设置，在“Polarion 账号”输入自己的用户名和密码，点击“保存并连接”。成功后即可打开编辑工作台，无需重启 Host。已用终端配置的账号可点“检查已保存的连接”。
 5. 首次写回使用有授权的测试工作项，核对服务端回读与原生正文显示。
 
