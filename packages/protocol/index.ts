@@ -43,6 +43,15 @@ export const ContextSchema = z.object({
   pinned: z.boolean().default(false),
 });
 export type Context = z.infer<typeof ContextSchema>;
+/** 飞书群自定义机器人：配置存在 Polarion 项目（一人配置、全项目共用）；webhook 是凭证，请勿外传。 */
+export const FeishuGroupSchema = z.object({
+  id: z.string().uuid(),
+  label: z.string().trim().min(1).max(60),
+  webhook: z.string().trim().url().max(500),
+  /** 机器人开启「签名校验」时填写。 */
+  secret: z.string().max(200).default(''),
+});
+export type FeishuGroup = z.infer<typeof FeishuGroupSchema>;
 export const SettingsSchema = z.object({
   defaultEngine: z.enum(['claude', 'codex']), claudeModel: z.string().max(120),
   codexModel: z.literal('gpt-6.1-sol'),
@@ -153,6 +162,13 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({method:z.literal('boards.decide'),draftId:id,proposalId:id,action:z.enum(['apply','reject'])}),
   z.object({ method: z.literal('runs.cancel'), runId: id }),
   z.object({ method: z.literal('runs.retry'), runId: id, requestId: id }),
+  /** 把一条排队指令提升为引导：立即打断当前任务并插队优先执行。 */
+  z.object({ method: z.literal('runs.steer'), runId: id }),
+  /** 经验沉淀：读取/提炼/改写/清空本项目本地经验文件。 */
+  z.object({ method: z.literal('experience.read'), projectId: z.string().min(1).max(160) }),
+  z.object({ method: z.literal('experience.distill'), sessionId: id }),
+  z.object({ method: z.literal('experience.write'), projectId: z.string().min(1).max(160), text: z.string().max(20000) }),
+  z.object({ method: z.literal('experience.clear'), projectId: z.string().min(1).max(160) }),
   z.object({ method: z.literal('permissions.answer'), runId: id, permissionId: id, allow: z.boolean(), scope: z.enum(['once', 'run']).default('once') }),
   z.object({ method: z.literal('interactions.answer'), runId: id, interactionId: id, action: z.enum(['accept','decline','cancel']), values: z.record(z.string(),z.union([z.string().max(20000),z.number().finite(),z.boolean(),z.array(z.string().max(20000)).max(100)])).default({}) }),
   z.object({ method: z.literal('workitems.peek'), target: TargetSchema, workItemId: z.string().min(1).max(100) }),
@@ -174,6 +190,13 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('changes.record.summarize'), recordId: id, force: z.boolean().default(false) }),
   z.object({ method: z.literal('changes.share.publish'), recordId: id }),
   z.object({ method: z.literal('changes.share.stop') }),
+  /** 变更卡片直发到项目配置的全部飞书群机器人；返回逐群结果。 */
+  z.object({ method: z.literal('changes.share.feishu'), recordId: id }),
+  /** 用当前填写的 webhook 实发一张测试卡片，无需先保存。 */
+  z.object({ method: z.literal('changes.share.feishuTest'), webhook: z.string().trim().url().max(500), secret: z.string().max(200).default(''), projectId: z.string().max(160).default('') }),
+  /** 项目共享的飞书推送群配置：Polarion 工作项为准，本机缓存兜底。 */
+  z.object({ method: z.literal('changes.feishu.groups'), target: TargetSchema }),
+  z.object({ method: z.literal('changes.feishu.groups.save'), target: TargetSchema, groups: z.array(FeishuGroupSchema).max(20) }),
   z.object({ method: z.literal('drafts.list'), target: TargetSchema }),
   z.object({ method: z.literal('drafts.delete'), draftIds: z.array(z.string().uuid()).min(1).max(100) }),
   z.object({ method: z.literal('drafts.open'), target: TargetSchema, workItemId: z.string().min(1).max(100) }),
@@ -335,6 +358,12 @@ export type ChangeShareStatus = {
   urls?: string[];
   historyUrl?: string;
 };
+/** 一个飞书群的发送结果。 */
+export type FeishuSendResult = {label: string; ok: boolean; error?: string};
+/** changes.share.feishu 的返回：发布状态 + 逐群发送结果。 */
+export type ChangeShareFeishuResult = {recordUrl: string; historyUrl: string; port: number; results: FeishuSendResult[]};
+/** 项目共享的飞书推送群视图：source 标明来自 Polarion 还是离线缓存。 */
+export type FeishuGroupsView = {groups: FeishuGroup[]; source: 'polarion' | 'cache' | 'empty'; workItemId?: string; updated?: string};
 
 export type ChangePoint = {at: number; label: string; hint?: string; kind: 'before' | 'after' | 'now' | 'start' | 'record'};
 export type ChangeCompareEvent = {at: number; beforeAt: number; label: string; count: number};
@@ -359,6 +388,8 @@ export type SessionGroup = { name: string; createdAt: number };
 export type ContextUsage = { usedTokens: number; windowTokens: number; percentage: number; model: string; updatedAt: number; categories: { name: string; tokens: number; kind: string }[] };
 export type EngineContext = { usage: ContextUsage | null; connected: boolean; compacting: boolean };
 export type Run = { permissionMode?:PermissionMode; delivery?:TurnDelivery; guidelineId?:string; id: string; sessionId: string; requestId: string; target: Target; prompt: string; contexts: Context[]; attachments?: string[]; status: 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'interrupted'; startedAt: number; endedAt?: number; error?: string };
+/** 本地经验沉淀文件视图：text 为空表示尚未沉淀。 */
+export type ExperienceView = { text: string; path: string; updatedAt: number };
 export type RunEvent = { seq: number; sessionId: string; runId: string; kind: string; data: unknown; at: number };
 export type Draft = { id: string; target: Target; workItemId: string; title: string; baseHtml: string; html: string; baseUpdated: string; revision: number; savedAt?: number; state: 'clean' | 'dirty' | 'conflict' | 'uncertain'; /** 该草稿属于某个变体时，记录其主工作项。 */ variantOf?: string };
 export type EngineCapabilities = { at: number; engine: 'claude'; connected?: boolean; commands: { name: string; description: string; argumentHint: string; aliases: string[]; builtin: boolean }[]; servers: { name: string; status: string; scope?: string; tools: { name: string; description?: string }[] }[]; agents: { name: string; description: string }[]; models: { value: string; displayName: string }[] };

@@ -74,10 +74,12 @@
 :host .workspace .tabs button.selected { color: var(--ui-ink); font-weight: 600; }
 :host .workspace .tabs button.selected::after { background: var(--ui-accent); border-radius: 2px 2px 0 0; left: 18px; right: 18px; }
 :host .workspace .session-bar { background: var(--ui-surface); border-color: var(--ui-soft-line); padding: 7px 12px; gap: 4px; }
-:host .workspace .session-bar > button:first-child { color: var(--ui-secondary); font-size: 12px; border-radius: var(--ui-radius-sm); padding: 3px 6px; max-width: calc(100% - 64px); }
+:host .workspace .session-bar > button:first-child { color: var(--ui-secondary); font-size: 12px; border-radius: var(--ui-radius-sm); padding: 3px 6px; max-width: calc(100% - 100px); }
 :host .workspace .session-bar > button:first-child:hover { background: var(--ui-subtle); color: var(--ui-ink); }
 :host .workspace .session-bar > button:first-child svg.chevron { color: var(--ui-muted); flex: none; }
 :host .workspace .session-bar > button:first-child:hover { color: var(--ui-accent); }
+:host .workspace .session-bar .experience-on { color: var(--ui-accent); position: relative; }
+:host .workspace .session-bar .experience-dot { position: absolute; top: 4px; right: 4px; width: 5px; height: 5px; border-radius: 999px; background: var(--ui-accent); box-shadow: 0 0 0 2px var(--ui-surface); }
 :host .workspace .collaboration-bar { color: var(--ui-secondary); background: #fcfcf6; border-color: var(--ui-soft-line); font-size: 12px; font-weight: 500; }
 :host .workspace .section-title { font-size: 11px; font-weight: 600; color: var(--ui-muted); letter-spacing: .02em; }
 :host .workspace .outline-list button { color: #52564f; font-size: 13px; line-height: 1.65; border-radius: 6px; }

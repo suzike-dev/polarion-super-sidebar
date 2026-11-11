@@ -10,6 +10,7 @@ import {Credentials} from './credentials.ts';
 import {validateGuideline} from './guidelines.ts';
 import {pickFolder, pickFiles} from './dialogs.ts';
 import {buildTestCard, sendCardToGroups} from './feishu.ts';
+import {readExperience, writeExperience, clearExperience, conversationDigest, distillExperience} from './experience.ts';
 import { RequestSchema, PROTOCOL, normalizeGuideline, type Reply, type Run, type Session, type SessionGroup } from '../../packages/protocol/index.ts';
 export class Service {
   store: Store; drafts: Drafts; engines: Engines;
@@ -25,7 +26,7 @@ export class Service {
     try {
       const request = RequestSchema.parse(input); id = request.id; const c = request.command; let value: unknown;
       switch (c.method) {
-        case 'health': value = { protocol: PROTOCOL, version: '0.8.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
+        case 'health': value = { protocol: PROTOCOL, version: '0.9.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
         case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;const capabilities=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);value={...capabilities,connected:!!runtime};break;}
         case 'engine.manage': value=await this.engines.manage(c.sessionId,c.action,c.server);break;
         case 'engine.context': this.store.require<Session>('session',c.sessionId);value=await this.engines.contextUsage.read(c.sessionId,c.refresh);break;
@@ -72,6 +73,17 @@ export class Service {
           value = result.run; break;
         }
         case 'runs.cancel': this.engines.cancel(c.runId); value = { requested: true }; break;
+        case 'runs.steer': value = this.engines.steerQueued(c.runId); break;
+        case 'experience.read': value = readExperience(c.projectId); break;
+        case 'experience.write': value = writeExperience(c.projectId, c.text); break;
+        case 'experience.clear': value = clearExperience(c.projectId); break;
+        case 'experience.distill': {
+          const s = this.store.require<Session>('session', c.sessionId);
+          const digest = conversationDigest(this.store, c.sessionId);
+          if (!digest.trim()) throw Error('EXPERIENCE_NO_CONVERSATION');
+          const text = await distillExperience({ digest, existing: readExperience(s.target.projectId).text, model: s.model || undefined });
+          value = writeExperience(s.target.projectId, text); break;
+        }
         case 'permissions.answer': this.engines.answer(c.runId, c.permissionId, c.allow, c.scope); value = { answered: true }; break;
         case 'interactions.answer': this.engines.interactions.answer(c.runId,c.interactionId,{action:c.action,values:c.values});value={answered:true};break;
         case 'drafts.list': value = this.store.drafts(c.target).map(({ html, baseHtml, ...d }) => d); break;

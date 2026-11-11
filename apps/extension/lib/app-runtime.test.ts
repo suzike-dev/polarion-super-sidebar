@@ -63,9 +63,9 @@ test('App keeps asynchronous replies bound to the submitted input and document',
     const navigate=async(project:string,documentName='Other')=>{await act(async()=>{dom.window.history.replaceState(null,'',`#/project/${project}/wiki/Requirements/${documentName}`);window.dispatchEvent(new dom.window.HashChangeEvent('hashchange'));});};
     const sessionTitle=()=>document.querySelector('.session-bar > button span')?.textContent;
 
-    async function mount(withSession=true,options:{runs?:unknown[];settings?:unknown;guidelines?:unknown[]}={}){
+    async function mount(withSession=true,options:{runs?:unknown[];settings?:unknown;guidelines?:unknown[];events?:unknown[]}={}){
       dom.window.history.replaceState(null,'','#/project/test01/wiki/Requirements/Synthetic');sessionStorage.clear();
-      const calls:Command[]=[],send=deferred(),create=deferred(),rename=deferred(),uploaded=deferred(),nativeCheck=deferred(),nativeRefresh=deferred();
+      const calls:Command[]=[],send=deferred(),create=deferred(),rename=deferred(),uploaded=deferred(),nativeCheck=deferred(),nativeRefresh=deferred(),experience=deferred();
       const nativeCalls:{phase:string;workItemId:string}[]=[];
       const editors=new Map<string,{onUpdate:(value:ReturnType<typeof draft>)=>void;prepareNativeSave:()=>Promise<string>;onSaved:(value:ReturnType<typeof draft>)=>Promise<void>;testInstance:object;testRevision:()=>number;testCompleteLocalSave:(value:ReturnType<typeof draft>)=>void}>();expose('__appRuntimeEditors',editors);
       const drafts=new Map<string,ReturnType<typeof deferred>>();
@@ -79,10 +79,16 @@ test('App keeps asynchronous replies bound to the submitted input and document',
           case 'guidelines.list':value=options.guidelines??[];break;
           case 'engine.context':value={connected:false};break;
           case 'sessions.list':value=withSession&&command.projectId===target.projectId?[session]:[];break;
-          case 'sessions.read':value={session,runs:options.runs??[],events:[]};break;
+          case 'sessions.read':value={session,runs:options.runs??[],events:options.events??[]};break;
           case 'sessionGroups.list':value=[];break;
           case 'drafts.list':value=['A','B','C'].map(draft);break;
           case 'runs.start':value=await send.promise;break;
+          case 'runs.steer':value={};break;
+          case 'runs.cancel':value={requested:true};break;
+          case 'experience.read':value={text:'',path:'C:/data/experience/test01.md',updatedAt:0};break;
+          case 'experience.distill':value=await experience.promise;break;
+          case 'experience.write':value={text:command.text,path:'C:/data/experience/test01.md',updatedAt:9};break;
+          case 'experience.clear':value={text:'',path:'C:/data/experience/test01.md',updatedAt:0};break;
           case 'sessions.create':value=await create.promise;break;
           case 'sessions.rename':value=await rename.promise;break;
           case 'drafts.open':{const reply=deferred();drafts.set(command.workItemId,reply);value=await reply.promise;break;}
@@ -97,9 +103,9 @@ test('App keeps asynchronous replies bound to the submitted input and document',
       cleanupRoot=async()=>{await act(async()=>{root.unmount();});assert.equal(listeners.size,0);};
       await act(async()=>{root.render(createElement(App));});
       assert(input());assert.equal(sessionTitle(),withSession?'Existing session':'新工程会话');
-      return {calls,send,create,rename,uploaded,drafts,editors,nativeCalls,nativeCheck,nativeRefresh};
+      return {calls,send,create,rename,uploaded,drafts,editors,nativeCalls,nativeCheck,nativeRefresh,experience};
     }
-    async function run(name:string,check:(fixture:Awaited<ReturnType<typeof mount>>)=>Promise<void>,withSession=true,options:{runs?:unknown[];settings?:unknown;guidelines?:unknown[]}={}){
+    async function run(name:string,check:(fixture:Awaited<ReturnType<typeof mount>>)=>Promise<void>,withSession=true,options:{runs?:unknown[];settings?:unknown;guidelines?:unknown[];events?:unknown[]}={}){
       await t.test(name,async()=>{try{await check(await mount(withSession,options));}finally{await cleanupRoot?.();cleanupRoot=undefined;}});
     }
 
@@ -128,25 +134,82 @@ test('App keeps asynchronous replies bound to the submitted input and document',
     },true,{settings:{defaultEngine:'claude',claudeModel:'',codexModel:'gpt-6.1-sol'}});
     const activeRun={id:'active-run',sessionId:'s',requestId:'r1',target,prompt:'busy',contexts:[],attachments:[],status:'waiting',startedAt:1,permissionMode:'auto',delivery:'queue'};
     const guideline={id:'11111111-1111-4111-8111-111111111111',kind:'send',name:'写标准需求',description:'按标准模板写需求',content:'模板',file:''};
-    await run('sending during an active run applies settings defaults, delivery choice and attached guideline',async fixture=>{
+    await run('sending during an active run always queues and keeps the footer constant',async fixture=>{
       await act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
       const permission=document.querySelector<HTMLSelectElement>('select[aria-label="智能体权限"]')!;
       assert.equal(permission.value,'auto','运行中显示本轮冻结的权限，输入框不可切换');
       assert.equal(permission.disabled,true);
-      const delivery=document.querySelector<HTMLSelectElement>('.delivery-select')!;
-      assert.equal(delivery.value,'steer');
+      assert.equal(document.querySelector('.delivery-select'),null,'发送一律排队，不再有排队/引导切换');
+      assert.equal(document.querySelector('.composer-footer .send.stop'),null,'停止按钮移出恒定底栏');
+      assert(document.querySelector('.queue-strip .queue-stop'),'停止在输入框上方的队列条');
+      const footerBefore=document.querySelector('.composer-footer')!.innerHTML;
       const guidelineSelect=document.querySelector<HTMLSelectElement>('.guideline-select');
       assert(guidelineSelect);assert.equal(guidelineSelect.value,'');
-      assert(document.querySelector('.send.stop'),'stop stays available while sending is possible');
       await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype,'value')!.set!.call(guidelineSelect,guideline.id);guidelineSelect.dispatchEvent(new dom.window.Event('change',{bubbles:true}));});
       await type('queued message');
-      await click([...document.querySelectorAll('button.send')].find(element=>!element.classList.contains('stop')));
+      await click(document.querySelector('.send'));
       const request=fixture.calls.find(command=>command.method==='runs.start');assert(request&&request.method==='runs.start');
-      assert.equal(request.delivery,'steer');assert.equal(request.permissionMode,'ask');assert.equal(request.guidelineId,guideline.id);
+      assert.equal(request.delivery,'queue','旧设置 defaultTurnDelivery=steer 不再生效');assert.equal(request.permissionMode,'ask');assert.equal(request.guidelineId,guideline.id);
       await act(async()=>{fixture.send.resolve({id:'queued-run',status:'queued'});});
       assert.equal(input().value,'');
       assert.equal(guidelineSelect.value,'','附加指令每次发送后重置');
+      assert.equal(document.querySelector('.composer-footer')!.innerHTML.replace(/ disabled=""/g,''),footerBefore.replace(/ disabled=""/g,''),'运行期间底栏排布不变');
     },true,{runs:[activeRun],settings:{defaultEngine:'claude',claudeModel:'',codexModel:'gpt-6.1-sol',defaultPermissionMode:'ask',defaultTurnDelivery:'steer'},guidelines:[guideline]});
+
+    const queuedRun=(id:string,startedAt:number,prompt:string)=>({id,sessionId:'s',requestId:id,target,prompt,contexts:[],attachments:[],status:'queued',startedAt,permissionMode:'ask',delivery:'queue'});
+    await run('queue strip lists queued inputs above the composer with steer, cancel and stop',async fixture=>{
+      await act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
+      assert(document.querySelector('.composer-wrap .queue-strip'),'队列条位于输入框上方');
+      const rows=[...document.querySelectorAll('.queue-row')];
+      assert.equal(rows.length,2);
+      assert.equal(rows[0]!.querySelector('.queue-text')!.textContent,'first queued');
+      assert.equal(rows[1]!.querySelector('.queue-text')!.textContent,'second queued');
+      await click(rows[0]!.querySelector('.queue-steer'));
+      const steer=fixture.calls.find(command=>command.method==='runs.steer');assert(steer&&steer.method==='runs.steer');assert.equal(steer.runId,'q1');
+      await click(rows[1]!.querySelector('.queue-cancel'));
+      assert(fixture.calls.some(command=>command.method==='runs.cancel'&&command.runId==='q2'));
+      await click(document.querySelector('.queue-stop'));
+      assert(fixture.calls.some(command=>command.method==='runs.cancel'&&command.runId==='active-run'));
+    },true,{runs:[activeRun,queuedRun('q1',2,'first queued'),queuedRun('q2',3,'second queued')]});
+
+    await run('more than three queued inputs collapse by default and expand on demand',async fixture=>{
+      await act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
+      assert.equal(document.querySelectorAll('.queue-row').length,0);
+      const summary=document.querySelector('.queue-summary');assert(summary);
+      assert.match(summary.textContent!,/4 条排队/);
+      await click(summary);
+      assert.equal(document.querySelectorAll('.queue-row').length,4);
+      await click(document.querySelector('.queue-head button'));
+      assert.equal(document.querySelectorAll('.queue-row').length,0);
+      assert(document.querySelector('.queue-summary'));
+    },true,{runs:[activeRun,queuedRun('q1',2,'one'),queuedRun('q2',3,'two'),queuedRun('q3',4,'three'),queuedRun('q4',5,'four')]});
+
+    await run('answer actions keep one copy button and distill experience into a local dialog',async fixture=>{
+      await act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
+      const actions=document.querySelector('.answer-actions');assert(actions);
+      assert.equal([...actions.querySelectorAll('button')].filter(button=>button.textContent?.includes('复制回答')).length,0,'复制回答已移除');
+      assert([...actions.querySelectorAll('button')].some(button=>button.textContent?.includes('复制 Markdown')));
+      const distillButton=[...actions.querySelectorAll('button')].find(button=>button.textContent?.includes('经验沉淀'));assert(distillButton);
+      await click(distillButton);
+      await act(async()=>{fixture.experience.resolve({text:'## 工具与流程\n- 必须先走本地草稿。',path:'C:/data/experience/test01.md',updatedAt:9});});
+      assert(document.querySelector('.experience-layer'),'沉淀后打开经验浮窗');
+      assert.match(document.querySelector('.experience-body')!.textContent!,/必须先走本地草稿/);
+      assert(fixture.calls.some(command=>command.method==='experience.distill'&&command.sessionId==='s'));
+      await click([...document.querySelectorAll('.experience-panel footer button')].find(button=>button.textContent?.includes('编辑')));
+      const area=document.querySelector<HTMLTextAreaElement>('.experience-body textarea');assert(area);
+      await act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,'value')!.set!.call(area,'- 新经验');area.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});
+      await click([...document.querySelectorAll('.experience-panel footer button')].find(button=>button.textContent?.includes('保存修改')));
+      const write=fixture.calls.find(command=>command.method==='experience.write');assert(write&&write.method==='experience.write');assert.equal(write.text,'- 新经验');
+      await click([...document.querySelectorAll('.experience-panel footer button')].find(button=>button.textContent==='关闭'));
+      assert.equal(document.querySelector('.experience-layer'),null);
+    },true,{runs:[{...activeRun,id:'done-run',status:'completed',endedAt:2}],events:[{seq:1,sessionId:'s',runId:'done-run',kind:'user',data:{text:'do it'},at:1},{seq:2,sessionId:'s',runId:'done-run',kind:'result',data:{text:'answer text'},at:2}]});
+
+    await run('session bar opens the local experience viewer',async fixture=>{
+      await act(async()=>{await new Promise(resolve=>setTimeout(resolve,20));});
+      await click(document.querySelector('.session-bar button[title*="经验沉淀"]'));
+      assert(document.querySelector('.experience-layer'));
+      assert.match(document.querySelector('.experience-body')!.textContent!,/还没有沉淀经验/);
+    });
 
     await run('newer draft selection wins and a late draft cannot reopen after navigation',async fixture=>{
       await tab('属性');
@@ -207,6 +270,8 @@ test('App keeps asynchronous replies bound to the submitted input and document',
       assert.equal(fixture.nativeCalls.length,0);assert.equal(document.querySelector('.save-notice')===null,true);
     });
     await run('native refresh completion after navigation does not show an old target save receipt',async fixture=>{
+      // 原生基线在 DOM 静止 1s 后建立；本用例依赖 state()==='clean'，先等基线。
+      await new Promise(resolve=>setTimeout(resolve,1150));
       const old=await open(fixture,'A'),refreshing=old.onSaved({...draft('A'),revision:2});assert.equal(fixture.nativeCalls.length,1);
       await navigate('test01');await act(async()=>{fixture.nativeRefresh.resolve({ok:true});await assert.doesNotReject(refreshing);});
       assert.equal(document.querySelector('.save-notice')===null,true);

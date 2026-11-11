@@ -264,3 +264,16 @@ test('session groups registry: create dedupes, delete disbands and strips sessio
     assert.ok(store.get('session',s1.id),'disband must keep sessions themselves');
   } finally {store.close();}
 });
+
+test('queue steer and experience commands parse with strict ids and bounds', () => {
+  const runId=crypto.randomUUID(),sessionId=crypto.randomUUID();
+  assert.equal(CommandSchema.parse({method:'runs.steer',runId}).method,'runs.steer');
+  assert.equal(CommandSchema.safeParse({method:'runs.steer',runId:'not-a-uuid'}).success,false);
+  assert.equal(CommandSchema.parse({method:'experience.read',projectId:'test01'}).method,'experience.read');
+  assert.equal(CommandSchema.parse({method:'experience.distill',sessionId}).method,'experience.distill');
+  const write=CommandSchema.parse({method:'experience.write',projectId:'test01',text:'- 经验'});
+  if(write.method!=='experience.write')throw Error('Unexpected command');
+  assert.equal(write.text,'- 经验');
+  assert.equal(CommandSchema.safeParse({method:'experience.write',projectId:'test01',text:'x'.repeat(20001)}).success,false);
+  assert.equal(CommandSchema.parse({method:'experience.clear',projectId:'test01'}).method,'experience.clear');
+});

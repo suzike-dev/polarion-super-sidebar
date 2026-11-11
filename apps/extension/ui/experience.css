@@ -1,0 +1,19 @@
+/* 经验沉淀：独立浮层，不挤占侧边栏与既有浮窗；滚动条沿用令牌体系。 */
+:host .experience-layer { position: fixed; inset: 0; z-index: 100012; display: flex; align-items: center; justify-content: center; padding: 32px; background: #20262b4d; }
+:host .experience-panel { width: min(680px, 94vw); max-height: min(82vh, 860px); display: flex; flex-direction: column; background: var(--ui-surface); border: 1px solid var(--ui-line); border-radius: 12px; box-shadow: var(--ui-modal-shadow); overflow: hidden; }
+:host .experience-panel > header { display: flex; align-items: center; gap: 10px; padding: 12px 15px; border-bottom: 1px solid var(--ui-soft-line); flex-shrink: 0; }
+:host .experience-icon { width: 30px; height: 30px; border-radius: var(--ui-radius-md); display: grid; place-items: center; color: var(--ui-accent); background: var(--ui-accent-soft); border: 1px solid #dfe7d2; flex: none; }
+:host .experience-title { flex: 1; min-width: 0; }
+:host .experience-title .eyebrow { font-size: 10px; color: var(--ui-muted); letter-spacing: .04em; }
+:host .experience-title h2 { margin: 2px 0 1px; font-size: 15px; font-weight: 600; color: var(--ui-ink); line-height: 1.4; }
+:host .experience-title small { display: block; font-size: 10px; color: var(--ui-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:host .experience-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; background: var(--ui-subtle); scrollbar-width: thin; scrollbar-color: #b9c4ad transparent; }
+:host .experience-body::-webkit-scrollbar { width: 8px; }
+:host .experience-body::-webkit-scrollbar-thumb { background: #b9c4ad; border-radius: 999px; border: 2px solid var(--ui-subtle); }
+:host .experience-body::-webkit-scrollbar-track { background: transparent; }
+:host .experience-body textarea { display: block; width: 100%; min-height: 320px; resize: vertical; padding: 10px 12px; font: 12px/1.7 var(--ui-mono); color: var(--ui-ink); background: #fff; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); scrollbar-width: thin; scrollbar-color: #b9c4ad transparent; }
+:host .experience-body textarea:focus-visible { outline: none; border-color: #9bbb9b; box-shadow: 0 0 0 3px #1e573c14; }
+:host .experience-panel > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 15px; border-top: 1px solid var(--ui-soft-line); flex-shrink: 0; }
+:host .experience-panel > footer .muted { font-size: 10.5px; }
+:host .experience-panel > footer > div { display: flex; gap: 6px; }
+@media (max-width: 720px) { :host .experience-layer { padding: 14px; } }

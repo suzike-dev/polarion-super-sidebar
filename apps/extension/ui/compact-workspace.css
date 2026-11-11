@@ -66,6 +66,27 @@
 :host .workspace .composer-footer .send-group { display: flex; align-items: center; gap: 4px; margin-left: auto; flex-shrink: 0; }
 :host .workspace .composer-footer .permission-select { width: 80px; max-width: 80px; min-height: 28px; padding: 4px 2px; }
 :host .workspace .composer-footer .permission-select.guideline-select { width: 92px; max-width: 92px; }
+/* 队列条：排队指令置于输入框上方，底栏保持恒定；超过 3 条默认折叠。 */
+:host .workspace .queue-strip { display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px; }
+:host .workspace .queue-running { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--ui-muted); padding: 0 2px; }
+:host .workspace .queue-running .running-dot { animation: queue-pulse 1.2s ease-in-out infinite; }
+@keyframes queue-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+:host .workspace .queue-stop { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 2px 9px; font-size: 10px; border-radius: 999px; border: 1px solid var(--ui-line); background: var(--ui-surface); color: var(--ui-secondary); }
+:host .workspace .queue-stop:hover { background: var(--ui-danger-soft); color: var(--ui-danger); border-color: var(--ui-danger); }
+:host .workspace .queue-head { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; font-size: 9.5px; color: var(--ui-muted); letter-spacing: .03em; }
+:host .workspace .queue-head button { display: inline-flex; align-items: center; gap: 3px; min-height: 18px; padding: 1px 6px; font-size: 9.5px; color: var(--ui-muted); border-radius: 999px; }
+:host .workspace .queue-head button:hover { background: var(--ui-subtle); color: var(--ui-ink); }
+:host .workspace .queue-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 8px; border: 1px solid var(--ui-soft-line); border-radius: var(--ui-radius-md); background: var(--ui-surface); }
+:host .workspace .queue-index { flex: none; width: 15px; height: 15px; border-radius: 999px; background: var(--ui-accent-soft); color: var(--ui-accent-ink); font-size: 9px; display: grid; place-items: center; }
+:host .workspace .queue-text { flex: 1; min-width: 0; font-size: 11px; color: var(--ui-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:host .workspace .queue-steer { flex: none; display: inline-flex; align-items: center; gap: 3px; min-height: 21px; padding: 2px 8px; font-size: 10px; border-radius: 999px; border: 1px solid #cfdcc0; background: var(--ui-accent-soft); color: var(--ui-accent); }
+:host .workspace .queue-steer:hover { background: var(--ui-accent); color: #fff; }
+:host .workspace .queue-cancel { flex: none; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 5px; color: var(--ui-muted); }
+:host .workspace .queue-cancel:hover { background: var(--ui-danger-soft); color: var(--ui-danger); }
+:host .workspace .queue-summary { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 5px 8px; border: 1px dashed var(--ui-line); border-radius: var(--ui-radius-md); background: var(--ui-subtle); font-size: 10.5px; color: var(--ui-muted); }
+:host .workspace .queue-summary:hover { border-color: var(--ui-accent); color: var(--ui-secondary); }
+:host .workspace .queue-summary strong { flex: none; font-size: 10.5px; color: var(--ui-accent-ink); }
+:host .workspace .queue-summary span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :host .workspace .context-meter-trigger { padding: 4px 3px; gap: 3px; }
 :host .workspace .send { width: 30px; height: 30px; }
 :host .workspace .context-cards { gap: 5px; margin-bottom: 8px; max-height: min(150px, 20vh); overscroll-behavior: contain; }

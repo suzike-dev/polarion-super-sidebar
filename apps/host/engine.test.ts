@@ -1,8 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Store } from './store.ts';
 import { Engines } from './engine.ts';
 import { Drafts } from './polarion.ts';
+import { writeExperience } from './experience.ts';
 import type { Run } from '../../packages/protocol/index.ts';
 import type {query,Query} from '@anthropic-ai/claude-agent-sdk';
 test('sequential turns reuse native runtime, bind fresh target, and reconnect only after configuration change',async()=>{
@@ -260,4 +264,44 @@ test('run-scoped allowance lets later calls of the same tool through without a n
  });
  try{const run=await f.turn();assert.equal(run.status,'completed','error: '+run.error);assert.equal(f.engines.runAllows.size,0,'allowance cleared after the run');}
  finally{f.close();}
+});
+
+test('steerQueued promotes a queued input to jump the queue and interrupt the active turn',async()=>{
+ const f=deliveryFixture('graceful');
+ try{
+  const first=f.store.startRun(f.session.id,crypto.randomUUID(),'long turn',[]).run;
+  const firstDone=f.engines.execute(first);
+  const q1=f.store.startRun(f.session.id,crypto.randomUUID(),'queued first',[],undefined,[],'auto','queue').run;
+  const q2=f.store.startRun(f.session.id,crypto.randomUUID(),'queued second',[],undefined,[],'auto','queue').run;
+  await waitUntil(()=>f.engines.runtimes.has(f.session.id));
+  const promoted=f.engines.steerQueued(q2.id);
+  assert.equal(promoted.delivery,'steer');
+  await firstDone;assert.equal(first.status,'interrupted');
+  await waitUntil(()=>f.store.require<Run>('run',q1.id).status==='completed'&&f.store.require<Run>('run',q2.id).status==='completed');
+  const results=f.store.events(f.session.id,0).filter(e=>e.kind==='result');
+  const seqOf=(runId:string)=>results.find(e=>e.runId===runId)!.seq;
+  assert.ok(seqOf(q2.id)<seqOf(q1.id),'steered input runs before the earlier queued input');
+  assert.equal(f.starts,1,'same warm conversation');
+  await assert.rejects(async()=>f.engines.steerQueued(q1.id),/RUN_NOT_QUEUED/);
+ }finally{f.close();}
+});
+
+test('distilled local experience is injected into every turn prompt',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'psb-experience-'));
+ const store=new Store(':memory:'),drafts=new Drafts(store,{read:async()=>{throw Error('unused');},save:async()=>{throw Error('unused');}});
+ const prompts:string[]=[];
+ const factory:typeof query=({prompt})=>{
+  async function* messages(){yield{type:'system',subtype:'init',session_id:'native-exp',model:'test',tools:[],mcp_servers:[]};for await(const value of prompt as AsyncIterable<any>){prompts.push(JSON.stringify(value.message.content));yield{type:'result',subtype:'success',is_error:false,session_id:'native-exp',result:'ok',duration_ms:1,num_turns:1};}}
+  const stream=messages() as unknown as Query;stream.close=()=>{void stream.return();};stream.supportedCommands=async()=>[];stream.supportedAgents=async()=>[];stream.supportedModels=async()=>[];stream.mcpServerStatus=async()=>[];return stream;
+ };
+ try{
+  writeExperience('test01','## 沟通与输出\n- 不要输出整页源码，先解释具体动作。',dir);
+  const engines=new Engines(store,drafts,undefined,factory,dir);
+  const session=store.createSession({origin:'https://polarion.pufafen.com' as const,projectId:'test01',document:'Requirements/Experience'},'experience session');
+  const first=store.startRun(session.id,crypto.randomUUID(),'first',[]).run;await engines.execute(first);
+  const second=store.startRun(session.id,crypto.randomUUID(),'second',[]).run;await engines.execute(second);
+  assert.equal(prompts.length,2);
+  for(const prompt of prompts){assert.match(prompt,/历史经验沉淀/);assert.match(prompt,/不要输出整页源码/);assert.match(prompt,/必须遵循，避免重犯/);}
+  engines.close();
+ }finally{store.close();await rm(dir,{recursive:true,force:true});}
 });

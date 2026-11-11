@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1520px;height:760px;overflow:hidden}
+  body{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;background:#F1F5EA;color:#1B272E}
+  .top{height:54px;background:#16281E;display:flex;align-items:center;gap:12px;padding:0 26px;color:#EAF2E2}
+  .mark{width:28px;height:28px;border-radius:8px;background:#2E4A38;border:1px solid #4E6B52;display:grid;place-items:center;font-size:14px;font-weight:700;color:#D8EBAD}
+  .top b{font-size:15px}.project{padding:3px 10px;border:1px solid #4E6B52;border-radius:999px;font-size:11px;color:#D8EBAD}
+  .top .spacer{flex:1}.top .share{font-size:11px;color:#AFC4AC;letter-spacing:.06em}
+  .body{padding:18px 24px;display:grid;grid-template-columns:660px 1fr;gap:16px;height:706px}
+  .card{background:#fff;border:1px solid #DCE5D4;border-radius:12px;box-shadow:0 12px 34px rgba(26,44,31,.07);overflow:hidden;display:flex;flex-direction:column}
+  .card-head{display:flex;align-items:center;gap:8px;padding:11px 16px;background:#FAFCF6;border-bottom:1px solid #E7EDDF;font-size:12px;font-weight:700;color:#405344}
+  .spark{width:21px;height:21px;border-radius:6px;background:#EAF2E3;border:1px solid #D6E4CB;display:grid;place-items:center;color:#1E573C;font-size:11px}
+  .ready{margin-left:auto;font-size:9px;color:#1E573C;background:#E9F1E4;border:1px solid #D0E2C5;border-radius:99px;padding:1px 7px}
+  .turn{padding:12px 18px 4px;font-size:10.5px;color:#5D7462;line-height:1.7}
+  .turn .user{align-self:flex-end;background:#EDF2E4;border-radius:10px 10px 4px 10px;padding:7px 11px;font-size:11px;color:#405344;margin-bottom:8px}
+  .turn .fix{background:#FBF7EC;border:1px solid #EADFC6;border-radius:10px 10px 4px 10px;padding:7px 11px;font-size:11px;color:#7A6A45;margin:8px 0 8px auto;max-width:88%}
+  .actions{display:flex;gap:12px;font-size:10px;color:#9AA69B;padding:6px 18px 10px}
+  .actions .on{color:#1E573C;font-weight:700;background:#EAF2E3;border:1px solid #D6E4CB;border-radius:99px;padding:2px 9px}
+  .layer{flex:1;margin:0 18px 16px;background:rgba(32,38,43,.28);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:14px}
+  .panel{width:100%;background:#fff;border:1px solid #DCE5D4;border-radius:12px;box-shadow:0 20px 60px rgba(26,44,31,.25);overflow:hidden}
+  .p-head{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid #E7EDDF}
+  .bulb{width:28px;height:28px;border-radius:8px;background:#EAF2E3;border:1px solid #D6E4CB;display:grid;place-items:center;color:#1E573C;font-size:13px}
+  .p-title{flex:1}
+  .p-title small{display:block;font-size:8.5px;color:#9AA69B;letter-spacing:.05em}
+  .p-title b{font-size:13px;color:#1B272E}
+  .p-title span{display:block;font-size:8.5px;color:#9AA69B;font-family:ui-monospace,Consolas,monospace}
+  .p-body{padding:12px 16px;background:#FBFCF7;font-size:10.5px;line-height:1.8;color:#405344}
+  .p-body h4{font-size:11px;color:#234332;margin:6px 0 3px}
+  .p-body h4:first-child{margin-top:0}
+  .p-body li{margin-left:16px}
+  .p-body b{color:#1B272E}
+  .p-foot{display:flex;align-items:center;gap:8px;padding:9px 15px;border-top:1px solid #E7EDDF;font-size:9px;color:#9AA69B}
+  .p-foot .sp{flex:1}
+  .btn{border:1px solid #D6E4CB;background:#fff;color:#1E573C;border-radius:6px;padding:4px 10px;font-size:9.5px}
+  .btn.dark{background:#174630;color:#F4F8EE;border-color:#174630}
+  .right{display:flex;flex-direction:column;gap:16px;min-height:0}
+  .summary{padding:14px 18px;font-size:12.5px;line-height:1.85;color:#405344}
+  .summary h3{margin:10px 0 4px;font-size:12.5px;color:#234332}
+  .summary h3:first-child{margin-top:0}
+  .summary ul{margin:2px 0 6px;padding-left:18px}
+  .summary b{color:#1B272E}
+  .note-box{margin:0 18px 14px;padding:10px 12px;border-left:3px solid #C7DD8F;background:#F7FBF2;border-radius:0 7px 7px 0;font-size:11px;line-height:1.7;color:#5D7462}
+  .note-box b{display:block;color:#1E573C;margin-bottom:2px;font-size:10.5px;letter-spacing:.04em}
+  .loop{flex:1}
+  .steps{padding:12px 16px;display:flex;flex-direction:column;gap:7px}
+  .step{display:flex;gap:10px;align-items:flex-start;border:1px solid #E3E8DA;border-radius:8px;background:#fff;padding:8px 10px}
+  .step .n{flex:none;width:18px;height:18px;border-radius:99px;background:#16281E;color:#D8EBAD;font-size:10px;display:grid;place-items:center;margin-top:1px}
+  .step b{display:block;font-size:11px;color:#1B272E}
+  .step span{font-size:10px;color:#8A958C;line-height:1.6}
+  .foot{padding:8px 14px;border-top:1px solid #EEF2E7;background:#FAFCF6;font-size:9.5px;color:#9AA69B}
+</style>
+</head>
+<body>
+<div class="top"><div class="mark">P＋</div><b>经验沉淀</b><span class="project">项目 DEMO-ECU-01</span><span class="spacer"></span><span class="share">POLARION · 本地进化闭环</span></div>
+<div class="body">
+  <div class="card">
+    <div class="card-head"><span class="spark">✦</span>回答下方一键沉淀 · 会话栏随时查看<span class="ready">每轮自动注入</span></div>
+    <div class="turn">
+      <div class="user">把这条需求的阈值直接改到服务端。</div>
+      <div>已按请求修改……（助手回答摘要）</div>
+      <div class="fix">不对，不能直接改服务端，必须先走本地草稿，等我明确保存。</div>
+      <div>明白：后续一律先写入本地草稿，审阅后由你明确保存。</div>
+    </div>
+    <div class="actions"><span>复制 Markdown</span><span>引用</span><span>重试</span><span class="on">✦ 经验沉淀</span></div>
+    <div class="layer">
+      <div class="panel">
+        <div class="p-head"><span class="bulb">✦</span><div class="p-title"><small>本地经验 · 后续会话每轮自动注入</small><b>经验沉淀</b><span>…\Nanju\PolarionSidebar\experience\DEMO-ECU-01.md</span></div><span style="color:#9AA69B">×</span></div>
+        <div class="p-body">
+          <h4>工具与流程</h4>
+          <li><b>必须先走本地草稿</b>：任何正文修改先写入草稿，用户明确保存后才写服务端。</li>
+          <li>用户说「不要调用工具」时，直接以文本给出成品，不做环境检查。</li>
+          <h4>沟通与输出</h4>
+          <li>回答先解释具体动作，不整页贴源码。</li>
+        </div>
+        <div class="p-foot">已保存 · 2026/11/11 18:50<span class="sp"></span><span class="btn">编辑</span><span class="btn">清空</span><span class="btn dark">关闭</span></div>
+      </div>
+    </div>
+    <div class="foot">独立浮窗，不挤占侧边栏；编辑 / 清空（二次确认）即时落盘。</div>
+  </div>
+  <div class="right">
+    <div class="card">
+      <div class="card-head"><span class="spark">↻</span>纠正一次，记住一直</div>
+      <div class="summary">
+        <h3>从对话与纠正中提炼，不是形式按钮</h3>
+        <ul>
+          <li>点击「经验沉淀」：一次性 AI 短对话读取<b>本会话全部请求与回答</b>，识别你明确纠正 / 否定 / 偏好 / 确认的做法。</li>
+          <li>与已有经验<b>合并去重</b>：保留仍有效的条目，改写被新纠正推翻的条目。</li>
+          <li>按项目存为本地 Markdown：<b>experience/&lt;项目&gt;.md</b>，换会话不丢失。</li>
+          <li>之后<b>每轮提示词自动注入</b>「历史经验沉淀…必须遵循，避免重犯」。</li>
+        </ul>
+      </div>
+      <div class="note-box"><b>真实环境实测</b>沉淀后文件落盘；下一轮 CLI 原生会话记录中可见注入的经验块；会话栏灯泡入口带徽标，随时查看 / 编辑 / 清空。</div>
+    </div>
+    <div class="card loop">
+      <div class="card-head"><span class="spark">∞</span>进化闭环</div>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><div><b>提炼</b><span>会话结束点「经验沉淀」，90 秒超时保护，失败如实提示。</span></div></div>
+        <div class="step"><span class="n">2</span><div><b>落盘</b><span>本地 Markdown，按项目隔离，可备份可迁移。</span></div></div>
+        <div class="step"><span class="n">3</span><div><b>注入</b><span>每轮 enginePrompt 携带经验块，优先级高于默认习惯。</span></div></div>
+        <div class="step"><span class="n">4</span><div><b>管理</b><span>浮窗查看 / 编辑 / 清空；再次沉淀自动合并。</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

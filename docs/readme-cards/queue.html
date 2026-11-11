@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1520px;height:760px;overflow:hidden}
+  body{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;background:#F1F5EA;color:#1B272E}
+  .top{height:54px;background:#16281E;display:flex;align-items:center;gap:12px;padding:0 26px;color:#EAF2E2}
+  .mark{width:28px;height:28px;border-radius:8px;background:#2E4A38;border:1px solid #4E6B52;display:grid;place-items:center;font-size:14px;font-weight:700;color:#D8EBAD}
+  .top b{font-size:15px}.project{padding:3px 10px;border:1px solid #4E6B52;border-radius:999px;font-size:11px;color:#D8EBAD}
+  .top .spacer{flex:1}.top .share{font-size:11px;color:#AFC4AC;letter-spacing:.06em}
+  .body{padding:18px 24px;display:grid;grid-template-columns:640px 1fr;gap:16px;height:706px}
+  .card{background:#fff;border:1px solid #DCE5D4;border-radius:12px;box-shadow:0 12px 34px rgba(26,44,31,.07);overflow:hidden;display:flex;flex-direction:column}
+  .card-head{display:flex;align-items:center;gap:8px;padding:11px 16px;background:#FAFCF6;border-bottom:1px solid #E7EDDF;font-size:12px;font-weight:700;color:#405344}
+  .spark{width:21px;height:21px;border-radius:6px;background:#EAF2E3;border:1px solid #D6E4CB;display:grid;place-items:center;color:#1E573C;font-size:11px}
+  .ready{margin-left:auto;font-size:9px;color:#1E573C;background:#E9F1E4;border:1px solid #D0E2C5;border-radius:99px;padding:1px 7px}
+  .chat{flex:1;padding:12px 16px;display:flex;flex-direction:column;gap:8px;background:#FBFCF7}
+  .user{align-self:flex-end;max-width:78%;background:#EDF2E4;border-radius:10px 10px 4px 10px;padding:7px 11px;font-size:11px;color:#405344}
+  .answer{background:#fff;border:1px solid #E7EDDF;border-radius:10px;padding:9px 12px;font-size:10.5px;line-height:1.7;color:#5D7462}
+  .answer b{color:#1B272E}
+  .actions{display:flex;gap:10px;font-size:9.5px;color:#9AA69B;padding:2px 2px 0}
+  .actions .on{color:#1E573C;font-weight:700}
+  .composer{margin:0 16px 14px;border:1px solid #D6DBCC;border-radius:10px;background:#fff;box-shadow:0 3px 8px rgba(34,58,42,.05)}
+  .queue{padding:9px 10px 0;display:flex;flex-direction:column;gap:5px}
+  .running{display:flex;align-items:center;gap:6px;font-size:10px;color:#5D7462}
+  .dot{width:6px;height:6px;border-radius:99px;background:#439C7D;box-shadow:0 0 0 3px rgba(67,156,125,.15)}
+  .stop{margin-left:auto;display:inline-flex;align-items:center;gap:4px;border:1px solid #DCE5D4;border-radius:99px;padding:2px 9px;font-size:9px;color:#5D7462;background:#fff}
+  .qhead{display:flex;justify-content:space-between;font-size:9px;color:#9AA69B;letter-spacing:.03em}
+  .qhead span:last-child{color:#5D7462}
+  .qrow{display:flex;align-items:center;gap:7px;border:1px solid #E7EDDF;border-radius:7px;background:#fff;padding:5px 7px}
+  .idx{flex:none;width:15px;height:15px;border-radius:99px;background:#EAF2E3;color:#1E573C;font-size:9px;display:grid;place-items:center}
+  .qtext{flex:1;font-size:10.5px;color:#405344;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .steer{flex:none;display:inline-flex;align-items:center;gap:3px;border:1px solid #CFDCC0;background:#EAF2E3;color:#1E573C;border-radius:99px;padding:2px 8px;font-size:9px;font-weight:700}
+  .x{flex:none;color:#9AA69B;font-size:10px}
+  .input{margin:8px 10px 0;border-top:0;padding:8px 4px 6px;font-size:10.5px;color:#9AA69B}
+  .footer{display:flex;align-items:center;gap:6px;border-top:1px solid #EEF2E7;padding:6px 8px}
+  .clip{color:#9AA69B;font-size:11px}
+  .engine{font-size:9.5px;color:#9AA69B;display:flex;align-items:center;gap:5px}
+  .engine i{width:5px;height:5px;border-radius:99px;background:#4E9455}
+  .meter{font-size:9.5px;color:#9AA69B}
+  .sel{margin-left:auto;border:1px solid #DCE5D4;border-radius:6px;background:#FBFCF7;font-size:9px;color:#5D7462;padding:3px 7px}
+  .sel + .sel{margin-left:0}
+  .send{width:24px;height:24px;border-radius:7px;background:#1E573C;color:#fff;display:grid;place-items:center;font-size:11px}
+  .right{display:flex;flex-direction:column;gap:16px;min-height:0}
+  .summary{padding:14px 18px;font-size:12.5px;line-height:1.85;color:#405344}
+  .summary h3{margin:10px 0 4px;font-size:12.5px;color:#234332}
+  .summary h3:first-child{margin-top:0}
+  .summary ul{margin:2px 0 6px;padding-left:18px}
+  .summary b{color:#1B272E}
+  .note-box{margin:0 18px 14px;padding:10px 12px;border-left:3px solid #C7DD8F;background:#F7FBF2;border-radius:0 7px 7px 0;font-size:11px;line-height:1.7;color:#5D7462}
+  .note-box b{display:block;color:#1E573C;margin-bottom:2px;font-size:10.5px;letter-spacing:.04em}
+  .flow{flex:1}
+  .steps{padding:12px 16px;display:flex;flex-direction:column;gap:7px}
+  .step{display:flex;gap:10px;align-items:flex-start;border:1px solid #E3E8DA;border-radius:8px;background:#fff;padding:8px 10px}
+  .step .n{flex:none;width:18px;height:18px;border-radius:99px;background:#16281E;color:#D8EBAD;font-size:10px;display:grid;place-items:center;margin-top:1px}
+  .step b{display:block;font-size:11px;color:#1B272E}
+  .step span{font-size:10px;color:#8A958C;line-height:1.6}
+  .foot{padding:8px 14px;border-top:1px solid #EEF2E7;background:#FAFCF6;font-size:9.5px;color:#9AA69B}
+</style>
+</head>
+<body>
+<div class="top"><div class="mark">P＋</div><b>排队与引导</b><span class="project">项目 DEMO-ECU-01</span><span class="spacer"></span><span class="share">POLARION · 运行中继续输入</span></div>
+<div class="body">
+  <div class="card">
+    <div class="card-head"><span class="spark">↥</span>输入框上方 · 队列条<span class="ready">底栏恒定</span></div>
+    <div class="chat">
+      <div class="user">梳理第 3 章热管理需求的验证场景</div>
+      <div class="answer"><b>工程助手</b> · 正在处理：已读取 12 个工作项，先核对阈值与迟滞参数，再逐条给出验证场景……</div>
+      <div class="actions"><span>复制 Markdown</span><span>引用</span><span>重试</span><span class="on">经验沉淀</span></div>
+      <div class="user">补充：快充预热改为按需开启</div>
+      <div class="answer"><b>工程助手</b> · 已排队：当前任务结束后自动作为下一轮发送；在队列条点「引导」可立即插队优先处理。</div>
+    </div>
+    <div class="composer">
+      <div class="queue">
+        <div class="running"><span class="dot"></span>正在处理<span class="stop">■ 停止</span></div>
+        <div class="qhead"><span>排队 · 4</span><span>收起 ∧</span></div>
+        <div class="qrow"><span class="idx">1</span><span class="qtext">补充：快充预热改为按需开启</span><span class="steer">↳ 引导</span><span class="x">×</span></div>
+        <div class="qrow"><span class="idx">2</span><span class="qtext">把冷却阈值改成 50°C，迟滞 3°C</span><span class="steer">↳ 引导</span><span class="x">×</span></div>
+        <div class="qrow"><span class="idx">3</span><span class="qtext">新增降级状态图标的需求条目</span><span class="steer">↳ 引导</span><span class="x">×</span></div>
+        <div class="qrow"><span class="idx">4</span><span class="qtext">完成后输出变更摘要</span><span class="steer">↳ 引导</span><span class="x">×</span></div>
+      </div>
+      <div class="input">输入新需求，发送后进入上方队列；队列条目点「引导」可打断当前任务优先处理…</div>
+      <div class="footer"><span class="clip">📎</span><span class="engine"><i></i>Claude Code</span><span class="meter">◔ 27%</span><span class="sel">不附加指令 ▾</span><span class="sel">完全访问 ▾</span><span class="send">↑</span></div>
+    </div>
+    <div class="foot">停止 / 引导 / 取消都在队列条；输入框下方的功能按钮在运行期间保持原排布。</div>
+  </div>
+  <div class="right">
+    <div class="card">
+      <div class="card-head"><span class="spark">≡</span>默认排队，逐条引导</div>
+      <div class="summary">
+        <h3>发出去就排上，不打断当前思路</h3>
+        <ul>
+          <li>运行中发送一律<b>排队</b>，指令逐条列在输入框上方：发两条放两条，发三条放三条。</li>
+          <li>超过 3 条<b>默认折叠</b>为「N 条排队」，点击展开 / 收起。</li>
+          <li>每条后带<b>「引导」</b>：点击立即优雅打断当前任务，该条插队优先执行，上下文保留。</li>
+          <li>队列条内可<b>取消排队</b>、<b>停止当前任务</b>；底栏不再随运行状态增减控件。</li>
+        </ul>
+      </div>
+      <div class="note-box"><b>真实环境实测</b>长任务运行中连发 4 条 → 默认折叠；展开后对第 2 条点「引导」→ 当前轮标记「已打断」，执行顺序变为 1→2(引导)→其余按 FIFO，全程底栏排布不变。</div>
+    </div>
+    <div class="card flow">
+      <div class="card-head"><span class="spark">✓</span>与既有会话能力共存</div>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><div><b>排队上限 5 条</b><span>超出提示等待当前任务推进；取消的排队不占用名额。</span></div></div>
+        <div class="step"><span class="n">2</span><div><b>引导失败如实记录</b><span>CLI 不支持打断时保留排队并提示，不假装已打断。</span></div></div>
+        <div class="step"><span class="n">3</span><div><b>权限按轮冻结</b><span>排队指令沿用发送时选择的批准方式与附加指令。</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

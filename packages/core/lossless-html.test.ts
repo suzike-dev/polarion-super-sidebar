@@ -60,6 +60,13 @@ test('unknown macros and active content remain opaque', () => {
   const node=draft.nodes.find(n=>n.polarionId?.includes('name=unknown'))!;
   assert.throws(()=>draft.replaceText(draft.version,[{nodeId:node.id,expectedText:'opaque',text:'new'}]),/OPAQUE_NODE/);
 });
+test('parameterless table macros keep cell text editable (LiveDoc export spelling)', () => {
+  // LiveDoc 导出的表格宏 id 以宏名直接结尾，不带 `;params`（SPE-908 实测形态）。
+  const source='<table id="polarion_wiki macro name=table" class="polarion-Document-table"><tbody><tr><td>吹面</td><td>＜[21,24]</td></tr></tbody></table>';
+  const draft=new LosslessHtml(source);const cell=draft.nodes.find(n=>n.text==='吹面');
+  assert.ok(cell,'table cell text must be an editable leaf');
+  assert.equal(draft.replaceText(draft.version,[{nodeId:cell.id,expectedText:'吹面',text:'吹脚'}]).source,source.replace('吹面','吹脚'));
+});
 test('moving a whole block retains identities and all internal markup', () => {
   const draft=new LosslessHtml('<p id="a">A</p><div id="b">B</div><p id="c">C</p>');
   const [a,b,c]=draft.nodes.filter(n=>n.topLevel);

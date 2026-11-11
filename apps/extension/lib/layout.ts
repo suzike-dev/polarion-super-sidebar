@@ -84,20 +84,37 @@ function matchesLazyLoad(baseline: string, current: string, doc: Document) {
   return loaded && before.innerHTML === after.innerHTML;
 }
 export class NativeState {
-  private doc?: Document; private baseline?: string; private candidate?: string; private edited = false;
+  private doc?: Document; private baseline?: string; private edited = false;
   private inputEpoch=0;
+  private observer?: MutationObserver; private settleTimer?: ReturnType<typeof setTimeout>;
   private onInput = () => { this.edited = true;this.inputEpoch++; };
   bind() {
     const next = documentFrame()?.contentDocument; if (!next) return;
     if (this.doc !== next) {
-      this.doc?.removeEventListener('input', this.onInput, true); this.doc = next; this.edited = false;
-      this.baseline = undefined; this.candidate = undefined; next.addEventListener('input', this.onInput, true);
+      this.teardown();
+      this.doc = next; this.edited = false; this.baseline = undefined;
+      next.addEventListener('input', this.onInput, true);
+      // 基线只在 DOM 静止 1s 后建立一次（等价旧轮询的“两次采样相同”），建立后不再更新：
+      // 后续懒加载等演进仍由 state() 的 matchesLazyLoad 兜底，语义与轮询版完全一致。
+      // 去掉每 2s 的全文档克隆轮询——大文档上那是用户可感知的周期性卡顿来源。
+      this.observer = new MutationObserver(() => { if (this.baseline !== undefined || this.edited) return; this.scheduleBaseline(); });
+      if (next.body) this.observer.observe(next.body, { childList: true, subtree: true, characterData: true, attributes: true });
+      this.scheduleBaseline();
     }
-    if (!this.baseline && !this.edited && next.body?.querySelector('[id*="module-workitem"]')) {
-      const current = contentFingerprint(next.body);
-      if (this.candidate === current) this.baseline = current;
-      else this.candidate = current;
-    }
+  }
+  private scheduleBaseline() {
+    clearTimeout(this.settleTimer);
+    this.settleTimer = setTimeout(() => {
+      const doc = this.doc;
+      if (this.edited || !doc?.body?.querySelector('[id*="module-workitem"]')) return;
+      this.baseline = contentFingerprint(doc.body);
+      this.observer?.disconnect();
+    }, 1000);
+  }
+  private teardown() {
+    clearTimeout(this.settleTimer);
+    this.observer?.disconnect(); this.observer = undefined;
+    this.doc?.removeEventListener('input', this.onInput, true);
   }
   state(): 'clean' | 'dirty' | 'unknown' {
     this.bind();
@@ -136,5 +153,5 @@ export class NativeState {
     const save=document.getElementById('gwt-debug-toolbar-save');if(!save?.className.includes('Button-disabled'))throw Error('NATIVE_EDITOR_UNKNOWN');
     this.baseline=snapshot.html;this.edited=false;
   }
-  close() { this.doc?.removeEventListener('input', this.onInput, true); }
+  close() { this.teardown(); this.doc = undefined; }
 }

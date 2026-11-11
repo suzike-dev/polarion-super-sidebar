@@ -30,3 +30,11 @@ test('every turn lists the general guideline library and requires reading releva
   assert.match(prompt, /11111111-1111-4111-8111-111111111111/);
   assert.doesNotMatch(enginePrompt(run, [], undefined, []), /通用指令库/);
 });
+test('distilled experience is embedded as a mandatory follow-up block', () => {
+  const run = { prompt: '写一条需求', target: { projectId: 'p', document: 'd' }, contexts: [] } as unknown as Run;
+  const prompt = enginePrompt(run, [], undefined, undefined, '## 工具与流程\n- 必须先走本地草稿，用户明确保存后才写服务端。');
+  assert.match(prompt, /历史经验沉淀（用户在此前会话中明确纠正或确认的做法，必须遵循，避免重犯）/);
+  assert.match(prompt, /必须先走本地草稿/);
+  assert.doesNotMatch(enginePrompt(run, [], undefined, undefined, '   '), /历史经验沉淀/);
+  assert.doesNotMatch(enginePrompt(run, []), /历史经验沉淀/);
+});

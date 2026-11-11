@@ -1,4 +1,4 @@
-import type { SourceNode } from '../../../packages/core/lossless-html';
+import { macroNameOf, type SourceNode } from '../../../packages/core/lossless-html.ts';
 import type { Target } from '../../../packages/protocol/index';
 import {headingSizes} from '../../../packages/core/document-presentation.ts';
 const tags = new Set('a b blockquote br caption code col colgroup div em font h1 h2 h3 h4 h5 h6 hr i img li ol p pre s span strong sub sup table tbody td tfoot th thead tr u ul'.split(' '));
@@ -9,7 +9,7 @@ const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '
 /** Display-only transformation. This HTML must never be used as the source of a save. */
 export function richPreview(source: string, nodes: readonly SourceNode[], target: Target, Parser: typeof DOMParser = DOMParser) {
   const edits: { start: number; end: number; html: string }[] = [];
-  const opaque = nodes.filter(n => n.polarionId?.startsWith('polarion_wiki macro name=') && !n.polarionId.startsWith('polarion_wiki macro name=table;'));
+  const opaque = nodes.filter(n => { const macro = macroNameOf(n.polarionId); return macro !== null && macro !== 'table'; });
   const outerOpaque = opaque.filter(n => !opaque.some(parent => parent !== n && parent.start <= n.start && parent.end >= n.end));
   for (const n of outerOpaque) edits.push({ start: n.start, end: n.end, html: '<span data-protected="true">受保护的 Polarion 内容 · 原始片段保留</span>' });
   for (const n of nodes) if (n.text?.trim() && !outerOpaque.some(p => p.start <= n.start && p.end >= n.end)) edits.push({ start: n.start, end: n.end, html: `<span data-source-node="${escape(n.id)}">${source.slice(n.start, n.end)}</span>` });

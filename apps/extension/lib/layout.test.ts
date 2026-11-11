@@ -60,14 +60,16 @@ test('native focus tint and its end-field caret spacer are decorations, paragrap
 
 const nativePlaceholder = '<div id="polarion_wiki macro name=module-workitem;params=id=T-2" name="wi-placeholder" contenteditable="false"><span class="polarion-dle-workitem-icon-container">icon</span>Loading</div>';
 const nativeLoaded = '<div id="polarion_wiki macro name=module-workitem;params=id=T-2"><span id="polarion_editor_fields_container_start">T-2</span><p style="color:red">26 °C</p><span id="polarion_editor_fields_container_end">Draft</span></div>';
-function withNativePage(run:(state:NativeState,doc:Document)=>void) {
+async function withNativePage(run:(state:NativeState,doc:Document)=>void|Promise<void>) {
  const dom=new JSDOM('<div id="gwt-debug-toolbar-save" title="保存" class="polarion-dle-toolbar-Button-disabled"></div><iframe id="gwt-debug-polarion-DLE-area-debug-id"></iframe>');
- const previous=globalThis.document;globalThis.document=dom.window.document;
+ const previous=globalThis.document;const previousObserver=(globalThis as any).MutationObserver;
+ // Node 全局没有 MutationObserver：借 JSDOM 的实现，让 NativeState 的静止基线在测试里可用。
+ (globalThis as any).MutationObserver=dom.window.MutationObserver;globalThis.document=dom.window.document;
  const doc=document.querySelector('iframe')!.contentDocument!;
  doc.body.innerHTML='<h2 id="polarion_wiki macro name=module-workitem;params=id=H-1"><span class="polarion-dle-workitem-icon-container" style="display:none">icon</span>Heading</h2><p>Unchanged prose</p>'+nativePlaceholder;
  const state=new NativeState();
- try{state.bind();state.bind();assert.equal(state.state(),'clean');run(state,doc);}
- finally{state.close();globalThis.document=previous;dom.window.close();}
+ try{state.bind();await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(state.state(),'clean');await run(state,doc);}
+ finally{state.close();globalThis.document=previous;(globalThis as any).MutationObserver=previousObserver;dom.window.close();}
 }
 test('scrolling loads a placeholder and removes a native icon without blocking save; later edits remain detected',()=>withNativePage((state,doc)=>{
  doc.querySelector('[name="wi-placeholder"]')!.outerHTML=nativeLoaded;

@@ -13,6 +13,13 @@ export type SourceNode = Readonly<{
 export type TextChange = Readonly<{ nodeId: string; expectedText: string; text: string }>;
 type Replacement = { start: number; end: number; html: string };
 
+/** Polarion 宏 id 形如 `polarion_wiki macro name=<宏名>[;params…]`；无参宏以宏名直接结尾
+ * （如 LiveDoc 导出的 `<table id="polarion_wiki macro name=table">`）。与 rich-document.ts 的
+ * macroName 语义一致：按第一个分号截断，空白宽松匹配。 */
+export function macroNameOf(id?: string): string | null {
+  return id?.match(/^polarion_wiki\s+macro\s+name=([^;]+)/)?.[1] ?? null;
+}
+
 /** Source-preserving edit primitive. Parsing locates edits; it never serializes untouched HTML.
  * Node IDs belong to one snapshot. Every successful transaction returns a new snapshot.
  * Rich editor mapping, attachments and remote saving live outside this module.
@@ -33,7 +40,8 @@ export class LosslessHtml {
       let protectedNode = protectedContent || ['script', 'style', 'template', 'svg', 'math'].includes(tag);
       const attrs = 'attrs' in node ? node.attrs : [];
       const polarionId = attrs.find(a => a.name === 'id')?.value;
-      if (polarionId?.startsWith('polarion_wiki macro name=') && !polarionId.startsWith('polarion_wiki macro name=table;')) protectedNode = true;
+      const macro = macroNameOf(polarionId);
+      if (macro && macro !== 'table') protectedNode = true;
       const loc = node.sourceCodeLocation;
       if (loc && loc.startOffset >= 0 && loc.endOffset > loc.startOffset) {
         nodes.push(Object.freeze({

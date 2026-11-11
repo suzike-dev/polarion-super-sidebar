@@ -86,10 +86,7 @@ export function SettingsPanel({config,defaultFontSize,guidelines,loading,saving,
               {value:'auto',label:'自动批准',hint:'命令与工具直接执行，文件编辑限项目工作区'},
               {value:'full',label:'完全访问',hint:'不再询问；Polarion 写回仍需明确保存'},
             ]}/>
-            <Segmented label="运行中新输入" value={config.defaultTurnDelivery} disabled={saving} onChange={value=>onConfig({...config,defaultTurnDelivery:value})} options={[
-              {value:'queue',label:'排队',hint:'当前任务结束后自动作为下一轮发送'},
-              {value:'steer',label:'引导',hint:'打断当前任务，优先处理新输入'},
-            ]}/>
+            <label className="sp-field"><span className="sp-label">运行中新输入 <small>一律排队，显示在输入框上方；队列条目可点「引导」立即打断当前任务插队</small></span></label>
             <label className="sp-field"><span className="sp-label">变体链接角色 <small>变体工作项 → 主工作项的 Polarion 链接；留空时首次创建自动选择</small></span><input placeholder="例如 parent / relates_to" maxLength={120} disabled={saving} value={config.variantLinkRole} onChange={event=>onConfig({...config,variantLinkRole:event.target.value})}/></label>
           </div>
         </>}

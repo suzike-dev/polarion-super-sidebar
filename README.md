@@ -1,6 +1,6 @@
 # Polarion 超级侧边栏
 
-[![Version 0.8.0](https://img.shields.io/badge/Version-v0.8.0-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.8.0)
+[![Version 0.9.0](https://img.shields.io/badge/Version-v0.9.0-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.9.0)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-087EA4?style=for-the-badge&logo=react&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -13,7 +13,7 @@
 
 [安装与更新](#安装与更新) · [需求总览](#从需求全景开始) · [变更管理](#变更管理把一次修改变成可回看的记录) · [变体](#同一需求多个变体) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
-**[0.8.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.8.0)。** 「分享到飞书」升级为群机器人直发交互卡片：绿色题头、文档与变更区间、AI 总结、一个「打开逐项对照页」按钮。推送群按项目配置（可多个群、支持签名校验），配置存入 Polarion 项目，一人配置全项目共用；分享时整页对照渲染成单文件 HTML 写进记录工作项，按钮指向 Polarion 附件，项目成员都能打开，不依赖分享者电脑在线。0.7.0 起变更管理已支持基准/补建、左右完整对照与 AI 总结。
+**[0.9.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.9.0)。** 运行中继续输入改为**队列条**：新指令排在输入框上方，逐条可「引导」打断插队，超过 3 条默认折叠，输入框下方功能栏保持恒定；新增**经验沉淀**：把会话里你的纠正提炼成本地经验，后续每轮自动注入、避免重犯。0.8.0 的飞书群机器人卡片分享、0.7.0 的变更管理继续可用。
 
 [![Polarion 超级侧边栏：让需求工程拥有 AI 协作侧翼（自绘功能卡）](docs/assets/readme-hero.png)](docs/assets/readme-hero.png)
 
@@ -143,14 +143,24 @@
 
 [![功能示意：会话历史按分组折叠，顶部分组栏支持新建与解散分组，使用虚构示例](docs/assets/readme-sessions.png)](docs/assets/readme-sessions.png)
 
+[![功能示意：运行中队列条置于输入框上方，逐条引导/取消，超过 3 条折叠，底栏恒定，使用虚构内容](docs/assets/readme-queue.png)](docs/assets/readme-queue.png)
+
 - **会话历史整理（0.6.0 新增）**：会话支持重命名、移动到分组、归档与删除（删除需二次确认；运行中的会话拒绝删除）。顶部分组栏新建/解散分组（二次确认，组内会话回到未分组）；列表按分组折叠展开，默认展开当前会话所在节。
 - **批准方式**：默认“自动批准”；可切“请求批准”或“完全访问”，任务开始时固定本轮权限。
-- **运行中继续输入**：默认“排队”（当前任务结束后自动发送，最多 5 条）；“引导”优雅打断并保留上下文。
+- **运行中继续输入（0.9.0 队列条）**：发送一律排队（最多 5 条），指令逐条列在输入框上方；每条「引导」优雅打断当前任务并插队优先，可取消排队；停止按钮在队列条内；超过 3 条默认折叠。输入框下方功能栏运行期间排布不变。
 - **预设指令**：分「随发送附加」与「通用指令库」；每条可挂多个本地文件，使用时重新读取。
-- **消息操作**：复制回答、引用选中片段、同样请求重试；长会话挂载最近 40 轮。
+- **消息操作**：复制 Markdown、引用选中片段、同样请求重试、经验沉淀；长会话挂载最近 40 轮。
 - **设置持久化**：字号 9–18px、共享草稿文件夹、指令增删改、Polarion 账号连接。
 
 [![功能示意：回答字号设置、即时预览与明确保存，使用虚构示例](docs/assets/readme-settings.png)](docs/assets/readme-settings.png)
+
+## 经验沉淀：记住每一次纠正
+
+回答下方「经验沉淀」把本次会话里你明确纠正、否定或确认的做法提炼成条目，与已有经验合并去重后按项目存到本地 `experience/<项目>.md`；之后每轮对话自动注入「历史经验沉淀…必须遵循，避免重犯」。会话栏灯泡入口随时查看，独立浮窗支持编辑与清空（二次确认），再次沉淀自动合并。
+
+[![功能示意：纠正对话、经验沉淀浮窗与提炼-落盘-注入-管理闭环，使用虚构内容](docs/assets/readme-experience.png)](docs/assets/readme-experience.png)
+
+*自绘示意；真实环境实测沉淀落盘后，下一轮 CLI 原生会话记录中可见注入的经验块。*
 
 ## 本机与服务端如何协作
 
@@ -200,12 +210,12 @@ docs/                   规格、验证报告与自绘功能示意图
 
 ### 首次安装
 
-从公开仓库克隆。以下命令针对 `v0.8.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
+从公开仓库克隆。以下命令针对 `v0.9.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
 
 ```powershell
 git clone https://github.com/suzike-dev/polarion-super-sidebar.git
 cd polarion-super-sidebar
-git switch --detach v0.8.0
+git switch --detach v0.9.0
 node scripts/setup-runtime.mjs
 $node = '.\.runtime\node-v24.22.2-win-x64\node.exe'
 $npmCli = Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -238,7 +248,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-polarion-w
 
 1. 在浏览器扩展管理页启用开发者模式，选择“加载已解压的扩展程序”。
 2. 加载仓库中的 `apps/extension/.output/chrome-mv3` 目录。
-3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.8.0）。
+3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.9.0）。
 4. 打开已适配的 Polarion 文档，点击侧栏右上角设置，在“Polarion 账号”输入自己的用户名和密码，点击“保存并连接”。成功后即可打开编辑工作台，无需重启 Host。已用终端配置的账号可点“检查已保存的连接”。
 5. 首次写回使用有授权的测试工作项，核对服务端回读与原生正文显示。
 
