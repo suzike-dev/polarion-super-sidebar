@@ -139,3 +139,36 @@ test('work item search merges local drafts with remote hits and dedupes by id',a
  assert.deepEqual(none,[]);
  store.close();
 });
+test('a clean local draft follows native-page saves: readers and reopen show the new remote content', async () => {
+  const store = new Store(':memory:');
+  let item: RemoteItem = { id: 'T-1', title: 'x', description: '<p>old</p>', updated: 'v1' };
+  const drafts = new Drafts(store, { read: async () => ({ ...item }), save: async () => { throw Error('not called'); } });
+  const opened = await drafts.open(target, 'T-1');          // 本地留下 clean 草稿
+  assert.equal(opened.html, '<p>old</p>');
+  item = { ...item, description: '<p>native-page new</p>', updated: 'v2' };   // 模拟用户在原生页面直接保存
+  const ro = await drafts.readOnly(target, 'T-1');          // 阅读预览必须显示新内容
+  assert.equal(ro.html, '<p>native-page new</p>');
+  assert.equal(ro.baseUpdated, 'v2');
+  const peek = await drafts.peek(target, 'T-1');            // 悬停小卡同样取远端
+  assert.match(peek.text, /native-page new/);
+  assert.equal(peek.source, 'remote');
+  const again = await drafts.open(target, 'T-1');           // 再次打开编辑工作台也不再是旧内容
+  assert.equal(again.html, '<p>native-page new</p>');
+  assert.equal(again.revision, opened.revision + 1);        // 旧编辑会话按修订失效
+  store.close();
+});
+test('dirty drafts still win locally so unsaved edits are never hidden by remote updates', async () => {
+  const store = new Store(':memory:');
+  let item: RemoteItem = { id: 'T-1', title: 'x', description: '<p>old</p>', updated: 'v1' };
+  const drafts = new Drafts(store, { read: async () => ({ ...item }), save: async () => { throw Error('not called'); } });
+  const draft = await drafts.open(target, 'T-1');
+  const edited = drafts.replace(draft.id, 0, draft.nodes.find(n => n.text === 'old')!.id, 'old', 'local edit');
+  item = { ...item, description: '<p>remote new</p>', updated: 'v2' };
+  const ro = await drafts.readOnly(target, 'T-1');
+  assert.equal(ro.html, edited.html);                       // 未保存修改优先本地
+  assert.equal(ro.source, 'draft');
+  const peek = await drafts.peek(target, 'T-1');
+  assert.match(peek.text, /local edit/);
+  assert.equal(peek.source, 'draft');
+  store.close();
+});

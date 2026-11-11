@@ -305,6 +305,9 @@ export type ChangeItem = {
   outlineAfter: string;
   chapterBefore: string;
   chapterAfter: string;
+  /** 所属功能单元的完整路径，如「第3章 功能需求 · 3.7 执行及辅助状态输出选择」。 */
+  sectionAfter?: string;
+  sectionBefore?: string;
   kind: 'modified' | 'added' | 'removed' | 'moved';
   fields: ChangeField[];
   blocks: ChangeBlock[];

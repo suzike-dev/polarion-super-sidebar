@@ -166,8 +166,9 @@ function renderChange(record: ChangeRecord, change: ChangeRecord['changes'][numb
   return `<article class="cw-item cw-${change.kind}" id="item-${escapeHtml(change.workItemId)}">
     <header class="cw-item-head">
       <span class="cw-kind cw-kind-${change.kind}">${kind}</span>
-      <div class="cw-item-title"><h3>${escapeHtml(change.workItemId)} ${escapeHtml(change.title || '')}</h3><small>${escapeHtml(change.outlineAfter || change.outlineBefore || '未编号')}${change.chapterAfter !== change.chapterBefore && change.kind !== 'added' ? ` · 从 ${escapeHtml(change.chapterBefore)} 章移到 ${escapeHtml(change.chapterAfter)} 章` : ''}</small></div>
+      <div class="cw-item-title"><h3>${escapeHtml(change.workItemId)} ${escapeHtml(change.title || '')}</h3><small>${escapeHtml(change.sectionAfter || change.sectionBefore || change.outlineAfter || change.outlineBefore || '未编号')}${change.chapterAfter !== change.chapterBefore && change.kind !== 'added' ? ` · 从 ${escapeHtml(change.chapterBefore)} 章移到 ${escapeHtml(change.chapterAfter)} 章` : ''}</small></div>
       ${counts ? `<span class="cw-counts">${counts}</span>` : ''}
+      <a class="cw-item-link" href="${escapeHtml(polarionItemUrl(record.target, change.workItemId))}" target="_blank" rel="noopener noreferrer" title="在 Polarion 中打开 ${escapeHtml(change.workItemId)}">Polarion ↗</a>
     </header>
     ${change.fields.length ? `<div class="cw-field-chips">${change.fields.map(field => `<span>${escapeHtml(field.name)}：<s>${escapeHtml(field.before)}</s> → <b>${escapeHtml(field.after)}</b></span>`).join('')}</div>` : ''}
     <div class="cw-diff-head"><span>变更前</span><span>变更后</span></div><div class="cw-diff-grid">${renderDiffGrid(change.blocks, record.images, changeIds)}</div>
@@ -183,6 +184,12 @@ a{color:var(--green-2);text-decoration:none}a:hover{text-decoration:underline}
 .cw-brand{display:flex;align-items:center;gap:8px;color:var(--green);font-weight:700;letter-spacing:.02em}
 .cw-brand i{width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,var(--green),#3d7a52);display:inline-block;position:relative}
 .cw-brand i:after{content:"";position:absolute;inset:6px;border:1.5px solid var(--lime);border-radius:4px}
+.cw-top-link{margin-left:8px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;font-size:11.5px;color:#405344;background:#fff;white-space:nowrap}
+.cw-top-link:hover{border-color:#b9cbae;background:#f6f9f0;text-decoration:none}
+.cw-top-link.primary{background:var(--green);border-color:var(--green);color:#f4f8ee;font-weight:600}
+.cw-top-link.primary:hover{background:#174630}
+.cw-item-link{flex:none;margin-top:2px;font-size:11px;color:#5d7462;border:1px solid var(--line);border-radius:5px;padding:1px 7px;white-space:nowrap}
+.cw-item-link:hover{color:#174630;border-color:#b9cbae;background:#f6f9f0;text-decoration:none}
 .cw-top .cw-spacer{flex:1}
 .cw-hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#123b28 0%,#1e573c 58%,#3f704f 100%);color:#f4f8ee;border-radius:18px;padding:30px 32px 26px;box-shadow:var(--shadow)}
 .cw-hero:after{content:"";position:absolute;right:-80px;top:-100px;width:340px;height:340px;border-radius:50%;border:44px solid rgba(207,226,143,.12)}
@@ -199,9 +206,15 @@ a{color:var(--green-2);text-decoration:none}a:hover{text-decoration:underline}
 .cw-summary{border-left:4px solid var(--green-2)}
 .cw-summary .cw-label{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--green-2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
 .cw-summary .cw-label:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 3px var(--green-soft)}
-.cw-summary h2,.cw-summary h3,.cw-summary h4{margin:14px 0 6px;font-size:15px;color:var(--green)}
+.cw-summary h2,.cw-summary h4{display:flex;align-items:center;gap:8px;margin:18px 0 7px;font-size:14px;letter-spacing:.05em;color:var(--green)}
+.cw-summary h2:first-child,.cw-summary h4:first-child{margin-top:2px}
+.cw-summary h2:before,.cw-summary h4:before{content:"";width:16px;height:3px;border-radius:99px;background:linear-gradient(90deg,var(--green),var(--lime))}
+.cw-summary h3{display:inline-block;margin:12px 0 5px;padding:3px 11px;border:1px solid #d3e2c8;border-radius:99px;background:#f2f7ec;font-size:13.5px;font-weight:600;color:#234332}
 .cw-summary p{margin:7px 0;color:#33453a}
+.cw-summary li{margin:3px 0}
+.cw-summary li::marker{color:#8fae7c}
 .cw-summary ul{margin:6px 0 10px;padding-left:20px}
+.cw-summary strong{color:#1B272E}
 .cw-summary li{margin:3px 0}
 .cw-summary code{background:#f0f4e9;border:1px solid #e2e8d7;border-radius:4px;padding:0 4px;font-size:.9em}
 .cw-chapters{display:flex;flex-direction:column;gap:6px}
@@ -213,7 +226,7 @@ a{color:var(--green-2);text-decoration:none}a:hover{text-decoration:underline}
 .cw-chapter-bar i{display:block;height:100%;background:linear-gradient(90deg,#3f7a55,var(--lime));border-radius:99px}
 .cw-chapter em{flex:0 0 auto;font-size:11px;color:var(--muted);font-style:normal;font-variant-numeric:tabular-nums}
 .cw-item{border:1px solid var(--line);border-radius:13px;background:var(--card);margin-top:14px;overflow:hidden}
-.cw-item-head{display:flex;align-items:flex-start;gap:10px;padding:15px 18px;background:#fbfcf7;border-bottom:1px solid #edf1e5}
+.cw-item-head{display:flex;align-items:flex-start;gap:10px;padding:15px 18px;background:#fbfcf7;border-bottom:1px solid #edf1e5;flex-wrap:wrap}
 .cw-kind{flex:0 0 auto;font-size:10.5px;font-weight:700;letter-spacing:.06em;border-radius:99px;padding:2px 8px;margin-top:2px}
 .cw-kind-modified{background:var(--amber-soft);color:var(--amber);border:1px solid #ead9a9}
 .cw-kind-added{background:var(--green-soft);color:var(--green-2);border:1px solid #cfe0c4}
@@ -348,8 +361,21 @@ function page(title: string, body: string, extraCss = '') {
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="referrer" content="no-referrer"/><title>${escapeHtml(title)}</title><style>${PAGE_CSS}${extraCss}</style></head><body><div class="cw-page">${body}<footer class="cw-foot">由 Polarion 超级侧边栏生成 · 记录保存在 Polarion 项目工作项中 · 页面只读，不修改任何需求</footer></div></body></html>`;
 }
 
-function topBar(back?: string) {
-  return `<div class="cw-top"><span class="cw-brand"><i></i>Polarion · 变更记录</span><span class="cw-spacer"></span>${back ? `<a href="${escapeHtml(back)}">← 全部变更</a>` : ''}</div>`;
+/** Polarion 深链：文档带 ?psb=changes 时侧栏自动展开变更工作台。 */
+function polarionDocUrl(target: Target, openChanges = false) {
+  const doc = target.document.split('/').map(encodeURIComponent).join('/');
+  return `${target.origin}/polarion/#/project/${encodeURIComponent(target.projectId)}/wiki/${doc}${openChanges ? '?psb=changes' : ''}`;
+}
+function polarionItemUrl(target: Target, workItemId: string) {
+  return `${target.origin}/polarion/#/project/${encodeURIComponent(target.projectId)}/workitem?id=${encodeURIComponent(workItemId)}`;
+}
+
+function topBar(back?: string, polarion?: {label: string; href: string; itemLabel?: string; itemHref?: string}) {
+  const actions = polarion ? [
+    polarion.itemHref ? `<a class="cw-top-link" href="${escapeHtml(polarion.itemHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(polarion.itemLabel ?? '记录工作项')}</a>` : '',
+    `<a class="cw-top-link primary" href="${escapeHtml(polarion.href)}" target="_blank" rel="noopener noreferrer">↗ ${escapeHtml(polarion.label)}</a>`,
+  ].filter(Boolean).join('') : '';
+  return `<div class="cw-top"><span class="cw-brand"><i></i>Polarion · 变更记录</span><span class="cw-spacer"></span>${actions}${back ? `<a href="${escapeHtml(back)}">← 全部变更</a>` : ''}</div>`;
 }
 
 export class ChangeShare {
@@ -477,7 +503,7 @@ export class ChangeShare {
       ? [...groups.entries()].map(([day, rows]) => `<div class="cw-day">${escapeHtml(day)}</div><div class="cw-list">${rows.map(record => `<a class="cw-record" href="/changes/${token}/${record.id}"><span class="cw-record-time">${stamp(record.baselineAt).slice(11)}<br/>${stamp(record.endedAt).slice(11)}</span><span class="cw-record-main"><b>${escapeHtml(record.headline || `${record.changedItems} 个工作项变更`)}</b><small>${record.changedItems} 项 · 修改 ${record.modified} · 新增 ${record.added} · 删除 ${record.removed} · 基线 ${escapeHtml(stamp(record.baselineAt))}</small></span><span class="cw-record-stats"><i>改 ${record.modified}</i><i>增 ${record.added}</i><i>删 ${record.removed}</i></span><span class="cw-record-arrow">›</span></a>`).join('')}</div>`).join('')
       : '<div class="cw-empty-state">这个文档还没有变更记录。设定基准并结束一次变更后，记录会出现在这里。</div>';
     const latest = records[0];
-    return page(`变更历史 · ${docLabel(target)}`, `${topBar()}<section class="cw-hero"><div class="cw-kicker">Change history · ${escapeHtml(target.projectId)}</div><h1>${escapeHtml(docLabel(target))}</h1><div class="cw-range">${records.length} 次变更记录${latest ? ` · 最近一次 ${escapeHtml(stamp(latest.endedAt))}` : ''}</div><div class="cw-stats"><div class="cw-stat"><b>${records.length}</b><span>变更记录</span></div><div class="cw-stat"><b>${records.reduce((sum, record) => sum + record.changedItems, 0)}</b><span>累计变更工作项</span></div><div class="cw-stat"><b>${records.reduce((sum, record) => sum + record.modified, 0)}</b><span>累计修改</span></div><div class="cw-stat"><b>${records.reduce((sum, record) => sum + record.added + record.removed, 0)}</b><span>累计新增 / 删除</span></div></div></section><section class="cw-section"><h2>按天回看</h2>${list}</section>`);
+    return page(`变更历史 · ${docLabel(target)}`, `${topBar(undefined, {label: '在 Polarion 中打开变更工作台', href: polarionDocUrl(target, true)})}<section class="cw-hero"><div class="cw-kicker">Change history · ${escapeHtml(target.projectId)}</div><h1>${escapeHtml(docLabel(target))}</h1><div class="cw-range">${records.length} 次变更记录${latest ? ` · 最近一次 ${escapeHtml(stamp(latest.endedAt))}` : ''}</div><div class="cw-stats"><div class="cw-stat"><b>${records.length}</b><span>变更记录</span></div><div class="cw-stat"><b>${records.reduce((sum, record) => sum + record.changedItems, 0)}</b><span>累计变更工作项</span></div><div class="cw-stat"><b>${records.reduce((sum, record) => sum + record.modified, 0)}</b><span>累计修改</span></div><div class="cw-stat"><b>${records.reduce((sum, record) => sum + record.added + record.removed, 0)}</b><span>累计新增 / 删除</span></div></div></section><section class="cw-section"><h2>按天回看</h2>${list}</section>`);
   }
 
   private recordPage(record: ChangeRecord, token: string, records: ChangeRecordSummary[]) {
@@ -492,7 +518,7 @@ export class ChangeShare {
     const itemNav = `<section class="cw-section"><h2>工作项索引</h2><div class="cw-list">${record.changes.map(change => `<a class="cw-record" href="#item-${escapeHtml(change.workItemId)}"><span class="cw-record-time">${escapeHtml(change.workItemId)}</span><span class="cw-record-main"><b>${escapeHtml(change.title || '')}</b><small>${escapeHtml(change.outlineAfter || change.outlineBefore || '未编号')} · ${change.counts.added} 增 / ${change.counts.removed} 删 / ${change.counts.modified} 改</small></span><span class="cw-record-arrow">›</span></a>`).join('')}</div></section>`;
     const note = record.note ? `<section class="cw-section cw-note-card"><h2>作者补充</h2><p>${escapeHtml(record.note).replace(/\r?\n/g, '<br/>')}</p></section>` : '';
     const hoverCss = [...changeIds].map(id => `.cw-text-diff:has([data-cw-change="${id}"][data-cw-side="before"]:hover) [data-cw-change="${id}"][data-cw-side="after"],.cw-text-diff:has([data-cw-change="${id}"][data-cw-side="after"]:hover) [data-cw-change="${id}"][data-cw-side="before"]{outline:2px solid #1e573c;outline-offset:2px;background:#fff8d6;border-radius:2px}`).join('');
-    return page(`变更记录 · ${record.documentTitle}`, `${topBar(`/changes/${token}`)}<section class="cw-hero"><div class="cw-kicker">项目 ${escapeHtml(record.target.projectId)} · CHANGE RECORD</div><h1>${escapeHtml(record.documentTitle)}</h1><div class="cw-project-badge">项目：${escapeHtml(record.target.projectId)}</div><div class="cw-range">${escapeHtml(stamp(record.baselineAt))} → ${escapeHtml(stamp(record.endedAt))} · 历时 ${durationLabel(record.baselineAt, record.endedAt)}</div><div class="cw-stats"><div class="cw-stat"><b>${record.changedItems}</b><span>变更工作项</span></div><div class="cw-stat"><b>${record.modified}</b><span>修改</span></div><div class="cw-stat"><b>${record.added}</b><span>新增</span></div><div class="cw-stat"><b>${record.removed}</b><span>删除</span></div></div></section><section class="cw-section cw-summary">${ai}${summary}</section>${note}${renderChapters(record)}${renderFields(record)}${itemNav}<section class="cw-section"><h2>逐项对照</h2>${changesHtml || '<div class="cw-empty-state">本次基准期间没有检测到正文或属性变化。</div>'}</section><section class="cw-section"><h2>历史变更</h2><div class="cw-list">${records.filter(row => row.id !== record.id).slice(0, 12).map(row => `<a class="cw-record" href="/changes/${token}/${row.id}"><span class="cw-record-time">${escapeHtml(stamp(row.endedAt).slice(0, 10))}</span><span class="cw-record-main"><b>${escapeHtml(row.headline || `${row.changedItems} 个工作项变更`)}</b><small>${escapeHtml(stamp(row.endedAt))} · 修改 ${row.modified} · 新增 ${row.added} · 删除 ${row.removed}</small></span><span class="cw-record-arrow">›</span></a>`).join('') || '<div class="cw-empty-state">暂无其他历史记录</div>'}</div></section>`, hoverCss);
+    return page(`变更记录 · ${record.documentTitle}`, `${topBar(`/changes/${token}`, {label: '在 Polarion 中打开变更工作台', href: polarionDocUrl(record.target, true), itemLabel: record.workItemId ? `记录工作项 ${record.workItemId}` : undefined, itemHref: record.workItemId ? polarionItemUrl(record.target, record.workItemId) : undefined})}<section class="cw-hero"><div class="cw-kicker">项目 ${escapeHtml(record.target.projectId)} · CHANGE RECORD</div><h1>${escapeHtml(record.documentTitle)}</h1><div class="cw-project-badge">项目：${escapeHtml(record.target.projectId)}</div><div class="cw-range">${escapeHtml(stamp(record.baselineAt))} → ${escapeHtml(stamp(record.endedAt))} · 历时 ${durationLabel(record.baselineAt, record.endedAt)}</div><div class="cw-stats"><div class="cw-stat"><b>${record.changedItems}</b><span>变更工作项</span></div><div class="cw-stat"><b>${record.modified}</b><span>修改</span></div><div class="cw-stat"><b>${record.added}</b><span>新增</span></div><div class="cw-stat"><b>${record.removed}</b><span>删除</span></div></div></section><section class="cw-section cw-summary">${ai}${summary}</section>${note}${renderChapters(record)}${renderFields(record)}${itemNav}<section class="cw-section"><h2>逐项对照</h2>${changesHtml || '<div class="cw-empty-state">本次基准期间没有检测到正文或属性变化。</div>'}</section><section class="cw-section"><h2>历史变更</h2><div class="cw-list">${records.filter(row => row.id !== record.id).slice(0, 12).map(row => `<a class="cw-record" href="/changes/${token}/${row.id}"><span class="cw-record-time">${escapeHtml(stamp(row.endedAt).slice(0, 10))}</span><span class="cw-record-main"><b>${escapeHtml(row.headline || `${row.changedItems} 个工作项变更`)}</b><small>${escapeHtml(stamp(row.endedAt))} · 修改 ${row.modified} · 新增 ${row.added} · 删除 ${row.removed}</small></span><span class="cw-record-arrow">›</span></a>`).join('') || '<div class="cw-empty-state">暂无其他历史记录</div>'}</div></section>`, hoverCss);
   }
 
 }

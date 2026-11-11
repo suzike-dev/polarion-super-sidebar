@@ -689,6 +689,17 @@ export class Changes {
     const after = new Map(current.items.map(item => [item.id, item]));
     const headings = new Map<string, string>();
     for (const item of [...baseline.items, ...current.items]) if (item.type === 'heading' && item.outline) headings.set(outlineBase(item.outline), item.title);
+    // 功能单元路径：章号 + 章名（如“功能需求”），再带小节（如 3.7 执行及辅助状态输出选择）。
+    const sectionLabel = (outline: string) => {
+      const base = outlineBase(outline);
+      if (!base) return '';
+      const parts = base.split('.');
+      const chapterName = headings.get(parts[0]!) ?? '';
+      const chapterPart = `第${parts[0]}章` + (chapterName && chapterName !== parts[0] ? ` ${chapterName}` : '');
+      if (parts.length === 1) return chapterPart;
+      const groupName = headings.get(base) ?? '';
+      return `${chapterPart} · ${base}${groupName && groupName !== base ? ` ${groupName}` : ''}`;
+    };
     const changes: ChangeItem[] = [];
 
     for (const item of current.items) {
@@ -697,7 +708,7 @@ export class Changes {
         const diff = diffItemHtml('', item.html);
         changes.push({
           workItemId: item.id, title: item.title, outlineBefore: '', outlineAfter: item.outline,
-          chapterBefore: '0', chapterAfter: chapterOf(item.outline), kind: 'added', fields: [],
+          chapterBefore: '0', chapterAfter: chapterOf(item.outline), sectionAfter: sectionLabel(item.outline), kind: 'added', fields: [],
           blocks: this.prepareBlocks(diff.blocks), counts: {added: diff.counts.added, removed: diff.counts.removed, modified: diff.counts.modified},
         });
         continue;
@@ -711,6 +722,7 @@ export class Changes {
         workItemId: item.id, title: item.title || prior.title,
         outlineBefore: prior.outline, outlineAfter: item.outline,
         chapterBefore: chapterOf(prior.outline), chapterAfter: chapterOf(item.outline),
+        sectionBefore: sectionLabel(prior.outline), sectionAfter: sectionLabel(item.outline),
         kind: onlyMoved ? 'moved' : 'modified', fields,
         blocks: this.prepareBlocks(diff.blocks), counts: {added: diff.counts.added, removed: diff.counts.removed, modified: diff.counts.modified},
       });
@@ -720,7 +732,7 @@ export class Changes {
       const diff = diffItemHtml(item.html, '');
       changes.push({
         workItemId: item.id, title: item.title, outlineBefore: item.outline, outlineAfter: '',
-        chapterBefore: chapterOf(item.outline), chapterAfter: '0', kind: 'removed', fields: [],
+        chapterBefore: chapterOf(item.outline), chapterAfter: '0', sectionBefore: sectionLabel(item.outline), kind: 'removed', fields: [],
         blocks: this.prepareBlocks(diff.blocks), counts: {added: diff.counts.added, removed: diff.counts.removed, modified: diff.counts.modified},
       });
     }
@@ -796,9 +808,11 @@ export class Changes {
     for (const chapter of selected) {
       const items = byChapter.get(chapter.num) ?? [];
       if (!items.length) continue;
-      lines.push(`### ${chapter.num === '0' ? '未分节' : `第 ${chapter.num} 章`}${chapter.title && chapter.title !== chapter.num ? ` · ${chapter.title}` : ''}`);
+      const chapterName = chapter.num === '0' ? '未分节' : `第${chapter.num}章${chapter.title && chapter.title !== chapter.num ? ` ${chapter.title}` : ''}`;
+      lines.push(`### ${chapterName}`);
       for (const change of items.slice(0, 4)) {
-        lines.push(`- **${change.workItemId} ${change.title || ''}**：${this.changeBrief(change)}`);
+        const section = change.sectionAfter || change.sectionBefore || '';
+        lines.push(`- **${change.workItemId} ${change.title || ''}**${section ? `（${section}）` : ''}：${this.changeBrief(change)}`);
         listed++;
       }
       if (items.length > 4) {
@@ -901,6 +915,24 @@ export class Changes {
     record.images = images;
   }
 
+  /** 旧记录没有 sectionAfter/Before：读取时用章节标题 + outline 兜底补齐，保证 AI 重算与界面一致。 */
+  private enrichSections(record: ChangeRecord) {
+    if (record.changes.every(change => (change.sectionAfter ?? '') !== '' || (change.sectionBefore ?? '') !== '')) return record;
+    const titles = new Map(record.chapters.map(chapter => [chapter.num, chapter.title && chapter.title !== chapter.num ? chapter.title : '']));
+    const label = (outline: string, chapter: string) => {
+      if (chapter === '0') return '未分节';
+      if (!outline) return '';
+      const base = outline.replace(/-\d+$/, '');
+      const name = titles.get(chapter) ?? '';
+      return `第${chapter}章${name ? ` ${name}` : ''} · ${base}`;
+    };
+    for (const change of record.changes) {
+      if (!change.sectionAfter && change.outlineAfter) change.sectionAfter = label(change.outlineAfter, change.chapterAfter);
+      if (!change.sectionBefore && change.outlineBefore) change.sectionBefore = label(change.outlineBefore, change.chapterBefore);
+    }
+    return record;
+  }
+
   private cacheRecord(record: ChangeRecord) {
     this.store.put('change-record', record.id, record);
     this.store.put('change-record-index', record.id, {target: record.target, workItemId: record.workItemId ?? '', attachmentName: record.attachmentName ?? '', updated: record.updated});
@@ -926,7 +958,7 @@ export class Changes {
     if (index?.workItemId && index.attachmentName && remote.changeRead) {
       try {
         const raw = await remote.changeRead(index.target, index.workItemId, index.attachmentName);
-        const record = gunzipJson<ChangeRecord>(raw.dataBase64);
+        const record = this.enrichSections(gunzipJson<ChangeRecord>(raw.dataBase64));
         record.updated = raw.updated;
         // 新建记录时附件先于工作项创建写入，JSON 里可能还没有 workItemId；用索引补齐。
         record.workItemId = index.workItemId;
@@ -935,7 +967,7 @@ export class Changes {
         return record;
       } catch { /* 离线时回退缓存 */ }
     }
-    if (cached) return cached;
+    if (cached) return this.enrichSections(cached);
     throw Error('CHANGE_RECORD_NOT_FOUND');
   }
 
@@ -1008,10 +1040,11 @@ export class Changes {
     lines.push(`变更区间：${stamp(record.baselineAt)} → ${stamp(record.endedAt)}`);
     lines.push(`涉及 ${record.changedItems} 个工作项：修改 ${record.modified}、新增 ${record.added}、删除 ${record.removed}${record.moved ? `、移动 ${record.moved}` : ''}。`);
     if (record.note) lines.push(`作者补充说明：${record.note}`);
-    if (record.chapters.length) lines.push(`章节：${record.chapters.map(chapter => `${chapter.num === '0' ? '未分节' : `第 ${chapter.num} 章`}（${chapter.items} 项）`).join('；')}`);
+    if (record.chapters.length) lines.push(`章节：${record.chapters.map(chapter => `${chapter.num === '0' ? '未分节' : `第${chapter.num}章${chapter.title && chapter.title !== chapter.num ? ` ${chapter.title}` : ''}`}（${chapter.items} 项）`).join('；')}`);
     const items = record.changes.slice(0, 24);
     for (const change of items) {
-      lines.push(`\n### ${change.outlineAfter || change.outlineBefore || '未编号'} ${change.workItemId} ${change.title} [${change.kind}]`);
+      const section = change.sectionAfter || change.sectionBefore || '';
+      lines.push(`\n### ${change.outlineAfter || change.outlineBefore || '未编号'} ${change.workItemId} ${change.title} [${change.kind}]${section ? `（所属功能单元：${section}）` : ''}`);
       for (const field of change.fields) lines.push(`- ${field.name}：${field.before || '—'} → ${field.after || '—'}`);
       for (const block of change.blocks) {
         if (block.kind === 'same') continue;

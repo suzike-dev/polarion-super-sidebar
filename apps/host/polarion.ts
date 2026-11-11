@@ -218,7 +218,14 @@ export class Drafts {
   async readOnly(target: Target, workItemId: string) {
     const candidates = this.store.list<Draft>('draft').filter(d => d.workItemId === workItemId);
     const local = candidates.find(d => d.target.projectId === target.projectId) ?? candidates[0];
-    if (local) return { ...this.read(local.id), source: 'draft' as const };
+    // 含未保存修改（dirty/uncertain/conflict）的草稿才优先本地；clean 草稿必须与远端核对，原生页面直接保存后不能再看旧内容。
+    if (local && local.state !== 'clean') return { ...this.read(local.id), source: 'draft' as const };
+    if (local) {
+      try {
+        const item = await this.remote.read(target, workItemId, local.variantOf ? this.scopeFor(target, workItemId) : undefined);
+        return { ...this.read(this.refreshIfClean(local, item).id), source: 'draft' as const };
+      } catch { return { ...this.read(local.id), source: 'draft' as const }; }
+    }
     const item = await this.remote.read(target, workItemId);
     const html = item.description ?? '';
     const parsed = new LosslessHtml(html);
@@ -231,7 +238,7 @@ export class Drafts {
     const candidates = this.store.list<Draft>('draft').filter(d => d.workItemId === workItemId);
     const local = candidates.find(d => d.target.projectId === target.projectId) ?? candidates[0];
     let value: WorkItemPreview;
-    if (local) {
+    if (local && local.state !== 'clean') {
       const text = this.read(local.id).nodes.filter(n => n.text).map(n => String(n.text).trim()).filter(Boolean).join('\n').slice(0, 1200);
       value = { workItemId, title: local.title, text, state: local.state, revision: local.revision, source: 'draft' };
     } else {
@@ -256,10 +263,14 @@ export class Drafts {
   async open(target: Target, workItemId: string) {
     const variant = this.variantFor(target, workItemId);
     const scope = variant ? { mainWorkItemId: variant.mainWorkItemId, role: variant.linkRole } : undefined;
-    const prior = this.store.drafts(target).find(d => d.workItemId === workItemId);
+    let prior = this.store.drafts(target).find(d => d.workItemId === workItemId);
     if (prior) {
       // 旧草稿可能早于变体登记；补上归属，后续保存即可带变体作用域。
-      if (variant && prior.variantOf !== variant.mainWorkItemId) this.store.put('draft', prior.id, { ...prior, variantOf: variant.mainWorkItemId });
+      if (variant && prior.variantOf !== variant.mainWorkItemId) { prior = { ...prior, variantOf: variant.mainWorkItemId }; this.store.put('draft', prior.id, prior); }
+      // clean 草稿不代表最新：原生页面可能已直接保存，远端更新则以远端为准，避免工作台/预览显示旧内容。
+      if (prior.state === 'clean') {
+        try { prior = this.refreshIfClean(prior, await this.remote.read(target, workItemId, scope)); } catch { /* 远端暂不可读时退回本地内容 */ }
+      }
       return this.read(prior.id);
     }
     const item = await this.remote.read(target, workItemId, scope);
@@ -269,6 +280,16 @@ export class Drafts {
     const draft: Draft = { id: crypto.randomUUID(), target, workItemId, title: item.title, baseHtml: item.description ?? '', html: item.description ?? '', baseUpdated: item.updated ?? '', revision: 0, state: 'clean', ...(variant ? { variantOf: variant.mainWorkItemId } : {}) };
     this.store.put('draft', draft.id, draft); return this.read(draft.id);
   }
+  /** 远端比本地新（例如用户在原生页面直接保存）：clean 草稿没有未保存内容，安全前移基准；revision+1 让旧编辑会话失效。 */
+  private refreshIfClean(draft: Draft, item: RemoteItem): Draft {
+    if (draft.state !== 'clean') return draft;
+    const html = item.description ?? '';
+    if ((item.updated ?? '') === draft.baseUpdated && html === draft.baseHtml) return draft;
+    const next: Draft = { ...draft, title: item.title || draft.title, html, baseHtml: html, baseUpdated: item.updated ?? draft.baseUpdated, revision: draft.revision + 1, savedAt: Date.now() };
+    this.store.put('draft', next.id, next);
+    return next;
+  }
+
   read(id: string) {
     const draft = this.store.require<Draft>('draft', id);
     let snapshot = this.snapshots.get(id);

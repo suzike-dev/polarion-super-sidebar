@@ -146,7 +146,7 @@ function ChangeItemView({change, record, onlyChanges, onOpenItem, index, canOpen
       <span className={'cw-kind cw-kind-' + change.kind}>{kindLabel}</span>
       <div className="cw-change-title">
         <h3><code>{change.workItemId}</code> {change.title || '(无标题)'}</h3>
-        <small>{change.outlineAfter || change.outlineBefore || '未编号'}{change.chapterAfter !== change.chapterBefore && change.kind !== 'added' ? ` · 从 ${change.chapterBefore} 章移到 ${change.chapterAfter} 章` : ''}</small>
+        <small>{change.sectionAfter || change.sectionBefore || change.outlineAfter || change.outlineBefore || '未编号'}{change.chapterAfter !== change.chapterBefore && change.kind !== 'added' ? ` · 从 ${change.chapterBefore} 章移到 ${change.chapterAfter} 章` : ''}</small>
       </div>
       {counts && <span className="cw-change-counts">{counts}</span>}
       {canOpen && <button className="cw-link" title={`在 Polarion 中打开 ${change.workItemId}`} onClick={() => onOpenItem(change.workItemId)}>打开<ExternalLink size={11}/></button>}
@@ -469,6 +469,16 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
 
   const feishuText = (value: ChangeRecord, url: string) => `【需求变更】${value.documentTitle}\n${stamp(value.baselineAt)} → ${stamp(value.endedAt)} · ${value.changedItems} 个工作项变更（修改 ${value.modified}、新增 ${value.added}、删除 ${value.removed}）\n${value.headline}${value.note ? '\n说明：' + value.note : ''}\n查看详情：${url}`;
 
+  /** 预览分享页：先同步开空标签保住用户手势，再启动分享服务并跳转，避免被弹窗拦截。 */
+  const previewShare = async () => {
+    if (!record || busy) return;
+    const win = window.open('about:blank', '_blank');
+    const url = share?.recordUrl ?? await publish();
+    if (!url) { win?.close(); return; }
+    if (win) win.location.href = url;
+    else window.open(url, '_blank', 'noopener');
+  };
+
   const copyFeishu = async () => {
     if (!record || !share?.recordUrl) return;
     await copy(feishuText(record, share.recordUrl), '飞书消息');
@@ -595,7 +605,7 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
     const recordWorkItemUrl = value.workItemId
       ? `https://polarion.pufafen.com/polarion/#/project/${encodeURIComponent(value.target.projectId)}/workitem?id=${encodeURIComponent(value.workItemId)}`
       : '';
-    const documentUrl = `https://polarion.pufafen.com/polarion/#/project/${encodeURIComponent(value.target.projectId)}/wiki/${value.target.document.split('/').map(encodeURIComponent).join('/')}`;
+    const documentUrl = `https://polarion.pufafen.com/polarion/#/project/${encodeURIComponent(value.target.projectId)}/wiki/${value.target.document.split('/').map(encodeURIComponent).join('/')}?psb=changes`;
     const query = itemQuery.trim().toLowerCase();
     const visibleChanges = query ? value.changes.filter(change => {
       if (change.workItemId.toLowerCase().includes(query) || change.title.toLowerCase().includes(query) || (change.outlineAfter || change.outlineBefore).toLowerCase().includes(query)) return true;
@@ -612,6 +622,7 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
           {!canOpen && <a className="secondary" href={documentUrl} target="_blank" rel="noopener noreferrer" title="在 Polarion 中打开这篇文档"><ExternalLink size={13}/>前往文档</a>}
           {recordWorkItemUrl && <a className="secondary" href={recordWorkItemUrl} target="_blank" rel="noopener noreferrer" title="在 Polarion 中打开这条变更记录的工作项"><FileDiff size={13}/>记录工作项</a>}
           <button className="secondary" disabled={busy} onClick={() => void copyMarkdown()}><Copy size={13}/>{copied === 'Markdown' ? '已复制' : '复制 Markdown'}</button>
+          <button className="secondary" disabled={busy} onClick={() => void previewShare()} title="预览分享给别人的页面"><ExternalLink size={13}/>预览分享页</button>
           <button className="secondary" disabled={busy} onClick={() => void shareToFeishu()}><Share2 size={13}/>{copied === '飞书消息' ? '已复制' : '分享到飞书'}</button>
           <button className="cw-danger-link" title="删除这条变更记录" disabled={busy} onClick={() => void removeRecord(value)}><Trash2 size={12}/>删除</button>
         </div>
