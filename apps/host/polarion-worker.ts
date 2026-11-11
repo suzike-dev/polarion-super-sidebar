@@ -131,8 +131,10 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
           ['id', 'title', 'description', 'created', 'updated'],
         ];
         let rows: Awaited<ReturnType<typeof client.queryWorkItems>> | undefined;
+        // 默认查变更记录；query 传入时查同类项目级工作项（如 PSB-FEISHU 推送群配置）。
+        const query = typeof request.query === 'string' && request.query.trim() ? request.query.trim() : 'title:PSB-CHANGE*';
         for (const fields of attempts) {
-          try { rows = await client.queryWorkItems(target.projectId, 'title:PSB-CHANGE*', 'created DESC', fields, Math.min(200, Math.max(1, Number(request.limit) || 100))); break; }
+          try { rows = await client.queryWorkItems(target.projectId, query, 'created DESC', fields, Math.min(200, Math.max(1, Number(request.limit) || 100))); break; }
           catch { /* 尝试下一组字段 */ }
         }
         if (!rows) throw Error('CHANGE_RECORD_LIST_FAILED');
@@ -191,7 +193,7 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
         const description = String(request.description ?? '');
         const title = String(request.title ?? '');
         const fileName = String(request.fileName ?? '');
-        if (!/^sidebar-change-[0-9a-f-]{36}\.(record|session)\.json$/.test(fileName)) throw Error('INVALID_CHANGE_ATTACHMENT');
+        if (!/^sidebar-change-[0-9a-f-]{36}\.(record|session)\.json$/.test(fileName) && fileName !== 'sidebar-feishu.groups.json' && !/^sidebar-change-[0-9a-f-]{36}\.html$/.test(fileName)) throw Error('INVALID_CHANGE_ATTACHMENT');
         const dataBase64 = String(request.dataBase64 ?? '');
         let workItemId = typeof request.workItemId === 'string' ? request.workItemId : '';
         let currentUri = '', currentUpdated = '';

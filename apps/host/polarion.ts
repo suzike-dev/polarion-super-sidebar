@@ -43,8 +43,8 @@ export interface Remote {
   bulkRead?(target: Target): Promise<BulkSnapshot>;
   /** 单个工作项的字段级历史，用于按时间点还原正文。 */
   history?(target: Target, workItemId: string): Promise<HistoryChange[]>;
-  /** 项目级变更记录工作项（按项目查询，天然隔离）。 */
-  changeList?(target: Target, limit: number): Promise<ChangeRemoteRow[]>;
+  /** 项目级变更记录工作项（按项目查询，天然隔离）；query 可复用为其它项目级工作项（如 PSB-FEISHU）。 */
+  changeList?(target: Target, limit: number, query?: string): Promise<ChangeRemoteRow[]>;
   changeRead?(target: Target, workItemId: string, fileName: string): Promise<{workItemId: string; attachmentId: string; dataBase64: string; updated: string}>;
   changeWrite?(input: ChangeWriteInput): Promise<ChangeWriteResult>;
   changeDelete?(target: Target, workItemId: string, expectedUpdated?: string): Promise<{deleted: boolean}>;
@@ -71,8 +71,8 @@ export class Polarion implements Remote {
   history(target: Target, workItemId: string): Promise<HistoryChange[]> {
     return this.call<HistoryChange[]>({ method: 'history', target, workItemId });
   }
-  changeList(target: Target, limit: number): Promise<ChangeRemoteRow[]> {
-    return this.call<ChangeRemoteRow[]>({ method: 'change.list', target, limit });
+  changeList(target: Target, limit: number, query?: string): Promise<ChangeRemoteRow[]> {
+    return this.call<ChangeRemoteRow[]>({ method: 'change.list', target, limit, ...(query ? {query} : {}) });
   }
   changeRead(target: Target, workItemId: string, fileName: string) {
     return this.call<{workItemId: string; attachmentId: string; dataBase64: string; updated: string}>({ method: 'change.read', target, workItemId, fileName });
@@ -123,7 +123,12 @@ export class Polarion implements Remote {
     this.start(); const id = crypto.randomUUID();
     return new Promise<T>((resolve, reject) => {
       const authentication=(data as {method?:string}).method==='authenticate';
-      const timer = setTimeout(() => { this.pending.delete(id); reject(Error(authentication?'POLARION_CONNECTION_FAILED':'POLARION_TIMEOUT_VERIFY_BEFORE_RETRY')); }, authentication?40000:150000);
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(Error(authentication?'POLARION_CONNECTION_FAILED':'POLARION_TIMEOUT_VERIFY_BEFORE_RETRY'));
+        // 超时说明 worker 可能已僵死：没有其它在途请求时结束它，下一次调用会重新启动干净的 worker。
+        if (!this.pending.size && this.child) { try { this.child.kill(); } catch { /* 已退出 */ } }
+      }, authentication?40000:150000);
       this.pending.set(id, { resolve, reject, timer,progress }); this.child!.stdin.write(JSON.stringify({ ...(data as object), id }) + '\n');
     });
   }

@@ -225,7 +225,7 @@ a{color:var(--green-2);text-decoration:none}a:hover{text-decoration:underline}
 .cw-chapter-bar{flex:1;height:8px;background:#edf1e5;border-radius:99px;overflow:hidden}
 .cw-chapter-bar i{display:block;height:100%;background:linear-gradient(90deg,#3f7a55,var(--lime));border-radius:99px}
 .cw-chapter em{flex:0 0 auto;font-size:11px;color:var(--muted);font-style:normal;font-variant-numeric:tabular-nums}
-.cw-item{border:1px solid var(--line);border-radius:13px;background:var(--card);margin-top:14px;overflow:hidden}
+.cw-item{border:1px solid var(--line);border-radius:13px;background:var(--card);margin-top:14px;overflow:hidden;content-visibility:auto;contain-intrinsic-size:auto 280px}
 .cw-item-head{display:flex;align-items:flex-start;gap:10px;padding:15px 18px;background:#fbfcf7;border-bottom:1px solid #edf1e5;flex-wrap:wrap}
 .cw-kind{flex:0 0 auto;font-size:10.5px;font-weight:700;letter-spacing:.06em;border-radius:99px;padding:2px 8px;margin-top:2px}
 .cw-kind-modified{background:var(--amber-soft);color:var(--amber);border:1px solid #ead9a9}
@@ -396,6 +396,16 @@ export class ChangeShare {
     const urls = this.baseUrls();
     const historyUrl = `${urls[0]}/changes/${token}`;
     return {running: true, port: this.port, urls, historyUrl, token};
+  }
+
+  /** 单文件 HTML：把记录详情页完整渲染成可独立打开的 HTML 字符串（分享到飞书时作为附件写入 Polarion，内容随项目保存）。 */
+  async standaloneRecordHtml(token: string, recordId: string): Promise<string> {
+    const target = this.source.resolveToken(token);
+    if (!target) throw Error('SHARE_TOKEN_UNKNOWN');
+    const record = await this.source.read(recordId);
+    if (record.target.projectId !== target.projectId || record.target.document !== target.document) throw Error('RECORD_TARGET_MISMATCH');
+    const records = await this.source.list(target).catch(() => []);
+    return this.recordPage(record, token, records);
   }
 
   stop(): ShareStatus {

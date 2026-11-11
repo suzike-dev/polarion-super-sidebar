@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {AlertTriangle, CalendarClock, Check, ChevronRight, CircleDot, Copy, Download, ExternalLink, FileDiff, Link2, Loader2, Play, RefreshCw, Search, Share2, Sparkles, Trash2, X} from 'lucide-react';
-import type {ChangeAiSummary, ChangeBlock, ChangeCompareOptions, ChangeJobView, ChangeRecord, ChangeRecordSummary, ChangeSessionView, ChangeWorkspace, Target} from '../../../packages/protocol/index';
+import {AlertTriangle, CalendarClock, Check, ChevronRight, CircleDot, Copy, Download, ExternalLink, FileDiff, Link2, Loader2, Play, Plus, RefreshCw, Search, Send, Share2, Sparkles, Trash2, X} from 'lucide-react';
+import type {ChangeAiSummary, ChangeBlock, ChangeCompareOptions, ChangeJobView, ChangeRecord, ChangeRecordSummary, ChangeSessionView, ChangeShareFeishuResult, ChangeWorkspace, FeishuGroup, FeishuGroupsView, Target} from '../../../packages/protocol/index';
 import {rpc} from '../lib/client';
 import {diffTextParts} from '../../../packages/core/text-diff';
 import {diffTable} from '../../../packages/core/table-diff';
@@ -190,6 +190,7 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
   const [manualAfterAt, setManualAfterAt] = useState(0);
   const [share, setShare] = useState<{recordUrl: string; historyUrl: string; port: number} | null>(null);
   const [copied, setCopied] = useState('');
+  const [sent, setSent] = useState(false);
   const [scope, setScope] = useState<'document' | 'project'>('document');
   const [recordQuery, setRecordQuery] = useState('');
   const [itemQuery, setItemQuery] = useState('');
@@ -197,6 +198,15 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
   const [noteBusy, setNoteBusy] = useState(false);
   const [noteSaved, setNoteSaved] = useState('');
   const [sessionNote, setSessionNote] = useState('');
+  const [feishuOpen, setFeishuOpen] = useState(false);
+  const [feishuView, setFeishuView] = useState<FeishuGroupsView | null>(null);
+  /** null 表示未改动，直接展示项目里的共享配置。 */
+  const [feishuDraft, setFeishuDraft] = useState<FeishuGroup[] | null>(null);
+  const [feishuBusy, setFeishuBusy] = useState(false);
+  const [feishuError, setFeishuError] = useState('');
+  const [feishuNotice, setFeishuNotice] = useState('');
+  const [feishuTesting, setFeishuTesting] = useState('');
+  const [feishuTested, setFeishuTested] = useState<Record<string, {ok: boolean; error?: string}>>({});
   const [confirmState, setConfirmState] = useState<{title: string; message: string; label: string; danger?: boolean; action: () => void | Promise<void>} | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
@@ -485,14 +495,82 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
   };
 
   const shareToFeishu = async () => {
-    if (!record) return;
-    // 第一次点击先发布；发布完成后用户手势已失效，再点一次或点链接旁的按钮才复制。
-    if (!share?.recordUrl) {
-      const url = await publish();
-      if (url) setNotice('分享链接已生成。点击链接旁的“复制飞书消息”即可粘贴到飞书。');
+    if (!record || busy) return;
+    setBusy(true); setError('');
+    try {
+      // Host 端先确保分享服务已发布，再把交互卡片发到本项目设置里配置的全部群。
+      const value = await rpc<ChangeShareFeishuResult>({method: 'changes.share.feishu', recordId: record.id});
+      setShare(value);
+      const done = value.results.filter(row => row.ok);
+      const failed = value.results.filter(row => !row.ok);
+      if (done.length) {
+        setNotice(`变更卡片已发送到：${done.map(row => row.label).join('、')}${failed.length ? `；${failed.map(row => `${row.label} 失败（${row.error}）`).join('、')}` : ''}`);
+        setSent(true); window.setTimeout(() => setSent(false), 1800);
+      } else {
+        setNotice(`全部群发送失败（${failed.map(row => `${row.label}：${row.error}`).join('；')}），已复制纯文本消息，可手动粘贴到飞书。`);
+        await copy(feishuText(record, value.recordUrl), '飞书消息');
+      }
+    } catch (exception) {
+      const message = changeError(exception);
+      if (message.includes('NO_FEISHU_GROUPS')) {
+        // 本项目还没配群机器人：不算错误，回落到旧的“发布 + 复制纯文本”流程。
+        setBusy(false);
+        if (!share?.recordUrl) {
+          const url = await publish();
+          if (url) setNotice('分享链接已生成。本项目还没有配置飞书推送群（点右上角纸飞机图标配置，保存后全项目共用）；也可以点“复制飞书消息”手动粘贴。');
+        } else await copyFeishu();
+      } else setError(message);
+    } finally { setBusy(false); }
+  };
+
+  /* ------------------- 飞书推送群（项目共享） ------------------- */
+
+  const feishuGroups = feishuDraft ?? feishuView?.groups ?? [];
+
+  const loadFeishu = async () => {
+    setFeishuBusy(true); setFeishuError(''); setFeishuNotice('');
+    try {
+      const view = await rpc<FeishuGroupsView>({method: 'changes.feishu.groups', target});
+      setFeishuView(view); setFeishuDraft(null); setFeishuTested({});
+    } catch (exception) { setFeishuError(changeError(exception)); }
+    finally { setFeishuBusy(false); }
+  };
+
+  const patchFeishuGroup = (id: string, value: Partial<FeishuGroup>) => setFeishuDraft(feishuGroups.map(group => group.id === id ? {...group, ...value} : group));
+
+  const addFeishuGroup = () => setFeishuDraft([...feishuGroups, {id: crypto.randomUUID(), label: '飞书项目群', webhook: '', secret: ''}]);
+
+  const removeFeishuGroup = (id: string) => setFeishuDraft(feishuGroups.filter(group => group.id !== id));
+
+  const testFeishuGroup = async (group: FeishuGroup) => {
+    const webhook = group.webhook.trim();
+    if (!/^https:\/\/open\.feishu\.cn\/open-apis\/bot\/v2\/hook\//.test(webhook)) {
+      setFeishuTested(state => ({...state, [group.id]: {ok: false, error: 'webhook 地址应形如 https://open.feishu.cn/open-apis/bot/v2/hook/…'}}));
       return;
     }
-    await copyFeishu();
+    setFeishuTesting(group.id);
+    try {
+      const value = await rpc<{results: {ok: boolean; error?: string}[]}>({method: 'changes.share.feishuTest', webhook, secret: group.secret, projectId: target.projectId});
+      setFeishuTested(state => ({...state, [group.id]: value.results[0] ?? {ok: false, error: '没有返回结果'}}));
+    } catch (exception) {
+      setFeishuTested(state => ({...state, [group.id]: {ok: false, error: exception instanceof Error ? exception.message : String(exception)}}));
+    } finally { setFeishuTesting(''); }
+  };
+
+  const saveFeishuGroups = async () => {
+    for (const group of feishuGroups) {
+      if (!group.label.trim()) { setFeishuError('每个群都要填一个群名称（发送结果里显示）。'); return; }
+      if (!/^https:\/\/open\.feishu\.cn\/open-apis\/bot\/v2\/hook\//.test(group.webhook.trim())) { setFeishuError(`「${group.label}」的 webhook 地址应形如 https://open.feishu.cn/open-apis/bot/v2/hook/…`); return; }
+    }
+    setFeishuBusy(true); setFeishuError(''); setFeishuNotice('');
+    try {
+      const view = await rpc<FeishuGroupsView>({method: 'changes.feishu.groups.save', target, groups: feishuGroups});
+      setFeishuView(view); setFeishuDraft(null);
+      setFeishuNotice(view.groups.length ? `已保存 ${view.groups.length} 个群，本项目所有成员即刻共用。` : '已保存（当前为空配置）。');
+    } catch (exception) {
+      const message = changeError(exception);
+      setFeishuError(message.includes('FEISHU_GROUPS_CONFLICT') ? '配置刚被其他成员更新，点「重新加载」拿到最新配置后再改。' : message);
+    } finally { setFeishuBusy(false); }
   };
 
   const copyMarkdown = async () => {
@@ -623,7 +701,7 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
           {recordWorkItemUrl && <a className="secondary" href={recordWorkItemUrl} target="_blank" rel="noopener noreferrer" title="在 Polarion 中打开这条变更记录的工作项"><FileDiff size={13}/>记录工作项</a>}
           <button className="secondary" disabled={busy} onClick={() => void copyMarkdown()}><Copy size={13}/>{copied === 'Markdown' ? '已复制' : '复制 Markdown'}</button>
           <button className="secondary" disabled={busy} onClick={() => void previewShare()} title="预览分享给别人的页面"><ExternalLink size={13}/>预览分享页</button>
-          <button className="secondary" disabled={busy} onClick={() => void shareToFeishu()}><Share2 size={13}/>{copied === '飞书消息' ? '已复制' : '分享到飞书'}</button>
+          <button className="secondary" disabled={busy} onClick={() => void shareToFeishu()} title="把变更卡片直接发到本项目设置的飞书群"><Share2 size={13}/>{sent ? '已发送' : copied === '飞书消息' ? '已复制' : '分享到飞书'}</button>
           <button className="cw-danger-link" title="删除这条变更记录" disabled={busy} onClick={() => void removeRecord(value)}><Trash2 size={12}/>删除</button>
         </div>
       </header>
@@ -666,13 +744,14 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
   };
 
   return <div className="change-workbench" ref={panel} style={{right, top, '--cw-right': right + 'px'} as React.CSSProperties} role="dialog" aria-label="变更管理" onKeyDown={event => {
-    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (manualOpen) setManualOpen(false); else onClose(); }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (manualOpen) setManualOpen(false); else if (feishuOpen) setFeishuOpen(false); else onClose(); }
   }}>
     <header className="cw-head">
       <span className="cw-mark"><FileDiff size={16}/></span>
       <div className="cw-titles"><strong>变更管理</strong><span><b>项目 {target.projectId}</b> · {target.document.split('/').at(-1)}</span></div>
       <span className={'cw-connection ' + (workspace?.online ? 'online' : 'offline')} title={workspace?.online ? '已连接 Polarion，记录按项目共享' : 'Polarion 暂不可用，显示本机缓存'}>{workspace?.online ? '项目共享' : '本机缓存'}</span>
       <div className="cw-head-actions">
+        <button className="cw-icon" title="飞书推送群（项目共享，一人配置全项目共用）" onClick={() => {setFeishuOpen(true); if (!feishuView) void loadFeishu();}}><Send size={14}/></button>
         <button className="cw-icon" title="刷新" aria-busy={loading} onClick={() => void load()}><RefreshCw size={14} className={loading ? 'cw-spin' : ''}/></button>
         <button ref={closeButton} className="cw-icon" title="关闭变更管理（Esc）" onClick={onClose}><X size={16}/></button>
       </div>
@@ -701,6 +780,37 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
       </aside>
       <main className="cw-main">{record ? renderRecord(record) : renderOverview()}</main>
     </div>
+    {feishuOpen && <div className="cw-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setFeishuOpen(false); }}>
+      <section className="cw-modal cw-feishu-modal" role="dialog" aria-modal="true" aria-label="飞书推送群" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setFeishuOpen(false); } }}>
+        <header><div><strong>飞书推送群 · 项目共享</strong><small>一人配置，本项目成员共用；「分享到飞书」把变更卡片发到全部群。</small></div><button title="关闭" onClick={() => setFeishuOpen(false)}><X size={14}/></button></header>
+        <div className="cw-modal-body">
+          {feishuBusy && !feishuView && <div className="cw-state"><Loader2 size={14} className="cw-spin"/>正在读取项目推送群…</div>}
+          {feishuView && <>
+            <div className="cw-feishu-meta">{feishuView.source === 'polarion' ? (feishuView.groups.length ? `已连接项目（工作项 ${feishuView.workItemId ?? '—'}）` : '项目里还没有推送群配置，添加第一个群并保存。') : 'Polarion 暂不可达，显示本机缓存；联网后点「重新加载」。'}</div>
+            {feishuGroups.map(group => {const state = feishuTested[group.id]; return <div className="cw-feishu-row" key={group.id}>
+              <div className="cw-feishu-line">
+                <label><span>群名称</span><input maxLength={60} value={group.label} disabled={feishuBusy} onChange={event => patchFeishuGroup(group.id, {label: event.target.value})}/></label>
+                <label><span>签名密钥 <small>机器人开启「签名校验」才填</small></span><input type="password" placeholder="可留空" maxLength={200} value={group.secret} disabled={feishuBusy} onChange={event => patchFeishuGroup(group.id, {secret: event.target.value})}/></label>
+              </div>
+              <label className="cw-feishu-webhook"><span>Webhook 地址 <small>群设置 → 群机器人 → 添加自定义机器人</small></span><input placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/…" maxLength={500} value={group.webhook} disabled={feishuBusy} onChange={event => patchFeishuGroup(group.id, {webhook: event.target.value})}/></label>
+              <div className="cw-feishu-actions">
+                <button type="button" className="secondary" disabled={feishuBusy || feishuTesting === group.id || !group.webhook.trim()} onClick={() => void testFeishuGroup(group)}>{feishuTesting === group.id ? '发送中…' : '发送测试卡片'}</button>
+                <button type="button" className="cw-danger-link" disabled={feishuBusy} onClick={() => removeFeishuGroup(group.id)}><Trash2 size={12}/>删除</button>
+                {state && <span className={state.ok ? 'cw-feishu-ok' : 'cw-feishu-error'} role="status">{state.ok ? '已发送，请在群里查看' : `发送失败：${state.error}`}</span>}
+              </div>
+            </div>;})}
+            {feishuGroups.length === 0 && <p className="cw-modal-note">每个目标群添加一个「自定义机器人」，把 webhook 填进来；保存后本项目任何人点「分享到飞书」都会发到这些群。</p>}
+            <button type="button" className="cw-feishu-add" disabled={feishuBusy} onClick={addFeishuGroup}><Plus size={13}/>新增飞书群</button>
+          </>}
+          {feishuError && <div className="cw-inline-error"><AlertTriangle size={12}/>{feishuError}</div>}
+          {feishuNotice && <div className="cw-feishu-ok" role="status">{feishuNotice}</div>}
+        </div>
+        <footer>
+          <button className="secondary" disabled={feishuBusy} onClick={() => void loadFeishu()}><RefreshCw size={13} className={feishuBusy ? 'cw-spin' : ''}/>重新加载</button>
+          <button className="primary" disabled={feishuBusy || !feishuView || feishuDraft === null} onClick={() => void saveFeishuGroups()}>保存到项目</button>
+        </footer>
+      </section>
+    </div>}
     {manualOpen && <div className="cw-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setManualOpen(false); }}>
       <section className="cw-modal" role="dialog" aria-modal="true" aria-label="选择变更基准" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setManualOpen(false); } }}>
         <header><div><strong>选择变更基准</strong><small>从最近变更时间线里选，不用手写时间；系统还原整篇文档后比较。</small></div><button title="关闭" onClick={() => setManualOpen(false)}><X size={14}/></button></header>

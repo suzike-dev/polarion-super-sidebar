@@ -9,6 +9,7 @@ import {Changes} from './changes.ts';
 import {Credentials} from './credentials.ts';
 import {validateGuideline} from './guidelines.ts';
 import {pickFolder, pickFiles} from './dialogs.ts';
+import {buildTestCard, sendCardToGroups} from './feishu.ts';
 import { RequestSchema, PROTOCOL, normalizeGuideline, type Reply, type Run, type Session, type SessionGroup } from '../../packages/protocol/index.ts';
 export class Service {
   store: Store; drafts: Drafts; engines: Engines;
@@ -24,7 +25,7 @@ export class Service {
     try {
       const request = RequestSchema.parse(input); id = request.id; const c = request.command; let value: unknown;
       switch (c.method) {
-        case 'health': value = { protocol: PROTOCOL, version: '0.7.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
+        case 'health': value = { protocol: PROTOCOL, version: '0.8.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
         case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;const capabilities=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);value={...capabilities,connected:!!runtime};break;}
         case 'engine.manage': value=await this.engines.manage(c.sessionId,c.action,c.server);break;
         case 'engine.context': this.store.require<Session>('session',c.sessionId);value=await this.engines.contextUsage.read(c.sessionId,c.refresh);break;
@@ -95,6 +96,10 @@ export class Service {
         case 'changes.record.summarize': value = await this.changes.summarize(c.recordId, c.force); break;
         case 'changes.share.publish': value = await this.changes.publish(c.recordId); break;
         case 'changes.share.stop': value = this.changes.stopShare(); break;
+        case 'changes.share.feishu': value = await this.changes.shareFeishu(c.recordId); break;
+        case 'changes.share.feishuTest': value = await sendCardToGroups([{label: '测试群', webhook: c.webhook, secret: c.secret}], buildTestCard(c.projectId)); break;
+        case 'changes.feishu.groups': value = await this.changes.feishuGroups(c.target); break;
+        case 'changes.feishu.groups.save': value = await this.changes.feishuGroupsSave(c.target, c.groups); break;
         case 'drafts.delete': value = { removed: this.drafts.remove(c.draftIds) }; break;
         case 'guidelines.list': value = this.store.guidelines(); break;
         case 'guidelines.save': validateGuideline(c.guideline); this.store.put('guideline', c.guideline.id, normalizeGuideline(c.guideline)); value = normalizeGuideline(c.guideline); break;

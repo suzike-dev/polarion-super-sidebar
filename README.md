@@ -1,6 +1,6 @@
 # Polarion 超级侧边栏
 
-[![Version 0.7.0](https://img.shields.io/badge/Version-v0.7.0-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.7.0)
+[![Version 0.8.0](https://img.shields.io/badge/Version-v0.8.0-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.8.0)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-087EA4?style=for-the-badge&logo=react&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -13,7 +13,7 @@
 
 [安装与更新](#安装与更新) · [需求总览](#从需求全景开始) · [变更管理](#变更管理把一次修改变成可回看的记录) · [变体](#同一需求多个变体) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
-**[0.7.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.7.0)。** 新增「变更管理」模块：显式设定基准、结束后生成记录，或从最近变更时间线补建；每个工作项左右两栏完整对照，未变内容灰显，修改/新增/删除按规则高亮，表格做到行与单元格级；AI 结构化总结、人工补充说明、项目内记录与内网分享页一并落地。记录写入 Polarion 项目工作项并按项目隔离，项目成员看到同一份。
+**[0.8.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.8.0)。** 「分享到飞书」升级为群机器人直发交互卡片：绿色题头、文档与变更区间、AI 总结、一个「打开逐项对照页」按钮。推送群按项目配置（可多个群、支持签名校验），配置存入 Polarion 项目，一人配置全项目共用；分享时整页对照渲染成单文件 HTML 写进记录工作项，按钮指向 Polarion 附件，项目成员都能打开，不依赖分享者电脑在线。0.7.0 起变更管理已支持基准/补建、左右完整对照与 AI 总结。
 
 [![Polarion 超级侧边栏：让需求工程拥有 AI 协作侧翼（自绘功能卡）](docs/assets/readme-hero.png)](docs/assets/readme-hero.png)
 
@@ -61,9 +61,15 @@
 | AI 总结 | 结论 → 按章节的变更要点 → 影响提示；可重新生成，失败保留自动摘要 |
 | 人工补充 | 补充“为什么改、影响谁”；与 AI 总结一起写入项目记录 |
 | 记录存储 | 每次变更一个 Polarion 项目工作项 + 压缩附件；按项目隔离，项目成员共享 |
-| 分享 | 内网分享页按天回看、完整对照、悬停联动；复制链接/飞书文案；下载单文件 HTML |
+| 分享 | 飞书群机器人直发交互卡片（项目可配多个群、支持签名校验）；卡片唯一入口「打开逐项对照页」→ Polarion 附件，任何项目成员可打开；另保留内网分享页、复制文案与单文件 HTML 下载 |
 
 **记录不落在个人电脑上。** 基准快照、最终记录、AI 总结与补充说明都写入当前项目的 Polarion 工作项和附件；本机只缓存列表与正文，换电脑或换人后读取同一份项目记录。记录顶部与分享页顶部都会标注所属项目。
+
+### 分享到飞书
+
+变更工作台右上角的纸飞机是「飞书推送群」入口：在飞书群里添加自定义机器人，把 webhook 填进来，可加群备注名、可填机器人签名密钥，点「发送测试卡片」确认连通，再「保存到项目」。一个项目可以配多个群；配置写入项目的 `PSB-FEISHU` 工作项附件，**项目里任何人保存后，其他成员无需再配**。
+
+点「分享到飞书」时：先把这条记录渲染成单文件对照页，作为 HTML 附件写进记录工作项，再向该项目全部群发送交互卡片。卡片里是文档名、变更区间与规模、AI 总结与备注，底部只有一个「打开逐项对照页」按钮，指向 Polarion 里的对照页附件——**项目成员都能打开，不需要分享者的电脑在线**。任一环节失败会在工作台提示具体群与原因，并回退到「复制飞书文案」。
 
 ## @ 引用工作项，单击即读
 
@@ -194,12 +200,12 @@ docs/                   规格、验证报告与自绘功能示意图
 
 ### 首次安装
 
-从公开仓库克隆。以下命令针对 `v0.7.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
+从公开仓库克隆。以下命令针对 `v0.8.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
 
 ```powershell
 git clone https://github.com/suzike-dev/polarion-super-sidebar.git
 cd polarion-super-sidebar
-git switch --detach v0.7.0
+git switch --detach v0.8.0
 node scripts/setup-runtime.mjs
 $node = '.\.runtime\node-v24.22.2-win-x64\node.exe'
 $npmCli = Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -232,7 +238,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-polarion-w
 
 1. 在浏览器扩展管理页启用开发者模式，选择“加载已解压的扩展程序”。
 2. 加载仓库中的 `apps/extension/.output/chrome-mv3` 目录。
-3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.7.0）。
+3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.8.0）。
 4. 打开已适配的 Polarion 文档，点击侧栏右上角设置，在“Polarion 账号”输入自己的用户名和密码，点击“保存并连接”。成功后即可打开编辑工作台，无需重启 Host。已用终端配置的账号可点“检查已保存的连接”。
 5. 首次写回使用有授权的测试工作项，核对服务端回读与原生正文显示。
 

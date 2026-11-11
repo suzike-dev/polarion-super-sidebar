@@ -6,7 +6,7 @@ const key = identity.publicKey;
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
-    name: 'Polarion 超级侧边栏 · 开发版', version: '0.7.0', key,
+    name: 'Polarion 超级侧边栏 · 开发版', version: '0.8.0', key,
     description: '与本地 Agent 及 Polarion 工作项共享上下文和草稿的工程工作台',
     permissions: ['storage', 'contextMenus', 'nativeMessaging', 'scripting', 'offscreen', 'clipboardWrite'],
     host_permissions: ['https://polarion.pufafen.com/*'],

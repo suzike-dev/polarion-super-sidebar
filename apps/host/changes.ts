@@ -4,9 +4,10 @@ import {Store} from './store.ts';
 import {Drafts, type ChangeRemoteRow, type ChangeWriteResult, type SnapshotItem} from './polarion.ts';
 import {Assets} from './assets.ts';
 import {chapterOf, collectImageSources, diffItemHtml, outlineBase, sanitizeBlockHtml, textOfHtml, type ChangeBlock} from '../../packages/core/change-diff.ts';
-import {sameTarget, type Asset, type ChangeAiSummary, type ChangeChapterSummary, type ChangeField, type ChangeItem, type ChangeJobView, type ChangeRecord, type ChangeRecordSummary, type ChangeSession, type ChangeSessionView, type ChangeShareStatus, type ChangeWorkspace, type Target, type ChangeCompareOptions, type ChangePoint} from '../../packages/protocol/index.ts';
+import {sameTarget, FeishuGroupSchema, type Asset, type ChangeAiSummary, type ChangeChapterSummary, type ChangeField, type ChangeItem, type ChangeJobView, type ChangeRecord, type ChangeRecordSummary, type ChangeSession, type ChangeSessionView, type ChangeShareStatus, type ChangeWorkspace, type FeishuGroup, type FeishuGroupsView, type Target, type ChangeCompareOptions, type ChangePoint} from '../../packages/protocol/index.ts';
 import {summarizeChange} from './summarize.ts';
 import {ChangeShare} from './changes-share.ts';
+import {buildChangeCard, sendCardToGroups} from './feishu.ts';
 
 /**
  * 变更记录以 Polarion 工作项为准：
@@ -20,6 +21,9 @@ const ACTIVE_TOKEN = 'PSB-CHANGE-ACTIVE';
 const RECORD_TOKEN = 'PSB-CHANGE';
 const CANCEL_TOKEN = 'PSB-CANCEL';
 const FILE_PATTERN = /^sidebar-change-([0-9a-f-]{36})\.(record|session)\.json$/;
+/** 项目共享的飞书推送群：独立标题标记的工作项 + 固定附件，与变更记录互不混入。 */
+const FEISHU_TITLE = 'PSB-FEISHU';
+const FEISHU_FILE = 'sidebar-feishu.groups.json';
 
 type SnapshotPayload = {v: 1; target: Target; documentTitle: string; at: number; items: SnapshotItem[]};
 
@@ -1076,6 +1080,88 @@ export class Changes {
   stopShare() {
     const status = this.share.stop();
     return status;
+  }
+
+  /** 直发飞书卡片：主链接指向 Polarion 记录工作项；完整对照页作为 HTML 附件随记录存在 Polarion，别人不依赖分享者的电脑。 */
+  async shareFeishu(recordId: string) {
+    const record = await this.readRecord(recordId);
+    const {groups} = await this.feishuGroups(record.target);
+    if (!groups.length) throw Error('NO_FEISHU_GROUPS：本项目还没有配置飞书推送群（变更工作台 → 飞书推送群）。');
+    const status = await this.publish(recordId);
+    const workItemUrl = record.workItemId
+      ? `${record.target.origin}/polarion/#/project/${encodeURIComponent(record.target.projectId)}/workitem?id=${encodeURIComponent(record.workItemId)}`
+      : undefined;
+    const attached = await this.attachRecordSnapshot(record, status.token);
+    const compareUrl = attached && record.workItemId
+      ? `${record.target.origin}/polarion/wi-attachment/${encodeURIComponent(record.target.projectId)}/${encodeURIComponent(record.workItemId)}/sidebar-change-${record.id}.html`
+      : undefined;
+    const results = await sendCardToGroups(groups, buildChangeCard({record, url: status.recordUrl, workItemUrl, compareUrl}));
+    return {...status, results};
+  }
+
+  /** 把逐项对照页渲染成单文件 HTML 写进记录工作项附件；成功返回 true（卡片按钮据此指向 Polarion 里的对照页）。 */
+  private async attachRecordSnapshot(record: ChangeRecord, token: string): Promise<boolean> {
+    if (!record.workItemId || !this.remote().changeWrite) return false;
+    try {
+      const html = await this.share.standaloneRecordHtml(token, record.id);
+      const row = await this.rowFor(record.target, record.workItemId);
+      const fileName = `sidebar-change-${record.id}.html`;
+      await this.remote().changeWrite!({
+        target: record.target, workItemId: record.workItemId, expectedUpdated: row?.updated,
+        title: row?.title ?? this.title(record.target, 'done', this.metaFromRecord(record)),
+        description: this.doneDescription(record) + `<p>分享时已生成完整对照页快照：见本工作项附件 <code>${fileName}</code>（下载后用浏览器打开，含左右逐项对照与表格）。</p>`,
+        fileName, attachmentTitle: 'Polarion Sidebar 变更对照页',
+        dataBase64: Buffer.from(html, 'utf8').toString('base64'),
+      });
+      return true;
+    } catch { return false; /* 快照失败时卡片退回工作项链接，不阻塞发送 */ }
+  }
+
+  /** 读取项目共享的飞书群配置：以 Polarion 工作项为准，读不到时退回本机缓存（从未同步则空态）。 */
+  async feishuGroups(target: Target): Promise<FeishuGroupsView> {
+    const remote = this.remote();
+    if (remote.changeList && remote.changeRead) {
+      try {
+        const row = (await remote.changeList(target, 20, `title:${FEISHU_TITLE}*`))[0];
+        const view: FeishuGroupsView = {groups: [], source: 'polarion', ...(row ? {workItemId: row.workItemId, updated: row.updated} : {})};
+        const attachment = (row?.attachments ?? []).find(item => item.file_name === FEISHU_FILE);
+        if (row && attachment?.file_name) {
+          const raw = await remote.changeRead(target, row.workItemId, attachment.file_name);
+          const parsed = FeishuGroupSchema.array().safeParse(gunzipJson<{groups?: unknown}>(raw.dataBase64).groups);
+          view.groups = parsed.success ? parsed.data : [];
+        }
+        this.store.put('change-feishu', target.projectId, {groups: view.groups, workItemId: view.workItemId, updated: view.updated, at: Date.now()});
+        return view;
+      } catch { /* Polarion 暂不可达：退回本机缓存 */ }
+    }
+    const cached = this.store.get<{groups: FeishuGroup[]; workItemId?: string; updated?: string; at: number}>('change-feishu', target.projectId);
+    return cached ? {groups: cached.groups, source: 'cache', workItemId: cached.workItemId, updated: cached.updated} : {groups: [], source: 'empty'};
+  }
+
+  /** 保存飞书群配置到项目工作项（一人保存、全项目共用）；冲突时报专用错误让前端引导重新加载。 */
+  async feishuGroupsSave(target: Target, groups: FeishuGroup[]): Promise<FeishuGroupsView> {
+    const remote = this.remote();
+    if (!remote.changeList || !remote.changeWrite) throw Error('CHANGE_BACKEND_UNAVAILABLE');
+    const row = (await remote.changeList(target, 20, `title:${FEISHU_TITLE}*`))[0];
+    const description = '<h2>Polarion Sidebar · 飞书推送群（项目共享）</h2><p>本项目「分享到飞书」把变更卡片发到这些群机器人；配置对所有项目成员生效。附件由侧边栏维护，请勿手改。</p>';
+    let last: unknown;
+    for (const type of this.typeCandidates([])) {
+      try {
+        const written = await remote.changeWrite({
+          target, ...(row ? {workItemId: row.workItemId, expectedUpdated: row.updated} : {type}),
+          title: `${FEISHU_TITLE} 变更推送群`, description,
+          fileName: FEISHU_FILE, attachmentTitle: 'Polarion Sidebar 飞书推送群', dataBase64: gzipJson({v: 1, groups}),
+        });
+        this.store.put('change-feishu', target.projectId, {groups, workItemId: written.workItemId, updated: written.updated, at: Date.now()});
+        return {groups, source: 'polarion', workItemId: written.workItemId, updated: written.updated};
+      } catch (error) {
+        const message = String((error as Error).message);
+        if (/CONFLICT/.test(message)) throw Error('FEISHU_GROUPS_CONFLICT：配置刚被他人更新，请重新加载后再保存。');
+        last = error;
+        if (!/CHANGE_RECORD_CREATE_FAILED/.test(message)) throw error;
+      }
+    }
+    throw last instanceof Error ? last : Error('CHANGE_RECORD_CREATE_FAILED');
   }
 
   private tokenFor(target: Target): string {

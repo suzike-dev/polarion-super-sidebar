@@ -205,7 +205,7 @@
 .cw-dot-del{background:#f8dcd7;border:1px solid #b42318}
 .cw-saved-hint{margin-left:auto;font-size:9px;color:#9aa69b;letter-spacing:.02em;white-space:nowrap}
 .cw-changes{padding-top:2px}
-.cw-change{background:#fff;border:1px solid #e2e8d8;border-radius:9px;margin-top:10px;overflow:hidden}
+.cw-change{background:#fff;border:1px solid #e2e8d8;border-radius:9px;margin-top:10px;overflow:hidden;content-visibility:auto;contain-intrinsic-size:auto 240px}
 .cw-change-head{display:flex;align-items:flex-start;gap:8px;padding:9px 11px;background:#fbfcf7;border-bottom:1px solid #eef2e7}
 .cw-kind{flex:none;margin-top:1px;font-size:9px;font-weight:700;letter-spacing:.06em;border-radius:99px;padding:1px 6px;border:1px solid}
 .cw-kind-modified{background:#fbf3dc;color:#80651d;border-color:#ead9a9}
@@ -349,3 +349,21 @@
 @media(prefers-reduced-motion:reduce){.change-workbench *{animation:none !important;transition:none !important;scroll-behavior:auto !important}}
 /* 从编辑工作台打开变更管理时，编辑层隐藏但保持挂载，关闭后原编辑现场回来。 */
 .workspace-root.changes-open .editor-layer{visibility:hidden;pointer-events:none}
+/* 飞书推送群（项目共享）模态：行内字段卡 + 测试/删除/结果。 */
+.cw-feishu-modal{max-width:640px}
+.cw-feishu-modal .cw-modal-body{display:flex;flex-direction:column;gap:10px}
+.cw-feishu-meta{font-size:10.5px;color:#5d7462;background:#f2f7ec;border:1px solid #dfe8d6;border-radius:7px;padding:5px 9px}
+.cw-feishu-row{display:flex;flex-direction:column;gap:7px;padding:10px 11px;border:1px solid #e5e9dc;border-radius:9px;background:#fdfdf8}
+.cw-feishu-line{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cw-feishu-row label,.cw-feishu-webhook{display:flex;flex-direction:column;gap:3px;font-size:9.5px;color:#8a958c;letter-spacing:.02em}
+.cw-feishu-row label small,.cw-feishu-webhook small{color:#a8ad9f;font-weight:400}
+.cw-feishu-row input{border:1px solid #e0e5d6;border-radius:6px;padding:4px 8px;font-size:11px;color:#1B272E;background:#fff;min-height:25px}
+.cw-feishu-row input:focus{border-color:#9bba9a;outline:none}
+.cw-feishu-webhook span{display:flex;align-items:baseline;gap:6px}
+.cw-feishu-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.cw-feishu-ok{font-size:10.5px;color:#2e5b41;font-weight:550}
+.cw-feishu-error{font-size:10.5px;color:#b3261e}
+.cw-feishu-add{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#1e573c;border:1px dashed #b9cbae;border-radius:7px;padding:5px 10px;background:#fbfcf7}
+.cw-feishu-add:hover{background:#f2f7ec;border-style:solid}
+.cw-feishu-add:disabled{opacity:.45;cursor:not-allowed}
+@media (max-width:520px){.cw-feishu-line{grid-template-columns:1fr}}
