@@ -185,6 +185,8 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('changes.compare.create'), target: TargetSchema, beforeAt: z.number().int().positive(), afterAt: z.number().int().positive() }),
   z.object({ method: z.literal('changes.job.read'), jobId: id }),
   z.object({ method: z.literal('changes.record.read'), recordId: id }),
+  /** 悬停预览：只返回工作项与摘要，不传正文 HTML/图片。 */
+  z.object({ method: z.literal('changes.record.preview'), recordId: id }),
   z.object({ method: z.literal('changes.record.note'), recordId: id, note: z.string().max(4000) }),
   z.object({ method: z.literal('changes.record.delete'), recordId: id }),
   z.object({ method: z.literal('changes.record.summarize'), recordId: id, force: z.boolean().default(false) }),
@@ -335,6 +337,21 @@ export type ChangeItem = {
   fields: ChangeField[];
   blocks: ChangeBlock[];
   counts: {added: number; removed: number; modified: number};
+};
+
+/** 悬停预览：只含展示所需字段，不含正文 HTML 与图片。 */
+export type ChangeRecordPreview = {
+  id: string;
+  documentTitle: string;
+  headline: string;
+  baselineAt: number;
+  endedAt: number;
+  changedItems: number;
+  modified: number;
+  added: number;
+  removed: number;
+  items: {workItemId: string; title: string; kind: ChangeItem['kind']}[];
+  summaryLines: string[];
 };
 
 export type ChangeRecord = ChangeRecordSummary & {

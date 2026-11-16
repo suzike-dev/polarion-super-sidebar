@@ -1,6 +1,6 @@
 # Polarion 超级侧边栏
 
-[![Version 0.9.1](https://img.shields.io/badge/Version-v0.9.1-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.9.1)
+[![Version 0.10.0](https://img.shields.io/badge/Version-v0.10.0-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.10.0)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-087EA4?style=for-the-badge&logo=react&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -13,7 +13,7 @@
 
 [安装与更新](#安装与更新) · [需求总览](#从需求全景开始) · [变更管理](#变更管理把一次修改变成可回看的记录) · [变体](#同一需求多个变体) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
-**[0.9.1 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.9.1)。** 运行中继续输入改为**队列条**：新指令排在输入框上方，逐条可「引导」打断插队，超过 3 条默认折叠，输入框下方功能栏保持恒定；新增**经验沉淀**：把会话里你的纠正提炼成本地经验，后续每轮自动注入、避免重犯。0.9.1 修复排队指令在开始执行前提前出现在正文、输入法确认候选词误发送，占位提示更小更灰。0.8.0 的飞书群机器人卡片分享、0.7.0 的变更管理继续可用。
+**[0.10.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.10.0)。** 变更管理这一轮集中打磨：**飞书卡片改为杂志式排版**，按钮直接深链到这条变更并在侧栏展开，未安装插件的人会看到安装提示；**记录列表用变动工作项命名**，鼠标悬停即可预览变更总结；变更工作台底部与侧栏对齐。0.9.x 的队列条、经验沉淀与 0.8.0 的飞书群机器人继续可用。
 
 [![Polarion 超级侧边栏：让需求工程拥有 AI 协作侧翼（自绘功能卡）](docs/assets/readme-hero.png)](docs/assets/readme-hero.png)
 
@@ -61,7 +61,8 @@
 | AI 总结 | 结论 → 按章节的变更要点 → 影响提示；可重新生成，失败保留自动摘要 |
 | 人工补充 | 补充“为什么改、影响谁”；与 AI 总结一起写入项目记录 |
 | 记录存储 | 每次变更一个 Polarion 项目工作项 + 压缩附件；按项目隔离，项目成员共享 |
-| 分享 | 飞书群机器人直发交互卡片（项目可配多个群、支持签名校验）；卡片唯一入口「打开逐项对照页」→ Polarion 附件，任何项目成员可打开；另保留内网分享页、复制文案与单文件 HTML 下载 |
+| 变更历史 | 记录名直接列出变动工作项的编号与标题；鼠标悬停即可预览变更要点、工作项与总结，单击进入完整逐项对照 |
+| 分享 | 飞书群机器人直发交互卡片（项目可配多个群、支持签名校验）；杂志式排版（文档标题题头 + 四格关键数字 + 灰底总结引用块 + 单一主按钮），「打开变更详情」直接跳到侧边栏里的这条记录；未安装插件的浏览器落在记录工作项页并提示安装；另保留内网分享页、复制文案与单文件 HTML 下载 |
 
 **记录不落在个人电脑上。** 基准快照、最终记录、AI 总结与补充说明都写入当前项目的 Polarion 工作项和附件；本机只缓存列表与正文，换电脑或换人后读取同一份项目记录。记录顶部与分享页顶部都会标注所属项目。
 
@@ -69,7 +70,9 @@
 
 变更工作台右上角的纸飞机是「飞书推送群」入口：在飞书群里添加自定义机器人，把 webhook 填进来，可加群备注名、可填机器人签名密钥，点「发送测试卡片」确认连通，再「保存到项目」。一个项目可以配多个群；配置写入项目的 `PSB-FEISHU` 工作项附件，**项目里任何人保存后，其他成员无需再配**。
 
-点「分享到飞书」时：先把这条记录渲染成单文件对照页，作为 HTML 附件写进记录工作项，再向该项目全部群发送交互卡片。卡片里是文档名、变更区间与规模、AI 总结与备注，底部只有一个「打开逐项对照页」按钮，指向 Polarion 里的对照页附件——**项目成员都能打开，不需要分享者的电脑在线**。任一环节失败会在工作台提示具体群与原因，并回退到「复制飞书文案」。
+点「分享到飞书」时：先把这条记录渲染成单文件对照页，作为 HTML 附件写进记录工作项，再向该项目全部群发送交互卡片。卡片按杂志版式组织：题头是文档标题与项目，副标题标注「需求变更速览」；正文先给变更工作项/修改/新增/删除四格关键数字，再是变更区间；AI 总结放进灰底引用块，小节用绿色竖条标题分隔；最底部只有一个「打开变更详情」按钮。
+
+按钮不再指向附件下载地址，而是记录工作项页的变更详情深链。**已安装插件**的浏览器会立刻切到文档页，侧栏展开这条变更的逐项对照；**未安装插件**的浏览器留在工作项页，正文顶部会说明需要安装插件，并给出下载入口。完整对照快照仍随记录存为工作项附件，可手动打开。任一发送环节失败会在工作台提示具体群与原因，并回退到「复制飞书文案」。
 
 ## @ 引用工作项，单击即读
 
@@ -210,12 +213,12 @@ docs/                   规格、验证报告与自绘功能示意图
 
 ### 首次安装
 
-从公开仓库克隆。以下命令针对 `v0.9.1` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
+从公开仓库克隆。以下命令针对 `v0.10.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
 
 ```powershell
 git clone https://github.com/suzike-dev/polarion-super-sidebar.git
 cd polarion-super-sidebar
-git switch --detach v0.9.1
+git switch --detach v0.10.0
 node scripts/setup-runtime.mjs
 $node = '.\.runtime\node-v24.22.2-win-x64\node.exe'
 $npmCli = Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -232,7 +235,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-dev-host.ps1
 ```
 
-`setup-runtime.mjs` 下载并校验项目专用 Node 运行时，不修改全局 PATH；`check.ps1` 执行类型检查、330 项测试与构建；`install-dev-host.ps1` 为当前 Windows 用户注册 Native Messaging Host。首次安装尚未在设置中保存账号时，诊断可能报告凭据文件缺失；先完成安装，在设置中保存并连接后，再用 `--strict` 复查。
+`setup-runtime.mjs` 下载并校验项目专用 Node 运行时，不修改全局 PATH；`check.ps1` 执行类型检查、357 项测试与构建；`install-dev-host.ps1` 为当前 Windows 用户注册 Native Messaging Host。首次安装尚未在设置中保存账号时，诊断可能报告凭据文件缺失；先完成安装，在设置中保存并连接后，再用 `--strict` 复查。
 
 `$npmCli` 仅定位用户已安装的 npm，随后由项目私有 Node 执行；上面的定位适用于普通 Windows Node/npm 安装。如果工具管理器提供的是另一层 shim，请把变量设为该 npm 安装中的实际 `npm-cli.js`，无需修改系统 PATH。
 
@@ -248,7 +251,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-polarion-w
 
 1. 在浏览器扩展管理页启用开发者模式，选择“加载已解压的扩展程序”。
 2. 加载仓库中的 `apps/extension/.output/chrome-mv3` 目录。
-3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.9.1）。
+3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.10.0）。
 4. 打开已适配的 Polarion 文档，点击侧栏右上角设置，在“Polarion 账号”输入自己的用户名和密码，点击“保存并连接”。成功后即可打开编辑工作台，无需重启 Host。已用终端配置的账号可点“检查已保存的连接”。
 5. 首次写回使用有授权的测试工作项，核对服务端回读与原生正文显示。
 

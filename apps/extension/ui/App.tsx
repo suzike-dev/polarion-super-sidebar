@@ -128,6 +128,8 @@ export function App() {
   const [overview, setOverview] = useState(false);
   /** 变更管理：整个变更工作台，记录写入 Polarion 项目。 */
   const [changes, setChanges] = useState(false);
+  /** 从飞书卡片深链进入时要直接展开的变更记录 id；手动打开工作台时清空。 */
+  const [changeSeed, setChangeSeed] = useState('');
   /** 打开编辑工作台时临时收起总览/变更管理，关闭编辑后原样恢复（用户期望两个大工作台还在）。 */
   const overlaysBehindEditor = useRef({overview: false, changes: false});
   const changesRef = useRef(changes); changesRef.current = changes;
@@ -166,7 +168,7 @@ export function App() {
   const openReaderRef = useRef(openReader); openReaderRef.current = openReader;
   // 传给 memo 大浮层的 props 必须引用稳定，否则 memo 失效。
   const closeOverviewLayer = useCallback(() => setOverview(false), []);
-  const closeChangesLayer = useCallback(() => setChanges(false), []);
+  const closeChangesLayer = useCallback(() => { setChangeSeed(''); setChanges(false); }, []);
   const openItemReader = useCallback((id: string) => void openReaderRef.current?.(id), []);
   const editDraftRef = useRef<(workItemId: string) => unknown>(() => {});
   const draftRef=useRef(draft);draftRef.current=draft;
@@ -215,7 +217,10 @@ export function App() {
   useEffect(() => { if (session) void browser.storage.local.set({ ['active-project-session:' + session.target.projectId]: session.id }); }, [session?.id]);
   useEffect(() => { if (!target) return; let disposed = false; const key = 'composer:' + JSON.stringify(target); void browser.storage.local.get(key).then(saved => { if (!disposed && typeof saved[key] === 'string') setInput(saved[key]); }); return () => { disposed = true; }; }, [target]);
   useEffect(() => {
-    const update = () => { const next = routeFromUrl(location.href); if (JSON.stringify(next) !== JSON.stringify(targetRef.current)) { routeEpoch.current++;draftOpenRequest.current++;readerRequest.current++;const sameProject = next && next.projectId === targetRef.current?.projectId; setTarget(next); setContexts(list => sameProject ? list.filter(c => c.pinned) : []); if (!sameProject) { setSession(null); setEventHistory(emptyEventHistory()); } setDraft(null); setReader(null); setOverview(false); setChanges(false); overlaysBehindEditor.current={overview:false,changes:false}; } };
+    const update = () => {
+      // 普通路由（无 psb 深链参数）要清掉上一次没走完的深链意图，避免之后打开文档时误展开旧记录。
+      if (!/[?&]psb=/.test(location.hash)) { try { sessionStorage.removeItem('psb-changes-pending');sessionStorage.removeItem('psb-change-pending'); } catch { /* 忽略 */ } }
+      const next = routeFromUrl(location.href); if (JSON.stringify(next) !== JSON.stringify(targetRef.current)) { routeEpoch.current++;draftOpenRequest.current++;readerRequest.current++;const sameProject = next && next.projectId === targetRef.current?.projectId; setTarget(next); setContexts(list => sameProject ? list.filter(c => c.pinned) : []); if (!sameProject) { setSession(null); setEventHistory(emptyEventHistory()); } setDraft(null); setReader(null); setOverview(false); setChanges(false);setChangeSeed(''); overlaysBehindEditor.current={overview:false,changes:false}; } };
     window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update);
   }, []);
   // 分享页/飞书深链：文档 URL 带 ?psb=changes 时自动展开变更工作台，随后清掉参数避免刷新重复打开。
@@ -223,6 +228,8 @@ export function App() {
   useEffect(() => {
     if (!target) return;
     const pending = (() => { try { return sessionStorage.getItem('psb-changes-pending') === '1'; } catch { return false; } })();
+    // 飞书卡片深链还会带上要直接展开的变更记录 id（跨过一次工作项页 → 文档页的跳转仍保留）。
+    const seed = (() => { try { return sessionStorage.getItem('psb-change-pending') ?? ''; } catch { return ''; } })();
     const hash = location.hash;
     let fromHash = false;
     if (hash.includes('psb=changes')) {
@@ -235,8 +242,9 @@ export function App() {
         window.history.replaceState(null, '', location.pathname + location.search + base + (rest ? '?' + rest : ''));
       }
     }
-    if (!fromHash && !pending) return;
-    try { sessionStorage.removeItem('psb-changes-pending'); } catch { /* 忽略 */ }
+    if (!fromHash && !pending && !seed) return;
+    try { sessionStorage.removeItem('psb-changes-pending');sessionStorage.removeItem('psb-change-pending'); } catch { /* 忽略 */ }
+    setChangeSeed(seed);
     setChanges(true);
   }, [target]);
   useEffect(() => {
@@ -407,11 +415,11 @@ export function App() {
   // 总览和变更管理都是覆盖文档区的大工作台，同时只保留一个；打开任一个都收起设置。
   const toggleOverview=()=>{
     if(overview){setOverview(false);return;}
-    setChanges(false);if(settings)closeSettings();setOverview(true);
+    setChanges(false);setChangeSeed('');if(settings)closeSettings();setOverview(true);
   };
   const toggleChanges=()=>{
-    if(changes){setChanges(false);return;}
-    setOverview(false);if(settings)closeSettings();setChanges(true);
+    if(changes){setChanges(false);setChangeSeed('');return;}
+    setOverview(false);if(settings)closeSettings();setChangeSeed('');setChanges(true);
   };
   const saveSettings=async()=>{
     if(!config||settingsSaveBusy.current)return;
@@ -657,7 +665,7 @@ export function App() {
     {reader && <WorkItemReader view={reader} onClose={() => setReader(null)} onWorkItem={id => { setReader(null); void openReader(id); }} onOpenEditor={() => { const id = reader.workItemId; setReader(null); void openDraft(id); }}/>}
     {experience && <ExperienceDialog view={experience.view} projectId={experience.projectId} onClose={() => setExperience(null)} onView={view => { setExperience(current => current ? { ...current, view } : current); setExperienceMeta(view); }}/>}
     {overview && target && <MemoizedOverview key={target.projectId + ':' + target.document} target={target} right={draft ? (editorAI ? width + 18 : 0) : open ? width : 0} top={geometry.top} onClose={closeOverviewLayer} onOpenItem={openItemReader}/>}
-    {changes && target && <MemoizedChangeWorkbench key={target.projectId + ':' + target.document} target={target} right={draft ? (editorAI ? width + 18 : 0) : open ? width : 0} top={geometry.top} onClose={closeChangesLayer} onOpenItem={openItemReader}/>}
+    {changes && target && <MemoizedChangeWorkbench key={target.projectId + ':' + target.document} target={target} initialRecordId={changeSeed} right={draft ? (editorAI ? width + 18 : 0) : open ? width : 0} top={geometry.top} onClose={closeChangesLayer} onOpenItem={openItemReader}/>}
     {draft && <DraftEditor key={draft.id} draft={draft} requestedBoard={requestedBoard} onBoardOpened={()=>setRequestedBoard(null)} initialScrollTop={restoredEditorScroll} onUpdate={updateCurrentDraft} onClose={() => {draftOpenRequest.current++;setContexts(list=>list.filter(c=>!c.text.startsWith('BOARD_GENERATION_CONTEXT\n')&&!c.text.startsWith('画板对象协作上下文')));setDraft(null);setRestoredEditorScroll(undefined);prepareAI.current=null;setTab(priorTab.current);// 编辑前被收起的总览/变更管理原样恢复，编辑器关闭后用户回到原来的工作台。
       const restore=overlaysBehindEditor.current;overlaysBehindEditor.current={overview:false,changes:false};setOverview(restore.overview);setChanges(restore.changes);}} aiOpen={editorAI} onToggleAI={()=>{setEditorAI(v=>!v);setTab('ai');}} onShowAI={()=>{setEditorAI(true);setTab('ai');}} onClearBoardContext={()=>setContexts(list=>list.filter(c=>!(c.workItemId===draft.workItemId&&(c.text.startsWith('BOARD_GENERATION_CONTEXT\n')||c.text.startsWith('画板对象协作上下文')))))} onPrepareAI={handler=>{prepareAI.current=handler;}} remoteRevision={drafts.find(d=>d.id===draft.id)?.revision} onError={e => setError(errorText(e))} prepareNativeSave={async()=>{if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');const snapshot=native.current.captureVerification();const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:draft.workItemId,phase:'check'});if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');if(!result?.ok)throw Error(result?.error??'NATIVE_REFRESH_UNSUPPORTED');native.current.acceptVerifiedClean(snapshot);return native.current.state();}} onSaved={async saved => {
       // The remote save has already been verified. A stale view must not refresh

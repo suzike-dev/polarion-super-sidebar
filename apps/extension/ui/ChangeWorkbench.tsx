@@ -1,14 +1,61 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AlertTriangle, CalendarClock, Check, ChevronRight, CircleDot, Copy, Download, ExternalLink, FileDiff, Link2, Loader2, Play, Plus, RefreshCw, Search, Send, Share2, Sparkles, Trash2, X} from 'lucide-react';
-import type {ChangeAiSummary, ChangeBlock, ChangeCompareOptions, ChangeJobView, ChangeRecord, ChangeRecordSummary, ChangeSessionView, ChangeShareFeishuResult, ChangeWorkspace, FeishuGroup, FeishuGroupsView, Target} from '../../../packages/protocol/index';
+import type {ChangeAiSummary, ChangeBlock, ChangeCompareOptions, ChangeJobView, ChangeRecord, ChangeRecordPreview, ChangeRecordSummary, ChangeSessionView, ChangeShareFeishuResult, ChangeWorkspace, FeishuGroup, FeishuGroupsView, Target} from '../../../packages/protocol/index';
 import {rpc} from '../lib/client';
 import {diffTextParts} from '../../../packages/core/text-diff';
 import {diffTable} from '../../../packages/core/table-diff';
+import {friendlyRecordName, recordPreview} from '../../../packages/core/change-record-name';
 import {AssistantMarkdown} from './AssistantMarkdown';
 import './change-workbench.css';
 
 /** 同一记录自动重试 AI 总结的最小间隔，避免反复打开时耗掉调用额度。 */
 const summaryAttempts = new Map<string, number>();
+const KIND_LABEL = {modified: '修改', added: '新增', removed: '删除', moved: '移动'} as const;
+
+type RecordHoverState = {
+  id: string;
+  rect: {top: number; bottom: number; left: number; right: number};
+  summary: ChangeRecordSummary;
+  record?: ChangeRecordPreview;
+  loading: boolean;
+  failed?: boolean;
+};
+
+function RecordHoverCard({state, projectScope}: {state: RecordHoverState; projectScope: boolean}) {
+  const record = state.record;
+  const info = record ?? state.summary;
+  const width = Math.min(396, window.innerWidth - 24);
+  const left = Math.max(12, Math.min(state.rect.right + 10, window.innerWidth - width - 12));
+  const below = state.rect.top > window.innerHeight * 0.52;
+  const style: React.CSSProperties = {width, left, ...(below
+    ? {bottom: Math.max(12, window.innerHeight - state.rect.bottom + 8)}
+    : {top: Math.max(12, state.rect.top)})};
+  const name = friendlyRecordName(info.headline, info.documentTitle, info.changedItems);
+  const sameDay = stamp(info.baselineAt).slice(0, 10) === stamp(info.endedAt).slice(0, 10);
+  const range = `${stamp(info.baselineAt)} → ${sameDay ? stamp(info.endedAt).slice(11) : stamp(info.endedAt)}`;
+  const lines = record?.summaryLines ?? [];
+  const changes = record?.items ?? [];
+  return <aside className="cw-hover-card" style={style} role="tooltip" aria-label="变更记录摘要">
+    <span className="cw-hover-index" aria-hidden="true">{String(info.changedItems).padStart(2, '0')}</span>
+    <header>
+      <div className="cw-hover-kicker"><span>CHANGE RECORD</span>{projectScope && <em>{info.documentTitle}</em>}</div>
+      <strong>{name}</strong>
+      <div className="cw-hover-meta">
+        <span>{range} <i>·</i> {duration(info.baselineAt, info.endedAt)}</span>
+        <span><b>{info.changedItems}</b> 项变更 <i>·</i> 改 {info.modified} / 增 {info.added} / 删 {info.removed}</span>
+      </div>
+    </header>
+    {changes.length > 0 && <div className="cw-hover-items">{changes.map(change => <div className="cw-hover-item" key={change.workItemId + ':' + change.kind}>
+      <span className={'cw-kind cw-kind-' + change.kind}>{KIND_LABEL[change.kind]}</span>
+      <code>{change.workItemId}</code>
+      <span title={change.title}>{change.title}</span>
+    </div>)}{record && record.changedItems > changes.length && <div className="cw-hover-more">另有 {record.changedItems - changes.length} 个工作项，点开查看完整对照</div>}</div>}
+    {lines.length > 0 && <div className="cw-hover-summary"><b>变更总结</b>{lines.map((line, index) => <p key={index}>{line}</p>)}</div>}
+    {state.loading && <div className="cw-hover-loading"><Loader2 size={11} className="cw-spin"/>正在读取变更要点…</div>}
+    {state.failed && <div className="cw-hover-loading">要点读取失败，单击仍可打开完整记录。</div>}
+    <footer>点击记录查看完整对照</footer>
+  </aside>;
+}
 
 const pad = (value: number) => String(value).padStart(2, '0');
 function stamp(ms: number) {
@@ -165,8 +212,9 @@ function ChangeItemView({change, record, onlyChanges, onOpenItem, index, canOpen
   </article>;
 }
 
-export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
+export function ChangeWorkbench({target, initialRecordId, right, top, onClose, onOpenItem}: {
   target: Target;
+  initialRecordId?: string;
   right: number;
   top: number;
   onClose: () => void;
@@ -216,6 +264,11 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
   const jobSeq = useRef(0);
   const closeButton = useRef<HTMLButtonElement>(null);
   const closed = useRef(false);
+  const [recordHover, setRecordHover] = useState<RecordHoverState | null>(null);
+  const hoverShowTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const hoverHideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const hoverSeq = useRef(0);
+  const hoverCache = useRef(new Map<string, ChangeRecordPreview>());
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -240,6 +293,7 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
     try {
       const value = await rpc<{summary: ChangeAiSummary; record: ChangeRecord}>({method: 'changes.record.summarize', recordId, force});
       if (!closed.current) {
+        hoverCache.current.set(recordId, recordPreview(value.record));
         setRecord(current => current?.id === recordId ? value.record : current);
         setWorkspace(current => current ? {
           ...current,
@@ -266,6 +320,7 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
     try {
       const value = await rpc<ChangeRecord>({method: 'changes.record.read', recordId});
       if (seq !== selectSeq.current || closed.current) return;
+      hoverCache.current.set(recordId, recordPreview(value));
       setRecord(value);
       const lastAttempt = summaryAttempts.get(recordId) ?? 0;
       if (value.aiSummary.status !== 'ready' && Date.now() - lastAttempt > 5 * 60_000) {
@@ -276,6 +331,33 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
       if (seq === selectSeq.current && !closed.current) setError(changeError(exception));
     }
   }, [generateSummary]);
+
+  const hideRecordHover = useCallback(() => {
+    clearTimeout(hoverShowTimer.current);
+    clearTimeout(hoverHideTimer.current);
+    hoverHideTimer.current = setTimeout(() => setRecordHover(null), 120);
+  }, []);
+
+  /** 悬停 300ms 后再读整条记录，避免扫过列表时连环请求；读到的记录按 id 缓存。 */
+  const showRecordHover = useCallback((row: ChangeRecordSummary, element: HTMLElement) => {
+    clearTimeout(hoverShowTimer.current);
+    clearTimeout(hoverHideTimer.current);
+    hoverShowTimer.current = setTimeout(() => {
+      const rect = element.getBoundingClientRect();
+      const cached = hoverCache.current.get(row.id);
+      setRecordHover({id: row.id, rect: {top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right}, summary: row, record: cached, loading: !cached});
+      if (cached) return;
+      const seq = ++hoverSeq.current;
+      void rpc<ChangeRecordPreview>({method: 'changes.record.preview', recordId: row.id}).then(value => {
+        if (seq !== hoverSeq.current) return;
+        hoverCache.current.set(row.id, value);
+        setRecordHover(current => current?.id === row.id ? {...current, record: value, loading: false} : current);
+      }).catch(() => {
+        if (seq !== hoverSeq.current) return;
+        setRecordHover(current => current?.id === row.id ? {...current, loading: false, failed: true} : current);
+      });
+    }, 300);
+  }, []);
 
   useEffect(() => {
     setNoteDraft(record?.note ?? '');
@@ -288,6 +370,7 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
     setNoteBusy(true);
     try {
       const value = await rpc<{note: string; record: ChangeRecord}>({method: 'changes.record.note', recordId: record.id, note: noteDraft});
+      hoverCache.current.set(record.id, recordPreview(value.record));
       setRecord(value.record);
       setNoteSaved('已保存到项目');
       window.setTimeout(() => setNoteSaved(''), 2200);
@@ -337,6 +420,17 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
       jobSeq.current++;
     };
   }, [load]);
+
+  // 飞书卡片深链：工作台打开后直接进入指定记录的详情，而不是停在列表/空态。
+  useEffect(() => {
+    if (initialRecordId) void openRecord(initialRecordId);
+  }, [initialRecordId, openRecord]);
+
+  useEffect(() => () => {
+    clearTimeout(hoverShowTimer.current);
+    clearTimeout(hoverHideTimer.current);
+    hoverSeq.current++;
+  }, []);
 
   useEffect(() => {
     const running = workspace?.session?.job;
@@ -477,7 +571,7 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
     }
   };
 
-  const feishuText = (value: ChangeRecord, url: string) => `【需求变更】${value.documentTitle}\n${stamp(value.baselineAt)} → ${stamp(value.endedAt)} · ${value.changedItems} 个工作项变更（修改 ${value.modified}、新增 ${value.added}、删除 ${value.removed}）\n${value.headline}${value.note ? '\n说明：' + value.note : ''}\n查看详情：${url}`;
+  const feishuText = (value: ChangeRecord, url: string) => `【需求变更】${value.documentTitle}\n${stamp(value.baselineAt)} → ${stamp(value.endedAt)} · ${value.changedItems} 个工作项变更（修改 ${value.modified}、新增 ${value.added}、删除 ${value.removed}）\n${friendlyRecordName(value.headline, value.documentTitle, value.changedItems)}${value.note ? '\n说明：' + value.note : ''}\n查看详情：${url}`;
 
   /** 预览分享页：先同步开空标签保住用户手势，再启动分享服务并跳转，避免被弹窗拦截。 */
   const previewShare = async () => {
@@ -612,7 +706,10 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
   const filteredRows = useMemo(() => {
     const query = recordQuery.trim().toLowerCase();
     if (!query) return listRows;
-    return listRows.filter(row => row.headline.toLowerCase().includes(query) || row.documentTitle.toLowerCase().includes(query) || stamp(row.endedAt).includes(query));
+    return listRows.filter(row => {
+      const name = friendlyRecordName(row.headline, row.documentTitle, row.changedItems);
+      return name.toLowerCase().includes(query) || row.headline.toLowerCase().includes(query) || row.documentTitle.toLowerCase().includes(query) || stamp(row.endedAt).includes(query);
+    });
   }, [listRows, recordQuery]);
   const groupedRecords = useMemo(() => {
     const groups = new Map<string, ChangeRecordSummary[]>();
@@ -767,13 +864,13 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
           <button type="button" role="tab" aria-selected={scope === 'project'} className={scope === 'project' ? 'on' : ''} onClick={() => setScope('project')}>本项目</button>
         </div>
         <input className="cw-search" value={recordQuery} onChange={event => setRecordQuery(event.target.value)} placeholder="搜索变更记录或文档…" aria-label="搜索变更记录"/>
-        <div className="cw-records">
+        <div className="cw-records" onScroll={() => setRecordHover(null)}>
           {loading && !workspace && <div className="cw-side-state"><Loader2 size={13} className="cw-spin"/>读取中…</div>}
           {workspace && listRows.length === 0 && <div className="cw-side-state">{scope === 'project' ? '这个项目还没有变更记录。' : '这篇文档还没有变更记录。'}<br/>设定基准或按时间补建后，记录会写进当前项目。</div>}
           {!loading && listRows.length > 0 && filteredRows.length === 0 && <div className="cw-side-state">没有匹配的记录。</div>}
-          {groupedRecords.map(([day, rows]) => <div className="cw-day" key={day}><div className="cw-day-head">{day}</div>{rows.map(row => <button key={row.id} className={'cw-record' + (selectedId === row.id ? ' selected' : '')} onClick={() => void openRecord(row.id)}>
+          {groupedRecords.map(([day, rows]) => <div className="cw-day" key={day}><div className="cw-day-head">{day}</div>{rows.map(row => <button key={row.id} className={'cw-record' + (selectedId === row.id ? ' selected' : '')} onClick={() => {setRecordHover(null); void openRecord(row.id);}} onPointerEnter={event => showRecordHover(row, event.currentTarget)} onPointerLeave={hideRecordHover}>
             <span className="cw-record-time">{stamp(row.baselineAt).slice(11)}<br/>{stamp(row.endedAt).slice(11)}</span>
-            <span className="cw-record-main"><b>{row.headline || `${row.changedItems} 个工作项变更`}</b><small>{scope === 'project' ? row.documentTitle + ' · ' : ''}{row.changedItems} 项 · 改 {row.modified} · 增 {row.added} · 删 {row.removed}</small></span>
+            <span className="cw-record-main"><b>{friendlyRecordName(row.headline, row.documentTitle, row.changedItems)}</b><small>{scope === 'project' ? row.documentTitle + ' · ' : ''}{row.changedItems} 项 · 改 {row.modified} · 增 {row.added} · 删 {row.removed}</small></span>
             <ChevronRight size={13} className="cw-record-arrow"/>
           </button>)}</div>)}
         </div>
@@ -842,5 +939,6 @@ export function ChangeWorkbench({target, right, top, onClose, onOpenItem}: {
         <footer><button className="secondary" disabled={confirmBusy} onClick={() => setConfirmState(null)}>取消</button><button className={confirmState.danger ? 'cw-danger-confirm' : 'primary'} disabled={confirmBusy} onClick={() => void runConfirm()}>{confirmBusy ? '处理中…' : confirmState.label}</button></footer>
       </section>
     </div>}
+    {recordHover && <RecordHoverCard state={recordHover} projectScope={scope === 'project'}/>}
   </div>;
 }

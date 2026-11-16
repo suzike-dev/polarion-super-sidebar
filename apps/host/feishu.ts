@@ -23,22 +23,65 @@ function stamp(ms: number) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function timeOf(ms: number) {
+  const date = new Date(ms);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function dayOf(ms: number) {
+  return stamp(ms).slice(0, 10);
+}
+
 /** lark_md 里 * 是加粗语法：用户可控的标题/备注去重处理，避免内容破坏卡片结构。 */
 function plain(value: string) {
   return value.replace(/\*/g, '＊');
 }
 
-/** AI 总结转卡片摘要：标题行降为粗体、列表转圆点，超长截断并提示看链接。 */
-export function cardDigest(summary: string, limit = 1100): string {
+function clip(value: string, limit: number) {
+  return value.length > limit ? value.slice(0, limit - 1) + '…' : value;
+}
+
+function duration(from: number, to: number) {
+  const minutes = Math.max(0, Math.round((to - from) / 60_000));
+  if (minutes < 60) return `${minutes} 分钟`;
+  const hours = Math.floor(minutes / 60), rest = minutes % 60;
+  if (hours < 24) return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`;
+  const days = Math.floor(hours / 24);
+  return `${days} 天 ${hours % 24} 小时`;
+}
+
+/** 灰底数据条 / 引用块：经典卡片没有字号与背景样式，用 column_set 的 grey 底做出杂志式分区。 */
+function greyBlock(content: string): CardElement {
+  return {
+    tag: 'column_set', flex_mode: 'none', background_style: 'grey',
+    columns: [{tag: 'column', width: 'weighted', weight: 1, vertical_align: 'top', elements: [{tag: 'div', text: md(content)}]}],
+  };
+}
+
+function stat(label: string, value: number): CardElement {
+  return {
+    tag: 'column', width: 'weighted', weight: 1, vertical_align: 'top',
+    elements: [{tag: 'div', text: md(`**${value}**\n<font color='grey'>${label}</font>`)}],
+  };
+}
+
+/** AI 总结转卡片摘要：主小节用绿色竖条标题、条目用圆点、四级标题只加粗；小节之间留空行，超长截断。 */
+export function cardDigest(summary: string, limit = 800): string {
   const lines: string[] = [];
   let size = 0;
   for (const raw of summary.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line) continue;
-    const heading = /^#{2,4}\s+(.*)$/.exec(line);
-    let text = heading
-      ? `**${heading[1]!.replace(/\*\*/g, '')}**`
-      : line.replace(/^[-*]\s+/, '• ');
+    const section = /^#{2,3}\s+(.*)$/.exec(line);
+    const minor = /^#{4}\s+(.*)$/.exec(line);
+    if (section && lines.length) lines.push('');
+    const title = section?.[1] ?? minor?.[1];
+    let text = section
+      ? `<font color='green'>▎</font>**${title!.replace(/\*\*/g, '')}**`
+      : minor
+        ? `**${title!.replace(/\*\*/g, '')}**`
+        : line.replace(/^[-*]\s+/, '• ');
     text = text.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[ \t]+/g, ' ');
     if (size + text.length > limit) {
       lines.push('……（其余要点见详情链接）');
@@ -50,29 +93,43 @@ export function cardDigest(summary: string, limit = 1100): string {
   return lines.join('\n');
 }
 
-export function buildChangeCard(input: {record: ChangeRecord; url: string; workItemUrl?: string; compareUrl?: string}): Card {
-  const {record, url, workItemUrl, compareUrl} = input;
-  const summary = record.aiSummary.status === 'ready' && record.aiSummary.text.trim() ? record.aiSummary.text : record.heuristicSummary;
+export function buildChangeCard(input: {record: ChangeRecord; url: string; workItemUrl?: string; detailUrl?: string}): Card {
+  const {record, url, workItemUrl, detailUrl} = input;
+  const aiReady = record.aiSummary.status === 'ready' && record.aiSummary.text.trim().length > 0;
+  const summary = aiReady ? record.aiSummary.text : record.heuristicSummary;
+  const range = dayOf(record.baselineAt) === dayOf(record.endedAt)
+    ? `${stamp(record.baselineAt)} → ${timeOf(record.endedAt)}`
+    : `${stamp(record.baselineAt)} → ${stamp(record.endedAt)}`;
   const elements: CardElement[] = [
-    {tag: 'div', text: md(`**${plain(record.documentTitle)}**`)},
-    {tag: 'div', fields: [
-      {is_short: true, text: md(`**变更区间**\n${stamp(record.baselineAt)} → ${stamp(record.endedAt)}`)},
-      {is_short: true, text: md(`**变更规模**\n${record.changedItems} 个工作项（改 ${record.modified} · 增 ${record.added} · 删 ${record.removed}）`)},
+    // 数据条：四格等分，像杂志开篇的关键数字横条。
+    {tag: 'column_set', flex_mode: 'bisect', background_style: 'grey', columns: [
+      stat('变更工作项', record.changedItems), stat('修改', record.modified), stat('新增', record.added), stat('删除', record.removed),
     ]},
-    {tag: 'div', text: md(`**变更总结**\n${cardDigest(summary)}`)},
+    {tag: 'div', text: md(`<font color='grey'>变更区间</font>　${range}　·　历时 ${duration(record.baselineAt, record.endedAt)}`)},
+    // 总结放进灰底引用块，和统计条形成两种版式节奏。
+    greyBlock(`**变更总结**　<font color='grey'>${aiReady ? 'AI 生成' : '自动摘要'}</font>\n${cardDigest(summary)}`),
   ];
-  if (record.note?.trim()) elements.push({tag: 'div', text: md(`**备注**\n${plain(record.note.trim())}`)});
-  // 唯一入口指向逐项对照页：对照页作为 HTML 附件存在 Polarion 记录工作项下，任何项目成员都能打开，不依赖分享者的电脑。
-  const target = compareUrl ?? workItemUrl ?? url;
+  if (record.note?.trim()) elements.push(greyBlock(`**人工备注**\n${plain(record.note.trim())}`));
+  // 唯一入口是变更详情深链：先落到记录工作项页，已安装插件的浏览器会立刻换到文档页并展开这条记录；
+  // 没装插件的浏览器留在工作项页，正文里有安装提示（不再直接指向附件地址，避免一点就下载）。
+  const target = detailUrl ?? workItemUrl ?? url;
   elements.push(
     {tag: 'hr'},
-    {tag: 'action', actions: [{tag: 'button', text: {tag: 'plain_text', content: '打开逐项对照页'}, type: 'primary', url: target}]},
-    {tag: 'note', elements: [{tag: 'plain_text', content: `对照页已随记录存入 Polarion${record.workItemId ? `（工作项 ${record.workItemId} 附件）` : ''}；点击按钮即可打开。`}]},
-    {tag: 'note', elements: [{tag: 'plain_text', content: `Polarion 超级侧边栏 · ${stamp(Date.now())} 推送`}]},
+    {tag: 'action', actions: [{tag: 'button', text: {tag: 'plain_text', content: '打开变更详情'}, type: 'primary', url: target}]},
+    {tag: 'note', elements: [{tag: 'plain_text', content: '点击按钮自动展开这条变更的逐项对照；未安装插件的浏览器会看到安装提示。'}]},
+    {tag: 'note', elements: [{tag: 'plain_text', content: `记录已保存在 Polarion${record.workItemId ? `（工作项 ${record.workItemId}）` : ''} · Polarion 超级侧边栏 · ${stamp(Date.now())}`}]},
   );
   return {
     config: {wide_screen_mode: true},
-    header: {template: 'green', title: {tag: 'plain_text', content: `需求变更速览 · ${record.target.projectId}`}},
+    header: {
+      template: 'green',
+      title: {tag: 'plain_text', content: clip(record.documentTitle || '需求变更记录', 56)},
+      subtitle: {tag: 'plain_text', content: `需求变更速览 · ${record.target.projectId}`},
+      text_tag_list: [
+        ...(aiReady ? [{tag: 'text_tag', text: {tag: 'plain_text', content: 'AI 总结'}, color: 'green'}] : []),
+        {tag: 'text_tag', text: {tag: 'plain_text', content: `${record.changedItems} 个工作项`}, color: 'neutral'},
+      ],
+    },
     elements,
   };
 }
@@ -80,9 +137,13 @@ export function buildChangeCard(input: {record: ChangeRecord; url: string; workI
 export function buildTestCard(projectId: string): Card {
   return {
     config: {wide_screen_mode: true},
-    header: {template: 'green', title: {tag: 'plain_text', content: `Polarion 变更推送已连通${projectId ? ` · ${projectId}` : ''}`}},
+    header: {
+      template: 'green',
+      title: {tag: 'plain_text', content: 'Polarion 变更推送已连通'},
+      subtitle: {tag: 'plain_text', content: projectId ? `需求变更速览 · ${projectId}` : '需求变更速览'},
+    },
     elements: [
-      {tag: 'div', text: md(`**测试卡片**\n机器人配置成功。此后「分享到飞书」会把${projectId ? ` ${projectId} 的` : ''}变更总结与详情链接作为卡片发到本群。`)},
+      greyBlock(`**测试卡片**\n机器人配置成功。此后「分享到飞书」会把${projectId ? ` ${projectId} 的` : ''}变更总结与详情入口作为卡片发到本群。`),
       {tag: 'note', elements: [{tag: 'plain_text', content: 'Polarion 超级侧边栏 · 设置测试发送'}]},
     ],
   };

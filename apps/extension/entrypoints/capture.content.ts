@@ -1,11 +1,23 @@
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { browser } from 'wxt/browser';
+import { isDocumentRoute, parseChangeDeepLink, pendingChangeRecordId } from '../lib/change-deep-link.ts';
 export default defineContentScript({
   matches: ['https://polarion.pufafen.com/polarion/*'], allFrames: true, matchAboutBlank: true, runAt: 'document_start',
   main(ctx) {
     if (window.frameElement?.classList.contains('rich-surface')) return;
     // 深链意图要在 document_start 记下：Polarion 路由启动后会重写 hash 并丢掉查询参数，侧栏挂载时已看不到。
-    try { if (window.top === window && /[?&]psb=changes(&|$)/.test(location.hash)) sessionStorage.setItem('psb-changes-pending', '1'); } catch { /* 存储不可用则忽略 */ }
+    try {
+      if (window.top === window) {
+        const hash = location.hash;
+        if (/[?&]psb=changes(&|$)/.test(hash)) sessionStorage.setItem('psb-changes-pending', '1');
+        const recordId = pendingChangeRecordId(hash);
+        if (recordId) sessionStorage.setItem('psb-change-pending', recordId);
+        // 飞书卡片先落到记录工作项页：已装插件就立刻换到文档页，由侧栏展开这条变更；
+        // 没装插件的人留在工作项页，看到正文里的安装提示。
+        const deepLink = parseChangeDeepLink(hash, location.origin);
+        if (deepLink && !isDocumentRoute(hash)) location.replace(deepLink.docUrl);
+      }
+    } catch { /* 存储或跳转不可用则忽略 */ }
     // 同时识别工作项正文块与正文里的内联工作项引用（data-item-id / workitem 链接）。
     const itemFor = (node: Node | null) => {
       let element = node instanceof Element ? node : node?.parentElement;

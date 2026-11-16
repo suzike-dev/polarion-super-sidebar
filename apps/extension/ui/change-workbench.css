@@ -1,5 +1,5 @@
 /* 变更管理：独立工作台。左侧会话与历史，右侧 AI 总结 + 逐项对照。 */
-.change-workbench{position:fixed;left:14px;top:14px;right:var(--cw-right,0);bottom:14px;z-index:55;display:flex;flex-direction:column;background:#f7f9f2;border:1px solid #dfe6d6;border-radius:12px;box-shadow:0 24px 70px rgba(28,44,32,.18);overflow:hidden;color:#1B272E;font-family:inherit;min-width:min(720px,calc(100vw - 28px - var(--cw-right,0px)))}
+.change-workbench{position:fixed;left:14px;top:14px;right:var(--cw-right,0);bottom:0;z-index:55;display:flex;flex-direction:column;background:#f7f9f2;border:1px solid #dfe6d6;border-bottom:0;border-radius:12px 12px 0 0;box-shadow:0 24px 70px rgba(28,44,32,.18);overflow:hidden;color:#1B272E;font-family:inherit;min-width:min(720px,calc(100vw - 28px - var(--cw-right,0px)))}
 .change-workbench button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .change-workbench :is(button,a,input):focus-visible{outline:2px solid #1e573c;outline-offset:2px}
 .cw-head{flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:10px 12px 9px 15px;background:#fbfcf7;border-bottom:1px solid #e7ecdf}
@@ -344,6 +344,33 @@
 @keyframes cw-rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 @keyframes cw-fade{from{opacity:0}to{opacity:1}}
 @keyframes cw-pulse{0%,100%{opacity:.55}50%{opacity:1}}
+/* 变更记录悬停卡：把“点开才知道改了啥”提前到悬停。 */
+.cw-hover-card{position:fixed;z-index:60;max-height:calc(100vh - 24px);overflow:hidden;background:#fff;border:1px solid #d8e2ce;border-radius:12px;box-shadow:0 22px 58px rgba(22,40,30,.22),0 2px 0 rgba(30,45,32,.03);pointer-events:none;animation:cw-hover-in .15s cubic-bezier(.2,.8,.3,1);color:#1B272E}
+.cw-hover-card:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#1e573c 0%,#4d8a61 55%,#a9c886 100%)}
+.cw-hover-card header{position:relative;padding:13px 15px 10px}
+.cw-hover-kicker{display:flex;align-items:center;gap:7px;padding-right:36px;font-size:9px;line-height:1;letter-spacing:.14em;font-weight:700;color:#2f7048}
+.cw-hover-kicker:before{content:"";width:13px;height:2px;border-radius:99px;background:#2f7048;flex:none}
+.cw-hover-kicker em{margin-left:auto;min-width:0;max-width:56%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 9px/1.4 inherit;letter-spacing:.02em;color:#9aa69b}
+.cw-hover-index{position:absolute;top:22px;right:13px;font:700 34px/1 Bahnschrift,'Segoe UI',sans-serif;letter-spacing:-.04em;color:#edf3e6;font-variant-numeric:tabular-nums;pointer-events:none}
+.cw-hover-card header strong{position:relative;z-index:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:7px;padding-right:44px;font-size:14.5px;line-height:1.48;font-weight:700;letter-spacing:-.005em;color:#16281e;overflow-wrap:anywhere}
+.cw-hover-meta{display:flex;flex-direction:column;gap:2px;margin-top:7px;font-size:10px;line-height:1.55;color:#8a958c;font-variant-numeric:tabular-nums}
+.cw-hover-meta b{color:#1e573c;font-weight:700}
+.cw-hover-meta i{font-style:normal;color:#c8d4c0;padding:0 1px}
+.cw-hover-items{border-top:1px solid #eef2e7;padding:7px 15px 8px;display:flex;flex-direction:column}
+.cw-hover-item{display:flex;align-items:center;gap:7px;min-width:0;padding:5px 0;border-bottom:1px dotted #edf1e6}
+.cw-hover-item:last-of-type{border-bottom:0}
+.cw-hover-item .cw-kind{flex:none;font-size:8px;line-height:15px;padding:0 5px}
+.cw-hover-item code{flex:none;font:9.5px ui-monospace,Consolas,monospace;letter-spacing:.01em;color:#5b7461}
+.cw-hover-item>span:last-child{flex:1;min-width:0;font-size:11.5px;line-height:1.5;color:#33453a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cw-hover-more{font-size:9px;line-height:1.5;color:#9aa69b;text-align:right;padding:4px 0 1px}
+.cw-hover-summary{margin:0 15px 10px;padding:9px 11px 8px;background:#f5f8ef;border-left:2px solid #9fc38c;border-radius:0 6px 6px 0}
+.cw-hover-summary b{display:block;margin-bottom:4px;font-size:9px;line-height:1;letter-spacing:.12em;font-weight:700;color:#2f7048}
+.cw-hover-summary p{margin:3px 0;font-size:11px;line-height:1.65;color:#6b7a6d;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cw-hover-summary p:first-of-type{color:#405344}
+.cw-hover-loading{display:flex;align-items:center;gap:5px;padding:2px 15px 9px;font-size:9.5px;color:#8a958c}
+.cw-hover-card footer{display:flex;align-items:center;justify-content:flex-end;gap:5px;padding:8px 15px 10px;border-top:1px solid #eef2e7;font-size:9px;letter-spacing:.02em;color:#9aa69b}
+.cw-hover-card footer:after{content:"→";font-size:11px;line-height:1;color:#1e573c}
+@keyframes cw-hover-in{from{opacity:0;transform:translateY(4px) scale(.99)}to{opacity:1;transform:none}}
 @media(max-width:1040px){.cw-side{flex-basis:238px}.cw-detail{padding:15px}}
 @media(max-width:800px){.cw-body{flex-direction:column}.cw-side{flex:0 0 auto;max-height:38%;border-right:0;border-bottom:1px solid #e7ecdf}.cw-pair.side{grid-template-columns:1fr 1fr}.cw-stat-grid{flex-wrap:wrap}.cw-stat{flex:1 1 40%;border-bottom:1px solid #eef2e7}.cw-detail{padding:13px}.cw-empty{margin:22px auto}}
 @media(prefers-reduced-motion:reduce){.change-workbench *{animation:none !important;transition:none !important;scroll-behavior:auto !important}}

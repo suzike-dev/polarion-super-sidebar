@@ -4,7 +4,8 @@ import {Store} from './store.ts';
 import {Drafts, type ChangeRemoteRow, type ChangeWriteResult, type SnapshotItem} from './polarion.ts';
 import {Assets} from './assets.ts';
 import {chapterOf, collectImageSources, diffItemHtml, outlineBase, sanitizeBlockHtml, textOfHtml, type ChangeBlock} from '../../packages/core/change-diff.ts';
-import {sameTarget, FeishuGroupSchema, type Asset, type ChangeAiSummary, type ChangeChapterSummary, type ChangeField, type ChangeItem, type ChangeJobView, type ChangeRecord, type ChangeRecordSummary, type ChangeSession, type ChangeSessionView, type ChangeShareStatus, type ChangeWorkspace, type FeishuGroup, type FeishuGroupsView, type Target, type ChangeCompareOptions, type ChangePoint} from '../../packages/protocol/index.ts';
+import {recordNameFromItems, recordPreview} from '../../packages/core/change-record-name.ts';
+import {sameTarget, FeishuGroupSchema, type Asset, type ChangeAiSummary, type ChangeChapterSummary, type ChangeField, type ChangeItem, type ChangeJobView, type ChangeRecord, type ChangeRecordPreview, type ChangeRecordSummary, type ChangeSession, type ChangeSessionView, type ChangeShareStatus, type ChangeWorkspace, type FeishuGroup, type FeishuGroupsView, type Target, type ChangeCompareOptions, type ChangePoint} from '../../packages/protocol/index.ts';
 import {summarizeChange} from './summarize.ts';
 import {ChangeShare} from './changes-share.ts';
 import {buildChangeCard, sendCardToGroups} from './feishu.ts';
@@ -604,7 +605,7 @@ export class Changes {
     const chapters = record.chapters.length
       ? `<h3>章节分布</h3><ul>${record.chapters.map(chapter => `<li>${escapeHtml(chapter.num === '0' ? '未分节' : `第 ${chapter.num} 章`)}${chapter.title && chapter.title !== chapter.num ? ' ' + escapeHtml(chapter.title) : ''}：${chapter.items} 项变更</li>`).join('')}</ul>`
       : '';
-    return `${metaComment(meta)}<h2>需求变更记录</h2><p><strong>文档：</strong>${escapeHtml(record.documentTitle)}</p><p><strong>变更区间：</strong>${stamp(record.baselineAt)} → ${stamp(record.endedAt)}</p>${record.note ? `<p><strong>说明：</strong>${escapeHtml(record.note)}</p>` : ''}<p><strong>变更范围：</strong>${record.changedItems} 个工作项（修改 ${record.modified}、新增 ${record.added}、删除 ${record.removed}${record.moved ? `、移动 ${record.moved}` : ''}）</p><h3>变更总结</h3>${textSummaryHtml(summary)}${chapters}<p>完整的前后对照（含表格、图片与未变更上下文）见附件 <code>${escapeHtml(record.attachmentName ?? '')}</code>。</p>`;
+    return `${metaComment(meta)}<h2>需求变更记录</h2><p><strong>文档：</strong>${escapeHtml(record.documentTitle)}</p><p><strong>变更区间：</strong>${stamp(record.baselineAt)} → ${stamp(record.endedAt)}</p>${record.note ? `<p><strong>说明：</strong>${escapeHtml(record.note)}</p>` : ''}<p><strong>变更范围：</strong>${record.changedItems} 个工作项（修改 ${record.modified}、新增 ${record.added}、删除 ${record.removed}${record.moved ? `、移动 ${record.moved}` : ''}）</p><p><strong>在变更管理中查看：</strong>从飞书卡片点击「打开变更详情」后，已安装「Polarion 超级侧边栏」插件的浏览器会自动展开这条变更的逐项对照。如果打开的是本工作项页而没有自动展开，说明当前浏览器没有安装或未启用插件：请先<a href="https://github.com/suzike-dev/polarion-super-sidebar/releases/latest">下载安装</a>，或在已安装插件的 Chrome / Edge 中重新打开卡片按钮。</p><h3>变更总结</h3>${textSummaryHtml(summary)}${chapters}<p>完整的前后对照（含表格、图片与未变更上下文）见附件 <code>${escapeHtml(record.attachmentName ?? '')}</code>。</p>`;
   }
 
   private metaFromRecord(record: ChangeRecord): ChangeMeta {
@@ -777,7 +778,9 @@ export class Changes {
     for (const change of changes) kindCounts[change.kind]++;
     const itemCount = Math.max(baseline.items.length, current.items.length);
     const top = [...chapters].sort((left, right) => right.items - left.items)[0];
-    const headline = `${session.documentTitle || current.documentTitle}：${changes.length} 个工作项变更（修改 ${kindCounts.modified}、新增 ${kindCounts.added}、删除 ${kindCounts.removed}${kindCounts.moved ? `、移动 ${kindCounts.moved}` : ''}）${top ? `，集中在${top.num === '0' ? '未分节' : `第 ${top.num} 章`}` : ''}`;
+    // 记录名优先使用真正变动的工作项，列表里一眼能看出改了什么；没有标题时才退回数量+章节。
+    const headline = recordNameFromItems(changes, changes.length)
+      || `${session.documentTitle || current.documentTitle}：${changes.length} 个工作项变更（修改 ${kindCounts.modified}、新增 ${kindCounts.added}、删除 ${kindCounts.removed}${kindCounts.moved ? `、移动 ${kindCounts.moved}` : ''}）${top ? `，集中在${top.num === '0' ? '未分节' : `第 ${top.num} 章`}` : ''}`;
     const heuristic = this.heuristicSummary(session, baseline, itemCount, changes, chapters, kindCounts, endedAt);
     const saveCount = this.store.list<{target: Target; startedAt: number}>('save')
       .filter(save => sameTarget(save.target, target) && save.startedAt >= session.baselineAt && save.startedAt <= endedAt).length;
@@ -992,6 +995,11 @@ export class Changes {
     return {deleted: true};
   }
 
+  /** 悬停预览：读完整记录后只回传展示用的小对象，避免把大段正文与图片经管道送给侧栏。 */
+  async preview(recordId: string): Promise<ChangeRecordPreview> {
+    return recordPreview(await this.readRecord(recordId));
+  }
+
   /** 人工补充说明：与 AI 总结一起写入同一条 Polarion 记录，供项目成员回看。 */
   async setNote(recordId: string, note: string): Promise<{note: string; record: ChangeRecord}> {
     const record = await this.readRecord(recordId);
@@ -1017,7 +1025,8 @@ export class Changes {
       });
       const summary: ChangeAiSummary = {status: 'ready', text: result.text, model: result.model, at: Date.now()};
       record.aiSummary = summary;
-      record.headline = firstLine(result.text) || record.headline;
+      // 记录名来自工作项标题；只有早期/空标题记录才用 AI 第一句兜底，避免把“本次共变更 N 项”写成名字。
+      record.headline = record.headline || firstLine(result.text);
       await this.persistRecord(record);
       return {summary, record};
     } catch (error) {
@@ -1082,7 +1091,7 @@ export class Changes {
     return status;
   }
 
-  /** 直发飞书卡片：主链接指向 Polarion 记录工作项；完整对照页作为 HTML 附件随记录存在 Polarion，别人不依赖分享者的电脑。 */
+  /** 直发飞书卡片：按钮指向记录工作项页的变更详情深链；完整对照页快照仍作为 HTML 附件随记录保存。 */
   async shareFeishu(recordId: string) {
     const record = await this.readRecord(recordId);
     const {groups} = await this.feishuGroups(record.target);
@@ -1091,15 +1100,20 @@ export class Changes {
     const workItemUrl = record.workItemId
       ? `${record.target.origin}/polarion/#/project/${encodeURIComponent(record.target.projectId)}/workitem?id=${encodeURIComponent(record.workItemId)}`
       : undefined;
-    const attached = await this.attachRecordSnapshot(record, status.token);
-    const compareUrl = attached && record.workItemId
-      ? `${record.target.origin}/polarion/wi-attachment/${encodeURIComponent(record.target.projectId)}/${encodeURIComponent(record.workItemId)}/sidebar-change-${record.id}.html`
-      : undefined;
-    const results = await sendCardToGroups(groups, buildChangeCard({record, url: status.recordUrl, workItemUrl, compareUrl}));
+    await this.attachRecordSnapshot(record, status.token);
+    const project = encodeURIComponent(record.target.projectId);
+    const docPath = record.target.document.split('/').map(encodeURIComponent).join('/');
+    const docDeepLink = `${record.target.origin}/polarion/#/project/${project}/wiki/${docPath}?psb=changes&psbChange=${encodeURIComponent(record.id)}`;
+    // 飞书卡片按钮先落到记录工作项页：已装插件时 capture 脚本读到 psbChange/psbDoc 会立刻换到文档页；
+    // 没装插件的人留在工作项页，看到正文里的安装提示，不会像直接指向附件那样一点就下载。
+    const detailUrl = record.workItemId
+      ? `${record.target.origin}/polarion/#/project/${project}/workitem?id=${encodeURIComponent(record.workItemId)}&psb=changes&psbChange=${encodeURIComponent(record.id)}&psbDoc=${encodeURIComponent(record.target.document)}`
+      : docDeepLink;
+    const results = await sendCardToGroups(groups, buildChangeCard({record, url: status.recordUrl, workItemUrl, detailUrl}));
     return {...status, results};
   }
 
-  /** 把逐项对照页渲染成单文件 HTML 写进记录工作项附件；成功返回 true（卡片按钮据此指向 Polarion 里的对照页）。 */
+  /** 把逐项对照页渲染成单文件 HTML 写进记录工作项附件；成功返回 true（快照仍作为附件随记录保存，卡片按钮走变更详情深链）。 */
   private async attachRecordSnapshot(record: ChangeRecord, token: string): Promise<boolean> {
     if (!record.workItemId || !this.remote().changeWrite) return false;
     try {

@@ -26,7 +26,7 @@ export class Service {
     try {
       const request = RequestSchema.parse(input); id = request.id; const c = request.command; let value: unknown;
       switch (c.method) {
-        case 'health': value = { protocol: PROTOCOL, version: '0.9.1', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
+        case 'health': value = { protocol: PROTOCOL, version: '0.10.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
         case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;const capabilities=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);value={...capabilities,connected:!!runtime};break;}
         case 'engine.manage': value=await this.engines.manage(c.sessionId,c.action,c.server);break;
         case 'engine.context': this.store.require<Session>('session',c.sessionId);value=await this.engines.contextUsage.read(c.sessionId,c.refresh);break;
@@ -103,6 +103,7 @@ export class Service {
         case 'changes.compare.create': value = await this.changes.compare(c.target, c.beforeAt, c.afterAt); break;
         case 'changes.job.read': value = this.changes.jobRead(c.jobId); break;
         case 'changes.record.read': value = await this.changes.readRecord(c.recordId); break;
+        case 'changes.record.preview': value = await this.changes.preview(c.recordId); break;
         case 'changes.record.note': value = await this.changes.setNote(c.recordId, c.note); break;
         case 'changes.record.delete': value = await this.changes.deleteRecord(c.recordId); break;
         case 'changes.record.summarize': value = await this.changes.summarize(c.recordId, c.force); break;
