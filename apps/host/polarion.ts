@@ -1,5 +1,8 @@
 import {formatDocument, type TextFormat} from '../../packages/core/format-document.ts';
 import {applyTableOperations, listTables, replaceTableJson, tableJsonAt, type TableOperation} from '../../packages/core/table-ops.ts';
+import {restyleDocument, type RestyleRules} from '../../packages/core/restyle.ts';
+import {applyBlockOperations, type BlockOperation} from '../../packages/core/block-ops.ts';
+import {replaceAllText} from '../../packages/core/replace-all.ts';
 import {equivalentHtml} from '../../packages/core/html-equivalence.ts';
 import {polarionWriteHtml} from '../../packages/core/polarion-html.ts';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -53,6 +56,7 @@ export interface Remote {
   save(draft: Draft, scope?: VariantScope): Promise<RemoteItem>;
   image?(target: Target, workItemId: string, src: string, scope?: VariantScope): Promise<unknown>;
   create?(target: Target, title: string, type: string): Promise<RemoteItem>;
+  peek?(target: Target, workItemId: string): Promise<{workItemId: string; title: string; description?: string; updated?: string}>;
   link?(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string): Promise<{verified:boolean}>;
   unlink?(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string): Promise<{verified:boolean}>;
   roles?(target: Target): Promise<{id:string;name?:string;hidden?:boolean}[]>;
@@ -134,8 +138,12 @@ export class Polarion implements Remote {
     });
   }
   read(target: Target, workItemId: string, scope?: VariantScope) { return this.call({ method: 'read', target, workItemId, ...(scope ? { variant: scope } : {}) }); }
+  peek(target: Target, workItemId: string) {
+    return this.call<{workItemId: string; title: string; description?: string; updated?: string}>({ method: 'peek', target, workItemId });
+  }
   create(target: Target, title: string, type: string) {
-    return this.call<{ item: RemoteItem; verified: boolean; verificationErrors: string[] }>({ method: 'create', target, title, type }).then(value => value.item);
+    // 新需求要落进当前 LiveDoc；不传 documentLocation 会生成游离工作项，后续保存会被 WORK_ITEM_DOCUMENT_MISMATCH 拒绝。
+    return this.call<{ item: RemoteItem; verified: boolean; verificationErrors: string[] }>({ method: 'create', target, title, type, documentLocation: target.document }).then(value => value.item);
   }
   link(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string) {
     return this.call<{ verified: boolean }>({ method: 'link', target, sourceWorkItemId, targetWorkItemId, role });
@@ -248,7 +256,8 @@ export class Drafts {
       const text = this.read(local.id).nodes.filter(n => n.text).map(n => String(n.text).trim()).filter(Boolean).join('\n').slice(0, 1200);
       value = { workItemId, title: local.title, text, state: local.state, revision: local.revision, source: 'draft' };
     } else {
-      const item = await this.remote.read(target, workItemId);
+      // 跨文档参考：peek 只读同一项目的工作项，不受当前文档 module_uri 限制。
+      const item = this.remote.peek ? await this.remote.peek(target, workItemId) : await this.remote.read(target, workItemId);
       const text = new LosslessHtml(item.description ?? '').nodes.filter(n => n.text).map(n => String(n.text).trim()).filter(Boolean).join('\n').slice(0, 1200);
       value = { workItemId, title: item.title, text, source: 'remote' };
     }
@@ -354,6 +363,47 @@ export class Drafts {
   tableRead(id: string, table: number) {
     const rich = this.richRead(id);
     return { editorId: rich.editorId, draftId: id, workItemId: rich.draft.workItemId, revision: rich.draft.revision, table, document: tableJsonAt(rich.document, table) };
+  }
+  /** 全文逐字替换：只改文本节点，保留结构/格式/受保护对象；返回替换次数。 */
+  replaceAll(id: string, expectedRevision: number, from: string, to: string, caseSensitive: boolean) {
+    if (this.saving.has(id)) throw Error('DRAFT_SAVING');
+    const draft = this.read(id);
+    if (draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
+    if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
+    const rich = this.richRead(id);
+    const applied = replaceAllText(rich.document, from, to, caseSensitive);
+    const next = this.richApply(id, rich.editorId, expectedRevision, applied.document);
+    return { draft: { draftId: next.id, workItemId: next.workItemId, revision: next.revision, state: next.state, savedToPolarion: false }, replacements: applied.replacements };
+  }
+  /** 整篇排版：编号段落提升标题、统一行距/对齐、清空段，一次调用。 */
+  restyle(id: string, expectedRevision: number, rules: RestyleRules) {
+    if (this.saving.has(id)) throw Error('DRAFT_SAVING');
+    const draft = this.read(id);
+    if (draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
+    if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
+    const rich = this.richRead(id);
+    const applied = restyleDocument(rich.document, rules);
+    const next = this.richApply(id, rich.editorId, expectedRevision, applied.document);
+    return { draft: { draftId: next.id, workItemId: next.workItemId, revision: next.revision, state: next.state, savedToPolarion: false }, changes: applied.changes };
+  }
+  /** 块级点操作：段落/标题/列表互转、插入、删除、移动、拆段、合段。 */
+  blocks(id: string, expectedRevision: number, operations: BlockOperation[]) {
+    if (this.saving.has(id)) throw Error('DRAFT_SAVING');
+    const draft = this.read(id);
+    if (draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
+    if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
+    const rich = this.richRead(id);
+    const applied = applyBlockOperations(rich.document, operations);
+    const next = this.richApply(id, rich.editorId, expectedRevision, applied.document);
+    return { draft: { draftId: next.id, workItemId: next.workItemId, revision: next.revision, state: next.state, savedToPolarion: false }, changes: applied.changes };
+  }
+  /** 新建服务端工作项（空正文）并开本地草稿；正文仍只写草稿，由保存流程写入。 */
+  async create(target: Target, title: string, type?: string) {
+    if (!this.remote.create) throw Error('CREATE_WORK_ITEM_UNSUPPORTED');
+    const item = await this.remote.create(target, title.trim().slice(0, 160), (type ?? '').trim() || 'task');
+    const draft: Draft = { id: crypto.randomUUID(), target, workItemId: item.id, title: item.title, baseHtml: item.description ?? '', html: item.description ?? '', baseUpdated: item.updated ?? '', revision: 0, state: 'clean' };
+    this.store.put('draft', draft.id, draft);
+    return this.read(draft.id);
   }
   /** 把修改后的单张表写回：其余内容与源映射保持原样。 */
   tableApply(id: string, editorId: string, expectedRevision: number, table: number, node: JSONContent) {

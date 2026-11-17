@@ -13,6 +13,7 @@ export type TableSummary = { index: number; rows: number; columns: number; heade
 
 export type TableOperation =
   | { op: 'insert_table'; rows: number; columns: number; header?: boolean; at?: number }
+  | { op: 'delete_table'; table: number }
   | { op: 'insert_rows'; table: number; at?: number; count?: number; header?: boolean; cells?: string[][] }
   | { op: 'delete_rows'; table: number; rowIndices: number[] }
   | { op: 'insert_columns'; table: number; at: number; count?: number }
@@ -144,6 +145,14 @@ export function applyTableOperations(document: JSONContent, operations: TableOpe
       continue;
     }
     const { table, rows } = locate(doc, operation.table);
+    if (operation.op === 'delete_table') {
+      // 表内含受保护对象时整表删除会被序列化校验拒绝（PROTECTED_OBJECT_REMOVED），提前给出明确错误。
+      let guarded = false;
+      table.node.descendants(node => { if (node.type.name.startsWith('protected')) guarded = true; return !guarded; });
+      if (guarded) throw Error('TABLE_PROTECTED_UNSUPPORTED');
+      tr.delete(table.pos, table.pos + table.node.nodeSize);
+      continue;
+    }
     if (operation.op === 'insert_rows') {
       if (rows.some(entry => rowHasSpan(entry.node))) throw Error('TABLE_MERGED_CELLS_UNSUPPORTED');
       const count = Math.floor(operation.count ?? 1);
@@ -165,6 +174,7 @@ export function applyTableOperations(document: JSONContent, operations: TableOpe
       if (rows.some(entry => rowHasSpan(entry.node))) throw Error('TABLE_MERGED_CELLS_UNSUPPORTED');
       const descending = [...new Set(operation.rowIndices)].sort((left, right) => right - left);
       if (!descending.length || descending.some(index => index < 0 || index >= rows.length)) throw Error('ROW_INDEX_OUT_OF_RANGE');
+      if (descending.length >= rows.length) throw Error('TABLE_LAST_ROW');
       for (const index of descending) tr.delete(rows[index]!.pos, rows[index]!.pos + rows[index]!.node.nodeSize);
       continue;
     }
@@ -185,6 +195,7 @@ export function applyTableOperations(document: JSONContent, operations: TableOpe
     if (operation.op === 'delete_columns') {
       const descending = [...new Set(operation.columnIndices)].sort((left, right) => right - left);
       if (!descending.length || descending.some(index => index < 0 || index >= width)) throw Error('COLUMN_INDEX_OUT_OF_RANGE');
+      if (descending.length >= width) throw Error('TABLE_LAST_COLUMN');
       for (const row of [...cells].reverse()) for (const index of descending) tr.delete(row[index]!.pos, row[index]!.pos + row[index]!.node.nodeSize);
       continue;
     }

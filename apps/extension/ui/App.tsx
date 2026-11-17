@@ -546,7 +546,7 @@ export function App() {
   // 排队尚未开始执行的指令只显示在队列条；会话正文只收录已实际开始的轮次，避免“未发出去就已经出现”。
   const visibleRuns = useMemo(() => runs.filter(run => run.status !== 'queued' && byRun.has(run.id)), [runs, byRun]);
   const transcript=useMemo(()=>conversationSections(visibleRuns,events),[visibleRuns,events]);
-  const outlineView = useMemo(()=><div className="outline-list">{headings.length ? headings.map((h,index) => <button key={h.index} style={{ paddingLeft: 14 + (h.level - 1) * 12 }} onClick={() => navigateHeading(h.index)}><span className="heading-index">{String(index + 1).padStart(2, '0')}</span>{h.text}</button>) : <p className="muted">文档加载后显示章节导航。</p>}</div>,[headings]);
+  const outlineView = useMemo(()=><div className="outline-list">{headings.length ? headings.map((h,index) => <button key={h.index} style={{ paddingLeft: 14 + (h.level - 1) * 12 }} onClick={() => navigateHeading(h.index, h.text)}><span className="heading-index">{String(index + 1).padStart(2, '0')}</span>{h.text}</button>) : <p className="muted">文档加载后显示章节导航。</p>}</div>,[headings]);
   const editorRequest=draftOpenRequest.current,editorRoute=routeEpoch.current;
   const editorStillCurrent=()=>{const page=routeFromUrl(location.href);return !!draft&&draftRef.current?.id===draft.id&&editorRequest===draftOpenRequest.current&&editorRoute===routeEpoch.current&&!!page&&sameTarget(page,draft.target)&&!!targetRef.current&&sameTarget(targetRef.current,draft.target);};
   if (!target || !pageReady) return null;

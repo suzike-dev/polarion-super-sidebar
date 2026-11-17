@@ -37,7 +37,50 @@ export function documentFrame() { return document.querySelector<HTMLIFrameElemen
 export function outline() {
   try { return Array.from(documentFrame()?.contentDocument?.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6') ?? []).map((n,index)=>({index,text:n.innerText.trim().slice(0,160),level:Number(n.tagName[1])})).filter(h=>h.text); } catch { return []; }
 }
-export function navigateHeading(index: number) { try { documentFrame()?.contentDocument?.querySelectorAll('h1,h2,h3,h4,h5,h6')[index]?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {} }
+/** 大纲跳转：Polarion 在滚动后会把沿途懒加载占位替换成真实工作项，上方高度变化会把目标挤出视口
+ *  （表现为“点一下只滚到附近，再点一下才居中”）。跳转后在短时间内持续校正，直到目标稳定停在中央。 */
+let navigationEpoch = 0;
+export function navigateHeading(index: number, text?: string) {
+  const doc = documentFrame()?.contentDocument;
+  if (!doc) return;
+  const epoch = ++navigationEpoch;
+  // 懒加载顶替后标题节点序号可能漂移：优先按标题文本定位，重复标题取离原序号最近的一个。
+  const locate = () => {
+    const list = Array.from(doc.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6'));
+    const wanted = text?.trim();
+    let best = -1, bestDistance = Number.MAX_SAFE_INTEGER;
+    if (wanted) for (const [position, heading] of list.entries()) {
+      if (heading.innerText.trim().slice(0, 160) !== wanted) continue;
+      const distance = Math.abs(position - index);
+      if (distance < bestDistance) { best = position; bestDistance = distance; }
+    }
+    return best >= 0 ? list[best]! : list[index];
+  };
+  const offsetOf = (el: HTMLElement) => { const rect = el.getBoundingClientRect(); return rect.top + rect.height / 2 - (doc.defaultView?.innerHeight ?? 0) / 2; };
+  locate()?.scrollIntoView({ block: 'center' });
+  // 用户一旦自己滚动/点击正文，立即停止自动校正，避免和用户抢滚动条。
+  const cancel = () => { if (epoch === navigationEpoch) navigationEpoch++; };
+  const view = doc.defaultView;
+  view?.addEventListener('wheel', cancel, { once: true, passive: true });
+  view?.addEventListener('touchstart', cancel, { once: true, passive: true });
+  view?.addEventListener('pointerdown', cancel, { once: true, passive: true });
+  let settled = 0, attempts = 0;
+  const correct = () => {
+    if (epoch !== navigationEpoch) return; // 已跳转别处，放弃旧目标的校正
+    try {
+      const el = locate();
+      if (!el) return;
+      const offset = offsetOf(el);
+      if (Math.abs(offset) > 12) { settled = 0; el.scrollIntoView({ block: 'center' }); }
+      else settled++;
+      // 懒加载顶替通常发生在跳转后 1~2 秒，太早停止会错过重排；至少观察到 ~2.2s 且连续居中才收工。
+      if (++attempts >= 16) return;
+      if (settled >= 2 && attempts >= 10) return;
+      setTimeout(correct, 220);
+    } catch { /* 页面已翻篇（如跳转/关闭）时静默停止 */ }
+  };
+  setTimeout(correct, 220);
+}
 export function contentFingerprint(body: HTMLElement) {
   const copy = body.cloneNode(true) as HTMLElement;
   // These exact elements are observed Polarion decorations, not requirement content.

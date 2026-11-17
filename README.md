@@ -1,6 +1,6 @@
 # Polarion 超级侧边栏
 
-[![Version 0.11.0](https://img.shields.io/badge/Version-v0.11.0-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.11.0)
+[![Version 0.12.0](https://img.shields.io/badge/Version-v0.12.0-1E573C?style=for-the-badge)](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.12.0)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-087EA4?style=for-the-badge&logo=react&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -13,7 +13,7 @@
 
 [安装与更新](#安装与更新) · [需求总览](#从需求全景开始) · [变更管理](#变更管理把一次修改变成可回看的记录) · [变体](#同一需求多个变体) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
-**[0.11.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.11.0)。** 这一轮解决「AI 干活慢、费 token」：**表格结构改为小命令**（建表、增删行列、列宽一次完成，不再整篇读写二十万字符），**工具返回与每轮快照瘦身**（小改只回摘要、长快照截断），实测建表类任务降到 **15 秒**、token 降一个数量级；同时新增**原生正文宽度设置**（默认 754 / 加宽铺满 / 自定义像素，即时生效）。0.10.0 的杂志式飞书卡片、变更悬停预览继续可用。
+**[0.12.0 · Windows 开发版](https://github.com/suzike-dev/polarion-super-sidebar/releases/tag/v0.12.0)。** 这一轮把「改一块 / 改整篇」也变成原子工具：**块级操作**（段落↔标题↔列表、插入、删除、移动、拆合段、列表项提升）、**整篇排版**（编号段落→标题、行距/对齐、清空段）、**全文逐字替换**一次调用完成；新增**「AI 修改后自动保存」开关**（默认关闭，开启后每轮改完自动写入 Polarion 并回读）；**新建工作项直接落进当前 LiveDoc**，跨文档可只读参考；顺手修掉大纲跳转被懒加载顶走、拆分锚点重复等一批隐藏 bug。0.11.0 的表格小命令、省 token 与原生正文宽度继续可用。
 
 [![Polarion 超级侧边栏：让需求工程拥有 AI 协作侧翼（自绘功能卡）](docs/assets/readme-hero.png)](docs/assets/readme-hero.png)
 
@@ -108,7 +108,18 @@
 
 「文字与段落」「表格」「插入与查找」各占一条功能行；空间不足时按名称收起功能组。编辑器提供标题段落、列表待办、提示块、代码块、链接、图片、查找替换与内容块移动复制；工程表格支持选区、行列增删移动、合并拆分与精确属性。受保护宏显示为紧凑 chip，保存原样写回。
 
-**AI 改表格不再整篇读写（0.11.0）**：助手有 `list_tables` / `edit_table` / `read_table` / `update_table` 四个小命令工具——列清单、建表、增删行列、设列宽一次调用完成，含合并单元格的表只读写那一张表；配合「修改类工具只回摘要」，建表类任务实测从分钟级降到 15 秒，上下文消耗降一个数量级。
+**AI 原子编辑工具（0.12.0）**：改一块、改整篇都不再整篇读写——
+
+| 工具 | 用途 |
+|---|---|
+| `edit_block` | 段落↔标题↔列表互转、插入、删除、移动、拆段、合段、列表项提升；按块内唯一文字定位，受保护对象块拒绝删除/移动 |
+| `restyle_document` | 编号段落→标题层级（`headingLevelOffset` 可调）、统一行距/对齐、清理空段 |
+| `replace_all_text` | 全文逐字替换（可选大小写），保留格式/表格/图片/受保护对象，返回替换次数 |
+| `create_work_item` | 在当前 LiveDoc 新建工作项（不再生成游离工作项），内容随后写本地草稿 |
+| `peek_work_item` | 同项目跨文档只读参考标题与正文前 1200 字，不产生草稿 |
+| `edit_table` / `read_table` / `update_table` | 表格清单、建表/删表/增删行列/列宽一次批量；合并单元格表单表手术 |
+
+配合「修改类工具只回摘要」与每轮快照截断，建表类任务实测 15 秒、块操作一轮几十秒完成，上下文消耗降一个数量级。
 
 **原生正文宽度可调**：Polarion 页面中间那篇“纸”默认只有 754px，宽屏两侧留白。设置 → 外观 → 原生正文宽度，三档即时生效：默认 754 / 加宽铺满（默认）/ 自定义像素（600–2560，居中）。只改显示，不影响服务端内容。
 
@@ -156,7 +167,8 @@
 - **批准方式**：默认“自动批准”；可切“请求批准”或“完全访问”，任务开始时固定本轮权限。
 - **运行中继续输入（0.9.0 队列条）**：发送一律排队（最多 5 条），指令逐条列在输入框上方；每条「引导」优雅打断当前任务并插队优先，可取消排队；停止按钮在队列条内；超过 3 条默认折叠。输入框下方功能栏运行期间排布不变。
 - **预设指令**：分「随发送附加」与「通用指令库」；每条可挂多个本地文件，使用时重新读取。
-- **省 token（0.11.0）**：修改类工具（replace_text / update_rich_document 等）只返回摘要不回显全文；每轮自动注入的长工作项快照超过 1.2 万字符自动截断（精确选区原样保留）；表格结构走小命令工具，见[把空间留给正文与表格](#把空间留给正文与表格)。
+- **省 token 与原子编辑（0.11.0–0.12.0）**：修改类工具（replace_text / update_rich_document 等）只返回摘要不回显全文；每轮自动注入的长工作项快照超过 1.2 万字符自动截断（精确选区原样保留）；表格、块结构、整篇排版与全文替换都有专用小命令，见[把空间留给正文与表格](#把空间留给正文与表格)。
+- **AI 修改后自动保存（0.12.0）**：设置 → 常规新增开关，默认关闭；开启后每轮 AI 修改完成（含被引导打断）自动把改过的草稿写入 Polarion 并服务端回读，成功/失败都会在回答末尾说明；关闭时只落本地草稿，由你在编辑工作台确认后手动保存。
 - **消息操作**：复制 Markdown、引用选中片段、同样请求重试、经验沉淀；长会话挂载最近 40 轮。
 - **设置持久化**：字号 9–18px、原生正文宽度、共享草稿文件夹、指令增删改、Polarion 账号连接。
 
@@ -218,12 +230,12 @@ docs/                   规格、验证报告与自绘功能示意图
 
 ### 首次安装
 
-从公开仓库克隆。以下命令针对 `v0.11.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
+从公开仓库克隆。以下命令针对 `v0.12.0` 源码。复现其它版本时，在安装依赖前切换到 [Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases) 中对应的 tag，并遵循该 tag 自带的 README；旧版本可能尚无下列新脚本。
 
 ```powershell
 git clone https://github.com/suzike-dev/polarion-super-sidebar.git
 cd polarion-super-sidebar
-git switch --detach v0.11.0
+git switch --detach v0.12.0
 node scripts/setup-runtime.mjs
 $node = '.\.runtime\node-v24.22.2-win-x64\node.exe'
 $npmCli = Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -240,7 +252,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-dev-host.ps1
 ```
 
-`setup-runtime.mjs` 下载并校验项目专用 Node 运行时，不修改全局 PATH；`check.ps1` 执行类型检查、368 项测试与构建；`install-dev-host.ps1` 为当前 Windows 用户注册 Native Messaging Host。首次安装尚未在设置中保存账号时，诊断可能报告凭据文件缺失；先完成安装，在设置中保存并连接后，再用 `--strict` 复查。
+`setup-runtime.mjs` 下载并校验项目专用 Node 运行时，不修改全局 PATH；`check.ps1` 执行类型检查、382 项测试与构建；`install-dev-host.ps1` 为当前 Windows 用户注册 Native Messaging Host。首次安装尚未在设置中保存账号时，诊断可能报告凭据文件缺失；先完成安装，在设置中保存并连接后，再用 `--strict` 复查。
 
 `$npmCli` 仅定位用户已安装的 npm，随后由项目私有 Node 执行；上面的定位适用于普通 Windows Node/npm 安装。如果工具管理器提供的是另一层 shim，请把变量设为该 npm 安装中的实际 `npm-cli.js`，无需修改系统 PATH。
 
@@ -256,7 +268,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-polarion-w
 
 1. 在浏览器扩展管理页启用开发者模式，选择“加载已解压的扩展程序”。
 2. 加载仓库中的 `apps/extension/.output/chrome-mv3` 目录。
-3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.11.0）。
+3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension` 与 `version` 一致（0.12.0）。
 4. 打开已适配的 Polarion 文档，点击侧栏右上角设置，在“Polarion 账号”输入自己的用户名和密码，点击“保存并连接”。成功后即可打开编辑工作台，无需重启 Host。已用终端配置的账号可点“检查已保存的连接”。
 5. 首次写回使用有授权的测试工作项，核对服务端回读与原生正文显示。
 

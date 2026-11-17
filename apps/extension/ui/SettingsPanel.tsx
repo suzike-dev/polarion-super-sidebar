@@ -86,6 +86,10 @@ export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,load
               {value:'auto',label:'自动批准',hint:'命令与工具直接执行，文件编辑限项目工作区'},
               {value:'full',label:'完全访问',hint:'不再询问；Polarion 写回仍需明确保存'},
             ]}/>
+            <Segmented label="AI 修改后自动保存" value={config.agentAutoSave?'on':'off'} disabled={saving} onChange={value=>onConfig({...config,agentAutoSave:value==='on'})} options={[
+              {value:'off',label:'关闭（默认）',hint:'修改只落本地草稿，你在编辑工作台确认后手动保存'},
+              {value:'on',label:'开启',hint:'每轮 AI 修改完成后自动写入 Polarion 并服务端回读校验；请勿同时在原生页面留未保存修改'},
+            ]}/>
             <label className="sp-field"><span className="sp-label">运行中新输入 <small>一律排队，显示在输入框上方；队列条目可点「引导」立即打断当前任务插队</small></span></label>
             <label className="sp-field"><span className="sp-label">变体链接角色 <small>变体工作项 → 主工作项的 Polarion 链接；留空时首次创建自动选择</small></span><input placeholder="例如 parent / relates_to" maxLength={120} disabled={saving} value={config.variantLinkRole} onChange={event=>onConfig({...config,variantLinkRole:event.target.value})}/></label>
           </div>

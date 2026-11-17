@@ -88,7 +88,21 @@ test('merged-cell tables and bad indices fail with explicit codes', () => {
   assert.throws(() => applyTableOperations(base.document, [{ op: 'insert_rows', table: 9 }]), /TABLE_INDEX_OUT_OF_RANGE/);
   assert.throws(() => applyTableOperations(base.document, [{ op: 'delete_rows', table: 0, rowIndices: [9] }]), /ROW_INDEX_OUT_OF_RANGE/);
   assert.throws(() => applyTableOperations(base.document, [{ op: 'set_colwidth', table: 0, widths: [100] }]), /COLWIDTH_OUT_OF_RANGE/);
+  assert.throws(() => applyTableOperations(base.document, [{ op: 'delete_rows', table: 0, rowIndices: [0, 1, 2] }]), /TABLE_LAST_ROW/);
+  assert.throws(() => applyTableOperations(base.document, [{ op: 'delete_columns', table: 0, columnIndices: [0, 1] }]), /TABLE_LAST_COLUMN/);
   assert.throws(() => applyTableOperations(base.document, []), /TABLE_OPERATIONS_REQUIRED/);
+});
+
+test('delete_table removes a plain table and refuses one with protected content', () => {
+  const base = model();
+  const created = applyTableOperations(base.document, [{ op: 'insert_table', rows: 1, columns: 1, header: false }]);
+  assert.equal(created.tables.length, 2);
+  const removed = applyTableOperations(created.document, [{ op: 'delete_table', table: 1 }]);
+  assert.equal(removed.tables.length, 1);
+  assert.ok(!base.serialize(removed.document).includes('<table><tr><td><p'));
+  const guarded = new RichDocument('<table><tr><td><span id="polarion_wiki macro name=custom;params=x">keep</span></td></tr></table>');
+  assert.equal(guarded.document.content![0]!.type, 'table');
+  assert.throws(() => applyTableOperations(guarded.document, [{ op: 'delete_table', table: 0 }]), /TABLE_PROTECTED_UNSUPPORTED/);
 });
 
 test('single-table surgery returns one subtree and splices it back without touching the rest', () => {

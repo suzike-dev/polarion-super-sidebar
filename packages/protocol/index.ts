@@ -63,6 +63,8 @@ export const SettingsSchema = z.object({
   variantLinkRole: z.string().max(120).default(''),
   /** 变更记录工作项类型；留空时自动尝试项目已有的常见类型。 */
   changeRecordType: z.string().max(120).default(''),
+  /** AI 修改后自动保存：开启时每轮结束把本轮改过的脏草稿写入 Polarion 并回读；关闭时只落本地草稿由用户手动保存。 */
+  agentAutoSave: z.boolean().default(false),
 });
 /** 变体工作项：项目级独立工作项，通过 Polarion 链接归属到一个主工作项。 */
 export const VariantSchema = z.object({

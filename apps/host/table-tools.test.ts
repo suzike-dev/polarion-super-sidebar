@@ -49,3 +49,17 @@ test('single-table surgery reads one subtree and splices back only that table', 
   assert.ok(saved.includes('<thead><tr><th>参数</th>') && saved.includes('<p>outro</p>'));
   assert.throws(() => drafts.tableApply(opened.id, read.editorId, 99, 0, read.document), /STALE_DRAFT/);
 });
+
+
+test('peek reads a work item from another document without opening a draft', async () => {
+  const store = new Store(':memory:');
+  const remote = {
+    read: async () => { throw Error('WORK_ITEM_DOCUMENT_MISMATCH'); },
+    peek: async () => ({ workItemId: 'OTHER-1', title: '另一篇文档的工作项', description: '<p>跨文档参考正文</p>', updated: '2' }),
+  };
+  const drafts = new Drafts(store, remote as never);
+  const value = await drafts.peek(target, 'OTHER-1');
+  assert.equal(value.title, '另一篇文档的工作项');
+  assert.match(value.text, /跨文档参考正文/);
+  assert.equal(value.source, 'remote');
+});

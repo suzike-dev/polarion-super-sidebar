@@ -63,7 +63,7 @@ test('capability tool is read-only, concise by default and routes point to regis
   const names=new Set([...registered,...boardToolNames.map(name=>name.replace('mcp__polarion_drafts__',''))]);
   const boards=(editorCapabilities('boards') as any).boards;
   for(const route of [...Object.values(summary.routes),...Object.values(boards.routes)] as string[][])for(const name of route)assert(names.has(name),'unregistered route: '+name);
-  assert(!names.has('save'));assert(!names.has('create_work_item'));
+  assert(!names.has('save')); // 无直接保存工具：保存要么用户在界面点，要么设置开启后轮末自动执行
   assert.match(engine,/append: EDITOR_AGENT_RULES/);assert.match(engine,/editorCapabilities:editorCapabilities\(\)/);
   assert.match(engine,/所有画图和需求配图任务必须使用 diagram-design skill/);
   assert.match(EDITOR_AGENT_RULES,/原生命令、Skills和MCP只读能力仍可使用/);

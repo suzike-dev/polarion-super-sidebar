@@ -39,7 +39,27 @@ test('empty headings retain their DOM navigation indices and each heading text i
   const doc=document.querySelector('iframe')!.contentDocument!;doc.body.innerHTML='<h1></h1><h2>First</h2><h3> </h3><h2>Second</h2>';let reads=0,navigated=-1;
   doc.querySelectorAll<HTMLElement>('h1,h2,h3').forEach((heading,index)=>{Object.defineProperty(heading,'innerText',{get(){reads++;return heading.textContent}});heading.scrollIntoView=()=>{navigated=index};});
   const headings=outline();assert.deepEqual(headings.map(h=>({index:h.index,text:h.text})),[{index:1,text:'First'},{index:3,text:'Second'}]);assert.equal(reads,4);
-  navigateHeading(headings[1]!.index);assert.equal(navigated,3);
+  navigateHeading(headings[1]!.index,headings[1]!.text);assert.equal(navigated,3);
+ }finally{globalThis.document=previous;dom.window.close();}
+});
+test('outline navigation keeps re-centering while lazy placeholders reflow the document',async()=>{
+ const dom=new JSDOM('<iframe id="gwt-debug-polarion-DLE-area-debug-id"></iframe>');const previous=globalThis.document;globalThis.document=dom.window.document;
+ try{
+  const doc=document.querySelector('iframe')!.contentDocument!;doc.body.innerHTML='<h2>One</h2><h2>Two</h2>';
+  Object.defineProperty(doc.defaultView!,'innerHeight',{configurable:true,value:600});
+  const headings=doc.querySelectorAll<HTMLElement>('h2');
+  Object.defineProperty(headings[0]!,'innerText',{get(){return 'One'}});
+  Object.defineProperty(headings[1]!,'innerText',{get(){return 'Two'}});
+  let offset=400,scrolls=0;
+  headings[1]!.getBoundingClientRect=()=>({top:280+offset,height:40,bottom:320+offset,left:0,right:10,width:10,x:0,y:0,toJSON:()=>({})} as DOMRect);
+  headings.forEach(heading=>{heading.scrollIntoView=()=>{scrolls++;offset=0;};});
+  navigateHeading(1,'Two');
+  assert.equal(scrolls,1);assert.equal(offset,0,'首次跳转即落位');
+  offset=4700; // 模拟 Polarion 懒加载顶替占位后上方内容变高，把目标挤出视口（发生在首次校正之后）
+  await new Promise(resolve=>setTimeout(resolve,700));
+  assert.equal(offset,0,'校正回路把目标拉回屏幕中央');assert.ok(scrolls>=2,'懒加载重排后至少再校正一次');
+  await new Promise(resolve=>setTimeout(resolve,2600)); // 观察窗口需覆盖 ~2.2s 的懒加载重排
+  assert.equal(offset,0,'观察窗口内持续保持居中');
  }finally{globalThis.document=previous;dom.window.close();}
 });
 test('native hover decorations do not masquerade as edits; content and formatting still do', () => {

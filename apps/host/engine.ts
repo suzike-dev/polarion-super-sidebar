@@ -1,5 +1,5 @@
 import {ensureDiagramDesign} from './diagram-design.ts';
-import {createEditorCapabilitiesTool,editorCapabilities,EDITOR_AGENT_RULES,EDITOR_TOOL_DESCRIPTIONS,EDITOR_TOOL_NAMES,TABLE_OPERATION_SCHEMA} from './editor-capabilities.ts';
+import {createEditorCapabilitiesTool,editorCapabilities,EDITOR_AGENT_RULES,EDITOR_TOOL_DESCRIPTIONS,EDITOR_TOOL_NAMES,TABLE_OPERATION_SCHEMA,BLOCK_OPERATION_SCHEMA,RESTYLE_RULES_SCHEMA} from './editor-capabilities.ts';
 import {TurnInput} from './turn-input.ts';
 import {createBoardTools,boardToolNames} from './board-tools.ts';
 import {guidelineContent} from './guidelines.ts';
@@ -42,6 +42,31 @@ const draftBrief = (d: { id: string; workItemId: string; title: string; revision
 
 
 export class Engines {
+  /** 设置开启「AI 修改后自动保存」时，轮末把本轮改过的脏草稿逐个保存并回读；失败记事件提示，不让本轮失败。 */
+  private async autoSaveTouchedDrafts(run: Run): Promise<string[]> {
+    const notes: string[] = [];
+    if (!this.store.settings().agentAutoSave) return notes;
+    // 直接按 run_id 查，避免 events() 的 120 条窗口漏掉早先的草稿事件。
+    const touched = [...new Map((this.store.db.prepare("SELECT data FROM events WHERE run_id=? AND kind='draft' ORDER BY seq").all(run.id) as {data: string}[]).map(row => { const value = JSON.parse(row.data) as {id?: string; workItemId?: string}; return [value.id, value] as const; }).filter(([id]) => !!id)).values()];
+    for (const { id, workItemId } of touched) {
+      if (!id) continue;
+      const toolId = crypto.randomUUID();
+      try {
+        const draft = this.drafts.read(id);
+        if (draft.state !== 'dirty') continue;
+        this.store.event(run, 'tool', { id: toolId, ...toolPresentation('mcp__polarion_drafts__save_draft', { workItemId: draft.workItemId }, draft.workItemId), detail: '设置已允许 · AI 修改后自动保存' });
+        const saved = await this.drafts.save(id, draft.revision, 'clean');
+        this.store.event(run, 'tool-result', { id: toolId, status: 'completed', summary: '已写入 Polarion · 服务端回读一致', durationMs: 0 });
+        this.store.event(run, 'draft', { id: saved.id, revision: saved.revision, workItemId: saved.workItemId });
+        notes.push(`**${saved.workItemId}** 回读一致`);
+      } catch (error) {
+        this.store.event(run, 'tool-result', { id: toolId, status: 'failed', summary: redact(safeError(error)), durationMs: 0 });
+        notes.push(`**${workItemId ?? id}** 保存失败：${safeError(error)}`);
+      }
+    }
+    return notes;
+  }
+
   store: Store; drafts: Drafts;
   assets: Assets;
   interactions: Interactions;
@@ -183,6 +208,13 @@ export class Engines {
           // 结果只回摘要：正文已在会话里，避免每次小改都把整篇 HTML/节点再搬一遍。
           return textResult({ ...draftBrief(draft), nodeId: args.nodeId, text: args.text });
         }),
+        tool('replace_all_text', EDITOR_TOOL_DESCRIPTIONS.replace_all_text, { draftId: z.string().uuid(), expectedRevision: z.number().int(), from: z.string().min(1).max(4000), to: z.string().max(4000), caseSensitive: z.boolean().default(true) }, async (args) => {
+          if (controller.signal.aborted) throw Error('RUN_CANCELLED');
+          this.assertTarget(this.drafts.read(args.draftId).target, session);
+          const value = this.drafts.replaceAll(args.draftId, args.expectedRevision, args.from, args.to, args.caseSensitive);
+          this.store.event(run, 'draft', { id: args.draftId, revision: value.draft.revision, workItemId: value.draft.workItemId });
+          return textResult(value);
+        }),
         tool('format_text',EDITOR_TOOL_DESCRIPTIONS.format_text,{draftId:z.string().uuid(),expectedRevision:z.number().int(),color:z.string().regex(/^#[a-f0-9]{6}$/i).optional(),bold:z.literal(true).optional(),selection:z.string().min(1).optional(),wholeDocument:z.boolean().default(false)},async(args)=>{
           if(controller.signal.aborted)throw Error('RUN_CANCELLED');this.assertTarget(this.drafts.read(args.draftId).target,session);
           if(!args.color&&!args.bold)throw Error('FORMAT_REQUIRED');if(!args.selection&&!args.wholeDocument)throw Error('EXPLICIT_SCOPE_REQUIRED');if(args.selection&&args.wholeDocument)throw Error('AMBIGUOUS_SCOPE');
@@ -207,7 +239,28 @@ export class Engines {
           this.store.event(run, 'draft', { id: args.draftId, revision: value.draft.revision, workItemId: value.draft.workItemId });
           return textResult(value);
         }),
-        tool('list_guidelines','列出当前可用的通用指令资料（标准需求模板、标准变量定义、绘图规范等）。每条含 id、名称与用途描述。根据用户需求判断是否相关，不相关不必读取。',{},async()=>textResult(this.store.guidelines().filter(g=>g.kind==='library').map(({id,kind,name,description})=>({id,kind,name,description})))),
+        tool('restyle_document', EDITOR_TOOL_DESCRIPTIONS.restyle_document, { draftId: z.string().uuid(), expectedRevision: z.number().int(), rules: RESTYLE_RULES_SCHEMA }, async (args) => {
+          if (controller.signal.aborted) throw Error('RUN_CANCELLED');
+          this.assertTarget(this.drafts.read(args.draftId).target, session);
+          const value = this.drafts.restyle(args.draftId, args.expectedRevision, args.rules);
+          this.store.event(run, 'draft', { id: args.draftId, revision: value.draft.revision, workItemId: value.draft.workItemId });
+          return textResult(value);
+        }),
+        tool('edit_block', EDITOR_TOOL_DESCRIPTIONS.edit_block, { draftId: z.string().uuid(), expectedRevision: z.number().int(), operations: z.array(BLOCK_OPERATION_SCHEMA).min(1).max(20) }, async (args) => {
+          if (controller.signal.aborted) throw Error('RUN_CANCELLED');
+          this.assertTarget(this.drafts.read(args.draftId).target, session);
+          const value = this.drafts.blocks(args.draftId, args.expectedRevision, args.operations);
+          this.store.event(run, 'draft', { id: args.draftId, revision: value.draft.revision, workItemId: value.draft.workItemId });
+          return textResult(value);
+        }),
+        tool('create_work_item', EDITOR_TOOL_DESCRIPTIONS.create_work_item, { title: z.string().min(1).max(160), type: z.string().max(60).optional() }, async (args) => {
+          if (controller.signal.aborted) throw Error('RUN_CANCELLED');
+          const d = await this.drafts.create(session.target, args.title, args.type);
+          this.store.event(run, 'draft', { id: d.id, revision: d.revision, workItemId: d.workItemId });
+          return textResult({ ...draftBrief(d), created: true });
+        }),
+        tool('peek_work_item', EDITOR_TOOL_DESCRIPTIONS.peek_work_item, { workItemId: z.string().min(1).max(100) }, async ({ workItemId }) => textResult(await this.drafts.peek(session.target, workItemId))),
+                tool('list_guidelines','列出当前可用的通用指令资料（标准需求模板、标准变量定义、绘图规范等）。每条含 id、名称与用途描述。根据用户需求判断是否相关，不相关不必读取。',{},async()=>textResult(this.store.guidelines().filter(g=>g.kind==='library').map(({id,kind,name,description})=>({id,kind,name,description})))),
         tool('read_guideline','读取一条通用指令的完整 Markdown 内容。先用 list_guidelines 找到相关指令的 id。',{id:z.string().uuid()},async({id})=>{const guideline=this.store.guidelines().find(g=>g.id===id);if(!guideline||guideline.kind!=='library')throw Error('GUIDELINE_NOT_FOUND');return textResult(guidelineContent(guideline));}),
       ] });
       const ownNames = new Set(EDITOR_TOOL_NAMES.map(n => 'mcp__polarion_drafts__' + n));
@@ -372,12 +425,18 @@ export class Engines {
           // 这是用户主动打断而非故障：按“已打断”收尾，保留 CLI 给出的文本。
           if (this.steering.has(run.id)) {
             updateNativeId(message.session_id);
-            this.store.event(run, 'result', { text: ('result' in message ? message.result : '') || '本轮已被引导输入打断。', durationMs: message.duration_ms, turns: message.num_turns, localCommand: 'local_command' in message ? message.local_command : undefined, interrupted: true });
+            const autoSaveNotes = await this.autoSaveTouchedDrafts(run);
+            this.store.event(run, 'result', { text: (('result' in message ? message.result : '') || '本轮已被引导输入打断。') + (autoSaveNotes.length ? `
+
+**已按设置自动保存：** ${autoSaveNotes.join('；')}。` : ''), durationMs: message.duration_ms, turns: message.num_turns, localCommand: 'local_command' in message ? message.local_command : undefined, interrupted: true });
             completed = true; break;
           }
           if (message.is_error || message.subtype !== 'success') throw Error('CLAUDE_TURN_FAILED: ' + (message.subtype === 'success' ? 'engine error' : message.errors.join('; ')));
           updateNativeId(message.session_id);
-          this.store.event(run, 'result', { text: message.result, durationMs: message.duration_ms, turns: message.num_turns, localCommand: 'local_command' in message ? message.local_command : undefined }); completed = true;break;
+          const autoSaveNotes = await this.autoSaveTouchedDrafts(run);
+          this.store.event(run, 'result', { text: message.result + (autoSaveNotes.length ? `
+
+**已按设置自动保存：** ${autoSaveNotes.join('；')}。` : ''), durationMs: message.duration_ms, turns: message.num_turns, localCommand: 'local_command' in message ? message.local_command : undefined }); completed = true;break;
         }
       }
       if (!completed) throw Error('ENGINE_STREAM_ENDED_WITHOUT_RESULT');

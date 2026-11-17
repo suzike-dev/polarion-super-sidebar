@@ -36,7 +36,7 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     if (request.method === 'create') {
       const target = TargetSchema.parse(request.target);
       try {
-        const result = await client.createWorkItem({ projectId: target.projectId, title: String(request.title), type: String(request.type) });
+        const result = await client.createWorkItem({ projectId: target.projectId, title: String(request.title), type: String(request.type), documentLocation: request.documentLocation ? String(request.documentLocation) : undefined });
         if (!result.item?.id) throw Error('WORK_ITEM_CREATE_UNVERIFIED');
         reply(request.id,{item:result.item,verified:result.verified,verificationErrors:result.verification_errors??[]});
       } catch (error) {
@@ -292,6 +292,11 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
       if (!document.uri || main.module_uri !== document.uri || !main.uri) throw Error('WORK_ITEM_DOCUMENT_MISMATCH');
       const links = await client.getBackLinkedWorkItems(main.uri);
       reply(request.id, links.slice(0,100).flatMap(link=>{const workItemId=workItemIdFromUri(link.work_item_uri);return workItemId?[{workItemId,role:link.role??''}]:[];}));
+      continue;
+    }
+    if (request.method === 'peek') {
+      const item = await client.getWorkItem(target.projectId, String(request.workItemId));
+      reply(request.id, { workItemId: item.id ?? String(request.workItemId), title: item.title ?? '', description: item.description ?? '', updated: item.updated });
       continue;
     }
     const item = await client.getWorkItem(target.projectId, request.workItemId);
