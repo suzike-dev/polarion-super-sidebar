@@ -38,3 +38,13 @@ test('distilled experience is embedded as a mandatory follow-up block', () => {
   assert.doesNotMatch(enginePrompt(run, [], undefined, undefined, '   '), /历史经验沉淀/);
   assert.doesNotMatch(enginePrompt(run, []), /历史经验沉淀/);
 });
+test('long work-item snapshots are truncated per turn while exact selections stay verbatim', () => {
+  const base = { prompt: '继续', target: { projectId: 'p', document: 'd' } } as unknown as Run;
+  const big = '工'.repeat(30000);
+  const truncated = enginePrompt({ ...base, contexts: [{ text: big, source: 'work-item', workItemId: 'A' }] } as unknown as Run, []);
+  assert.match(truncated, /快照过长已截断/);
+  assert.ok(!truncated.includes(big));
+  assert.ok(truncated.length < 15000);
+  const selection = enginePrompt({ ...base, contexts: [{ text: big, source: 'selection' }] } as unknown as Run, []);
+  assert.ok(selection.includes(big), '选区原样保留，供 format_text 精确匹配');
+});

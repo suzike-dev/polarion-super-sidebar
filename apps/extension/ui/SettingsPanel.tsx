@@ -1,5 +1,5 @@
 import React, {useMemo, useState} from 'react';
-import {ArrowLeft, BookOpen, Bot, ChevronRight, FileText, FolderOpen, KeyRound, MessageSquare, Pencil, Plus, SlidersHorizontal, Sparkles, Trash2, Type, X} from 'lucide-react';
+import {ArrowLeft, BookOpen, Bot, ChevronRight, FileText, FolderOpen, KeyRound, MessageSquare, PanelTopOpen, Pencil, Plus, SlidersHorizontal, Sparkles, Trash2, Type, X} from 'lucide-react';
 import type {Guideline, GuidelineFile, GuidelineKind} from '../../../packages/protocol/index';
 import {MAX_GUIDELINE_FILES, SettingsSchema} from '../../../packages/protocol/index';
 import {PolarionAccount} from './PolarionAccount';
@@ -46,10 +46,10 @@ function ManualPath({placeholder,disabled,onAdd}:{placeholder:string;disabled:bo
   return <div className="sp-manual"><input aria-label={placeholder} placeholder={placeholder} maxLength={1000} disabled={disabled} value={value} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();commit();}}}/><button type="button" className="sp-btn" disabled={disabled||!value.trim()} onClick={commit}>添加</button></div>;
 }
 
-export function SettingsPanel({config,defaultFontSize,guidelines,loading,saving,error,initialTab='general',onConfig,onGuidelines,onSave,onClose,onPickFolder,onPickFiles}:{
-  config:AssistantSettings|null;defaultFontSize:number;guidelines:Guideline[]|null;initialTab?:PanelTab;
+export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,loading,saving,error,initialTab='general',onConfig,onPaperWidth,onGuidelines,onSave,onClose,onPickFolder,onPickFiles}:{
+  config:AssistantSettings|null;defaultFontSize:number;paperWidth:'default'|'fill'|number;guidelines:Guideline[]|null;initialTab?:PanelTab;
   loading:boolean;saving:boolean;error:string;
-  onConfig:(next:AssistantSettings)=>void;onGuidelines:(next:Guideline[])=>void;
+  onConfig:(next:AssistantSettings)=>void;onPaperWidth:(next:'default'|'fill'|number)=>void;onGuidelines:(next:Guideline[])=>void;
   onSave:()=>void;onClose:()=>void;
   onPickFolder:(current:string)=>Promise<string|null>;onPickFiles:(id:string)=>Promise<GuidelineFile[]>;
 }){
@@ -96,6 +96,16 @@ export function SettingsPanel({config,defaultFontSize,guidelines,loading,saving,
             <button type="button" className="sp-link" disabled={saving||config.assistantFontSize===defaultFontSize} onClick={()=>onConfig({...config,assistantFontSize:defaultFontSize})}>恢复默认 {defaultFontSize}px</button>
           </div>
           <div className="sp-font-preview" aria-label="AI 回答字号预览"><AssistantMarkdown text={'### 回答预览\n需求分析保留清晰层级，参数 `setpoint` 与正文一起调整。'}/></div>
+        </div>}
+        {panelTab==='appearance'&&<div className="sp-card"><div className="sp-card-head"><span className="sp-icon"><PanelTopOpen size={14}/></span><div><h4>原生正文宽度</h4><p>Polarion 页面中间那篇“纸”默认只有 754px，宽屏两侧留白；按需加宽。即时生效，打开中的文档页刷新后同步。</p></div></div>
+          <Segmented label="纸宽" value={typeof paperWidth==='number'?'custom':paperWidth} onChange={value=>onPaperWidth(value==='custom'?1100:value)} options={[
+            {value:'default',label:'默认 754',hint:'保持 Polarion 原版纸宽'},
+            {value:'fill',label:'加宽铺满',hint:'铺满正文区，表格和长段更充分利用屏幕'},
+            {value:'custom',label:'自定义',hint:'指定纸宽像素，居中显示'},
+          ]}/>
+          {typeof paperWidth==='number'&&<label className="sp-field"><span className="sp-label">自定义纸宽 <small>600–2560 px，回车确认</small></span>
+            <input type="number" min={600} max={2560} step={10} defaultValue={paperWidth} key={String(paperWidth)} disabled={saving} onBlur={event=>{const px=Number(event.target.value);if(Number.isFinite(px))onPaperWidth(Math.min(2560,Math.max(600,Math.round(px))));}} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();(event.target as HTMLInputElement).blur();}}}/>
+          </label>}
         </div>}
         {panelTab==='storage'&&<div className="sp-card"><div className="sp-card-head"><span className="sp-icon"><FolderOpen size={14}/></span><div><h4>共享草稿存储</h4><p>默认放在内部数据库；选择文件夹后保存为可备份、可迁移的 JSON 文件。</p></div></div>
           <div className="sp-folder-card">

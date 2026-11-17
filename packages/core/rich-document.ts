@@ -7,7 +7,7 @@ import {documentNodeStyle, headingSizes} from './document-presentation.ts';
 type H = DefaultTreeAdapterTypes.Node;
 type J = JSONContent;
 type M = NonNullable<J['marks']>[number];
-type TableSection = { before:string; open:string; close:string; rows:string[] };
+type TableSection = { before:string; open:string; close:string; rows:string[]; tag:string };
 type RecordNode = { id: string; tag: string; start: number; end: number; open: string; close: string; raw: string; attrs: Record<string, string>; original: J; children: string[]; synthetic?: boolean; tableLayout?: { sections:TableSection[]; tail:string } };
 const tags: Record<string, string> = { p: 'paragraph', pre:'codeBlock', div: 'sourceContainer', ul: 'bulletList', ol: 'orderedList', li: 'listItem', blockquote: 'blockquote', table: 'table', tr: 'tableRow', td: 'tableCell', th: 'tableHeader', hr: 'horizontalRule', br: 'hardBreak' };
 const marks: Record<string, string> = { strong: 'bold', b: 'bold', em: 'italic', i: 'italic', u: 'underline', s: 'strike', del: 'strike', strike: 'strike', code: 'code', a: 'link', sub: 'subscript', sup: 'superscript', span: 'sourceSpan' };
@@ -182,7 +182,7 @@ export class RichDocument {
         const first=rows[0]!.sourceCodeLocation!,last=rows.at(-1)!.sourceCodeLocation!;
         const start=section.sourceCodeLocation?.startOffset??first.startOffset,end=section.sourceCodeLocation?.endOffset??last.endOffset;
         const ids=r.children.filter(id=>{const row=this.records.get(id)!;return row.start>=first.startOffset&&row.end<=last.endOffset;});
-        layout.push({before:this.source.slice(cursor,start),open:this.source.slice(start,first.startOffset),close:this.source.slice(last.endOffset,end),rows:ids});cursor=end;
+        layout.push({before:this.source.slice(cursor,start),open:this.source.slice(start,first.startOffset),close:this.source.slice(last.endOffset,end),rows:ids,tag:section.nodeName});cursor=end;
       }
       r.tableLayout={sections:layout,tail:this.source.slice(cursor,r.end-r.close.length)};
     }
@@ -316,7 +316,15 @@ export class RichDocument {
         const assigned=rows.map(row=>owners.get(identity(row)!));
         // Newly inserted rows inherit an adjacent source group. Existing groups
         // cannot be silently duplicated/reordered when their wrappers carry IDs.
-        for(let i=0;i<assigned.length;i++)if(assigned[i]===undefined)assigned[i]=assigned.slice(0,i).findLast(v=>v!==undefined)??assigned.slice(i+1).find(v=>v!==undefined)??0;
+        // A body row inserted right after the header belongs to the next group:
+        // inheriting thead would render a td row inside the header section.
+        const bodyRow=(row:J)=>!(row.content??[]).some(cell=>cell.type==='tableHeader');
+        for(let i=0;i<assigned.length;i++){
+          if(assigned[i]!==undefined)continue;
+          const previous=assigned.slice(0,i).findLast(v=>v!==undefined),next=assigned.slice(i+1).find(v=>v!==undefined);
+          assigned[i]=previous??next??0;
+          if(previous!==undefined&&next!==undefined&&previous!==next&&layout.sections[previous]!.tag==='thead'&&layout.sections[next]!.tag!=='thead'&&bodyRow(rows[i]!))assigned[i]=next;
+        }
         if(assigned.some((group,i)=>i>0&&group!<assigned[i-1]!))throw Error('TABLE_GROUP_REORDER_UNSUPPORTED');
         body=layout.sections.map((section,index)=>{
           const items=rows.filter((_row,i)=>assigned[i]===index);let content='';

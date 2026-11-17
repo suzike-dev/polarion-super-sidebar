@@ -5,6 +5,24 @@ export default defineContentScript({
   matches: ['https://polarion.pufafen.com/polarion/*'], allFrames: true, matchAboutBlank: true, runAt: 'document_start',
   main(ctx) {
     if (window.frameElement?.classList.contains('rich-surface')) return;
+    // Polarion 原生正文默认是一张固定 754px 的“纸”，宽屏下两侧全是空白。
+    // 宽度是设置项（native-paper-width）：'default' 保持原样、'fill' 铺满、数字为自定义纸宽 px。
+    const applyPaperWidth = (value: unknown) => {
+      const px = typeof value === 'number' && Number.isFinite(value) ? Math.min(2560, Math.max(600, Math.round(value))) : 0;
+      const css = value === 'fill'
+        ? 'body.polarion-dle-document-paper{width:auto !important;max-width:none !important;margin:0 24px !important;}'
+        : px
+          ? `body.polarion-dle-document-paper{width:${px}px !important;max-width:none !important;margin:0 auto !important;}`
+          : '';
+      let style = document.getElementById('psb-paper-width') as HTMLStyleElement | null;
+      if (!css) { style?.remove(); return; }
+      if (!style) { style = document.createElement('style'); style.id = 'psb-paper-width'; document.documentElement.appendChild(style); }
+      style.textContent = css;
+    };
+    try {
+      void browser.storage.local.get('native-paper-width').then(value => applyPaperWidth(value['native-paper-width'] ?? 'fill'));
+      browser.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes['native-paper-width']) applyPaperWidth(changes['native-paper-width']!.newValue); });
+    } catch { /* 存储不可用时保持 Polarion 原样 */ }
     // 深链意图要在 document_start 记下：Polarion 路由启动后会重写 hash 并丢掉查询参数，侧栏挂载时已看不到。
     try {
       if (window.top === window) {

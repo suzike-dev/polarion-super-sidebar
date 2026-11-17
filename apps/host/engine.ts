@@ -1,5 +1,5 @@
 import {ensureDiagramDesign} from './diagram-design.ts';
-import {createEditorCapabilitiesTool,editorCapabilities,EDITOR_AGENT_RULES,EDITOR_TOOL_DESCRIPTIONS,EDITOR_TOOL_NAMES} from './editor-capabilities.ts';
+import {createEditorCapabilitiesTool,editorCapabilities,EDITOR_AGENT_RULES,EDITOR_TOOL_DESCRIPTIONS,EDITOR_TOOL_NAMES,TABLE_OPERATION_SCHEMA} from './editor-capabilities.ts';
 import {TurnInput} from './turn-input.ts';
 import {createBoardTools,boardToolNames} from './board-tools.ts';
 import {guidelineContent} from './guidelines.ts';
@@ -36,6 +36,9 @@ export function permissionPreview(input: unknown) {
   return JSON.stringify(clean(input))?.slice(0, 800) ?? '';
 }
 const textResult = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value) }] });
+/** 工具返回的草稿摘要：不带 html/nodes，正文按需用 read_draft / read_rich_document 获取。 */
+const draftBrief = (d: { id: string; workItemId: string; title: string; revision: number; state: string }) =>
+  ({ draftId: d.id, workItemId: d.workItemId, title: d.title, revision: d.revision, state: d.state, savedToPolarion: false });
 
 
 export class Engines {
@@ -163,15 +166,22 @@ export class Engines {
           this.store.event(run,'attachment-read',{id:a.id,name:a.name,extraction:a.extraction,truncated:!!a.truncated});
           return textResult({ ...a, nativePath: attachments.find(x=>x.id===assetId)?.nativePath });
         }),
-        tool('open_work_item', EDITOR_TOOL_DESCRIPTIONS.open_work_item, { workItemId: z.string() }, async ({ workItemId }) => textResult(await this.drafts.open(session.target, workItemId))),
+        tool('open_work_item', EDITOR_TOOL_DESCRIPTIONS.open_work_item, { workItemId: z.string() }, async ({ workItemId }) => {
+          const d = await this.drafts.open(session.target, workItemId);
+          this.assertTarget(d.target, session);
+          return textResult({ ...draftBrief(d), version: d.version, nodes: d.nodes, ...(d.variantOf ? { variantOf: d.variantOf } : {}) });
+        }),
         tool('read_draft', EDITOR_TOOL_DESCRIPTIONS.read_draft, { draftId: z.string().uuid() }, async ({ draftId }) => {
-          const d = this.drafts.read(draftId); this.assertTarget(d.target, session); return textResult(d);
+          const d = this.drafts.read(draftId); this.assertTarget(d.target, session);
+          return textResult({ ...draftBrief(d), version: d.version, nodes: d.nodes, ...(d.variantOf ? { variantOf: d.variantOf } : {}) });
         }),
         tool('replace_text', EDITOR_TOOL_DESCRIPTIONS.replace_text, { draftId: z.string().uuid(), expectedRevision: z.number().int(), nodeId: z.string(), expectedText: z.string(), text: z.string() }, async (args) => {
           if (controller.signal.aborted) throw Error('RUN_CANCELLED');
           this.assertTarget(this.drafts.read(args.draftId).target, session);
           const draft = this.drafts.replace(args.draftId, args.expectedRevision, args.nodeId, args.expectedText, args.text);
-          this.store.event(run, 'draft', { id: draft.id, revision: draft.revision, workItemId: draft.workItemId }); return textResult(draft);
+          this.store.event(run, 'draft', { id: draft.id, revision: draft.revision, workItemId: draft.workItemId });
+          // 结果只回摘要：正文已在会话里，避免每次小改都把整篇 HTML/节点再搬一遍。
+          return textResult({ ...draftBrief(draft), nodeId: args.nodeId, text: args.text });
         }),
         tool('format_text',EDITOR_TOOL_DESCRIPTIONS.format_text,{draftId:z.string().uuid(),expectedRevision:z.number().int(),color:z.string().regex(/^#[a-f0-9]{6}$/i).optional(),bold:z.literal(true).optional(),selection:z.string().min(1).optional(),wholeDocument:z.boolean().default(false)},async(args)=>{
           if(controller.signal.aborted)throw Error('RUN_CANCELLED');this.assertTarget(this.drafts.read(args.draftId).target,session);
@@ -180,7 +190,23 @@ export class Engines {
           this.store.event(run,'draft',{id:draft.id,revision:draft.revision,workItemId:draft.workItemId});return textResult({draftId:draft.id,workItemId:draft.workItemId,revision:draft.revision,characters,state:draft.state,savedToPolarion:false});
         }),
         tool('read_rich_document', EDITOR_TOOL_DESCRIPTIONS.read_rich_document, {draftId:z.string().uuid()},async({draftId})=>{this.assertTarget(this.drafts.read(draftId).target,session);return textResult(this.drafts.richRead(draftId));}),
-        tool('update_rich_document', EDITOR_TOOL_DESCRIPTIONS.update_rich_document,{draftId:z.string().uuid(),editorId:z.string().uuid(),expectedRevision:z.number().int(),document:z.record(z.string(),z.unknown())},async(args)=>{if(controller.signal.aborted)throw Error('RUN_CANCELLED');this.assertTarget(this.drafts.read(args.draftId).target,session);const draft=this.drafts.richApply(args.draftId,args.editorId,args.expectedRevision,args.document);this.store.event(run,'draft',{id:draft.id,revision:draft.revision,workItemId:draft.workItemId});return textResult(draft);}),
+        tool('update_rich_document', EDITOR_TOOL_DESCRIPTIONS.update_rich_document,{draftId:z.string().uuid(),editorId:z.string().uuid(),expectedRevision:z.number().int(),document:z.record(z.string(),z.unknown())},async(args)=>{if(controller.signal.aborted)throw Error('RUN_CANCELLED');this.assertTarget(this.drafts.read(args.draftId).target,session);const draft=this.drafts.richApply(args.draftId,args.editorId,args.expectedRevision,args.document);this.store.event(run,'draft',{id:draft.id,revision:draft.revision,workItemId:draft.workItemId});return textResult(draftBrief(draft));}),
+        tool('list_tables', EDITOR_TOOL_DESCRIPTIONS.list_tables, { draftId: z.string().uuid() }, async ({ draftId }) => { this.assertTarget(this.drafts.read(draftId).target, session); return textResult(this.drafts.tables(draftId)); }),
+        tool('read_table', EDITOR_TOOL_DESCRIPTIONS.read_table, { draftId: z.string().uuid(), table: z.number().int().min(0) }, async ({ draftId, table }) => { this.assertTarget(this.drafts.read(draftId).target, session); return textResult(this.drafts.tableRead(draftId, table)); }),
+        tool('edit_table', EDITOR_TOOL_DESCRIPTIONS.edit_table, { draftId: z.string().uuid(), expectedRevision: z.number().int(), operations: z.array(TABLE_OPERATION_SCHEMA).min(1).max(20) }, async (args) => {
+          if (controller.signal.aborted) throw Error('RUN_CANCELLED');
+          this.assertTarget(this.drafts.read(args.draftId).target, session);
+          const value = this.drafts.table(args.draftId, args.expectedRevision, args.operations);
+          this.store.event(run, 'draft', { id: args.draftId, revision: value.draft.revision, workItemId: value.draft.workItemId });
+          return textResult(value);
+        }),
+        tool('update_table', EDITOR_TOOL_DESCRIPTIONS.update_table, { draftId: z.string().uuid(), editorId: z.string().uuid(), expectedRevision: z.number().int(), table: z.number().int().min(0), content: z.record(z.string(), z.unknown()) }, async (args) => {
+          if (controller.signal.aborted) throw Error('RUN_CANCELLED');
+          this.assertTarget(this.drafts.read(args.draftId).target, session);
+          const value = this.drafts.tableApply(args.draftId, args.editorId, args.expectedRevision, args.table, args.content);
+          this.store.event(run, 'draft', { id: args.draftId, revision: value.draft.revision, workItemId: value.draft.workItemId });
+          return textResult(value);
+        }),
         tool('list_guidelines','列出当前可用的通用指令资料（标准需求模板、标准变量定义、绘图规范等）。每条含 id、名称与用途描述。根据用户需求判断是否相关，不相关不必读取。',{},async()=>textResult(this.store.guidelines().filter(g=>g.kind==='library').map(({id,kind,name,description})=>({id,kind,name,description})))),
         tool('read_guideline','读取一条通用指令的完整 Markdown 内容。先用 list_guidelines 找到相关指令的 id。',{id:z.string().uuid()},async({id})=>{const guideline=this.store.guidelines().find(g=>g.id===id);if(!guideline||guideline.kind!=='library')throw Error('GUIDELINE_NOT_FOUND');return textResult(guidelineContent(guideline));}),
       ] });

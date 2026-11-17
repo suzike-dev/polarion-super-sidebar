@@ -1,4 +1,5 @@
 import {formatDocument, type TextFormat} from '../../packages/core/format-document.ts';
+import {applyTableOperations, listTables, replaceTableJson, tableJsonAt, type TableOperation} from '../../packages/core/table-ops.ts';
 import {equivalentHtml} from '../../packages/core/html-equivalence.ts';
 import {polarionWriteHtml} from '../../packages/core/polarion-html.ts';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -331,6 +332,38 @@ export class Drafts {
     if(this.read(id).revision!==expectedRevision)throw Error('STALE_DRAFT');
     const rich=this.richRead(id),changed=formatDocument(rich.document,format,selection);
     return{draft:this.richApply(id,rich.editorId,expectedRevision,changed.document),characters:changed.characters};
+  }
+  /* -------- 表格速通：小命令进出，避免为一张表读写整篇 rich JSON -------- */
+  /** 表格清单：直接解析当前草稿，不建立编辑会话；返回体积极小。 */
+  tables(id: string) {
+    const draft = this.read(id);
+    return { draftId: id, workItemId: draft.workItemId, revision: draft.revision, state: draft.state, tables: listTables(new RichDocument(draft.html).document) };
+  }
+  /** 批量执行表格结构操作（增删行/列、列宽、插入表格），一次调用一次落盘。 */
+  table(id: string, expectedRevision: number, operations: TableOperation[]) {
+    if (this.saving.has(id)) throw Error('DRAFT_SAVING');
+    const draft = this.read(id);
+    if (draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
+    if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
+    const rich = this.richRead(id);
+    const applied = applyTableOperations(rich.document, operations);
+    const next = this.richApply(id, rich.editorId, expectedRevision, applied.document);
+    return { draft: { draftId: next.id, workItemId: next.workItemId, revision: next.revision, state: next.state, savedToPolarion: false }, tables: applied.tables };
+  }
+  /** 读取单张表的完整 rich JSON（含 sid 映射），配合 tableApply 只回写这一张表。 */
+  tableRead(id: string, table: number) {
+    const rich = this.richRead(id);
+    return { editorId: rich.editorId, draftId: id, workItemId: rich.draft.workItemId, revision: rich.draft.revision, table, document: tableJsonAt(rich.document, table) };
+  }
+  /** 把修改后的单张表写回：其余内容与源映射保持原样。 */
+  tableApply(id: string, editorId: string, expectedRevision: number, table: number, node: JSONContent) {
+    if (this.saving.has(id)) throw Error('DRAFT_SAVING');
+    const session = this.store.require<RichSession>('rich-editor', editorId);
+    if (session.draftId !== id) throw Error('STALE_DRAFT');
+    let model = this.richModels.get(editorId);
+    if (!model) { model = new RichDocument(session.source, editorId); this.richModels.set(editorId, model); }
+    const next = this.richApply(id, editorId, expectedRevision, replaceTableJson(model.document, table, node));
+    return { draft: { draftId: next.id, workItemId: next.workItemId, revision: next.revision, state: next.state, savedToPolarion: false }, tables: listTables(new RichDocument(next.html).document) };
   }
   replace(id: string, expectedRevision: number, nodeId: string, expectedText: string, text: string) {
     if (this.saving.has(id)) throw Error('DRAFT_SAVING');

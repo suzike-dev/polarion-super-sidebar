@@ -212,6 +212,10 @@ export function App() {
   const sessionRef = useRef(session); sessionRef.current = session;
   useEffect(() => { let disposed=false;loadedAttachmentProject.current=null;if(!target)return;void browser.storage.local.get('composer-attachments:'+target.projectId).then(value=>{if(!disposed){setAttachments((value['composer-attachments:'+target.projectId] as Asset[])??[]);loadedAttachmentProject.current=target.projectId;}});return()=>{disposed=true;};},[target?.projectId]);
   useEffect(() => { if(target&&loadedAttachmentProject.current===target.projectId)void browser.storage.local.set({['composer-attachments:'+target.projectId]:attachments}); },[attachments,target?.projectId]);
+  /** 原生正文“纸宽”：本地显示偏好，capture 脚本按它注入样式，即时生效。 */
+  const [paperWidth, setPaperWidth] = useState<'default'|'fill'|number>('fill');
+  useEffect(() => { void browser.storage.local.get('native-paper-width').then(value => { const saved = value['native-paper-width'] as 'default'|'fill'|number|undefined; if (saved === 'default' || saved === 'fill' || typeof saved === 'number') setPaperWidth(saved); }); }, []);
+  useEffect(() => { void browser.storage.local.set({'native-paper-width': paperWidth}); }, [paperWidth]);
   useEffect(() => { void browser.storage.local.get('workspace-preferences').then(value => { const p = value['workspace-preferences'] as any; if (p) { if (typeof p.open === 'boolean') setOpen(p.open); if (typeof p.pinnedOutline === 'boolean') setPinnedOutline(p.pinnedOutline); if (typeof p.width === 'number') setWidth(Math.max(340, Math.min(560, p.width))); } }).finally(() => setPreferencesLoaded(true)); }, []);
   useEffect(() => { if (!preferencesLoaded)return;const timer=setTimeout(()=>void browser.storage.local.set({ 'workspace-preferences': { open, width, pinnedOutline } }),150);return()=>clearTimeout(timer); }, [open, width, pinnedOutline, preferencesLoaded]);
   useEffect(() => { if (session) void browser.storage.local.set({ ['active-project-session:' + session.target.projectId]: session.id }); }, [session?.id]);
@@ -592,8 +596,8 @@ export function App() {
       {geometry.overlay && <div className="compact-note">窄屏浮层模式 · 收起助手可查看完整正文</div>}
       {error && <div className="error" role="alert"><span>{error}{error.includes('凭据')&&!settings&&<button className="secondary" onClick={e=>void toggleSettings(e.currentTarget)}>配置 Polarion 账号</button>}</span><button className="icon" title="关闭提示" onClick={() => setError('')}><X size={14}/></button></div>}
       {saveNotice&&<div className="save-notice" role="status"><Check size={15}/><span>{saveNotice}</span><button className="icon" title="关闭保存结果" onClick={()=>setSaveNotice('')}><X size={14}/></button></div>}
-      {settings && <SettingsPanel config={config} defaultFontSize={DEFAULT_ASSISTANT_FONT_SIZE} guidelines={guidelineDrafts} loading={settingsLoading} saving={settingsSaving} error={settingsError} initialTab={settingsTab}
-        onConfig={next=>setConfig(next)} onGuidelines={next=>{const alive=new Set(next.map(g=>g.id));for(const id of persistedGuidelineIds.current)if(!alive.has(id)&&!deletedGuidelines.current.includes(id))deletedGuidelines.current.push(id);setGuidelineDrafts(next);}}
+      {settings && <SettingsPanel config={config} defaultFontSize={DEFAULT_ASSISTANT_FONT_SIZE} paperWidth={paperWidth} guidelines={guidelineDrafts} loading={settingsLoading} saving={settingsSaving} error={settingsError} initialTab={settingsTab}
+        onConfig={next=>setConfig(next)} onPaperWidth={next=>setPaperWidth(next)} onGuidelines={next=>{const alive=new Set(next.map(g=>g.id));for(const id of persistedGuidelineIds.current)if(!alive.has(id)&&!deletedGuidelines.current.includes(id))deletedGuidelines.current.push(id);setGuidelineDrafts(next);}}
         onSave={()=>void saveSettings()} onClose={closeSettings}
         onPickFolder={async current=>{try{const value=await rpc<{path:string|null}>({method:'dialog.pickFolder',title:'选择共享草稿存储文件夹',defaultPath:current});return value.path;}catch(e){setSettingsError('打开文件夹选择器失败：'+errorText(e));return null;}}}
         onPickFiles={async id=>{try{const value=await rpc<{paths:string[]}>({method:'dialog.pickFiles',title:'选择指令文件',defaultPath:''});return value.paths.map(path=>({path,label:''}));}catch(e){setSettingsError('打开文件选择器失败：'+errorText(e));return [];}}}
