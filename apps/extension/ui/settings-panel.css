@@ -5,8 +5,9 @@
 :host .workspace .sp-title-mark { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: #3e6649; background: #eff3e9; border: 1px solid #dfe7d2; flex: none; }
 :host .workspace .sp-title h3 { font-size: 13px; font-weight: 650; color: #3c3d3b; margin: 0; }
 :host .workspace .sp-title small { display: block; font-size: 10.5px; color: #95988c; margin-top: 1px; }
-:host .workspace .sp-nav { display: flex; gap: 2px; padding: 6px 8px; background: #f9faf4; border-bottom: 1px solid #ecefe4; flex-shrink: 0; }
+:host .workspace .sp-nav { container: settings-tabs / inline-size; display: flex; gap: 2px; padding: 6px 8px; background: #f9faf4; border-bottom: 1px solid #ecefe4; flex-shrink: 0; }
 :host .workspace .sp-nav button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 4px; border-radius: 7px; font-size: 11.5px; color: #858878; white-space: nowrap; }
+@container settings-tabs (max-width: 300px) { :host .workspace .sp-nav button > svg { display: none; } }
 :host .workspace .sp-nav button:hover:not(.on) { background: #f1f0ec; color: #5e6156; }
 :host .workspace .sp-nav button.on { background: #fff; color: #2e5b41; font-weight: 600; box-shadow: 0 0 0 1px #e4e1db, 0 1px 2px #2027250d; }
 :host .workspace .sp-nav em { font-style: normal; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: #e7eae0; color: #7b8272; font-size: 9px; display: inline-grid; place-items: center; }
@@ -30,22 +31,23 @@
 :host .workspace .sp-seg button { flex: 1; padding: 6px 8px; border-radius: 6px; font-size: 11.5px; color: #767a6c; white-space: nowrap; transition: background .15s, color .15s, box-shadow .15s; }
 :host .workspace .sp-seg button:hover:not(:disabled):not(.on) { background: #ebeae6; color: #565650; }
 :host .workspace .sp-seg button.on { background: #fff; color: #2e5b41; font-weight: 600; box-shadow: 0 0 0 1px #dfdcd6; }
-:host .workspace .sp-font { display: flex; flex-direction: column; gap: 9px; }
+:host .workspace .sp-font { container: font-picker / inline-size; display: flex; flex-direction: column; gap: 9px; }
 :host .workspace .sp-font-scale { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
-:host .workspace .sp-font-scale button { padding: 7px 2px; border-radius: 7px; border: 1px solid #e5e8dc; background: #fff; color: #6b6f62; font-size: 11.5px; font-variant-numeric: tabular-nums; }
-:host .workspace .sp-font-scale button small { font-size: 8.5px; color: #a9a69f; margin-left: 1px; }
+@container font-picker (max-width: 370px) { :host .workspace .sp-font-scale { grid-template-columns: repeat(5, 1fr); } }
+:host .workspace .sp-font-scale button { padding: 7px 2px; border-radius: 7px; border: 1px solid #e5e8dc; background: #fff; color: #55614e; font-size: 12px; font-variant-numeric: tabular-nums; }
+:host .workspace .sp-font-scale button small { font-size: 10px; color: #5d6956; margin-left: 1px; }
 :host .workspace .sp-font-scale button:hover:not(:disabled) { border-color: #c8ccbf; }
 :host .workspace .sp-font-scale button.on { background: #eff3e9; border-color: #b7cba9; color: #2e5b41; font-weight: 650; }
 :host .workspace .sp-font-scale button.on small { color: #5e8c5e; }
 :host .workspace .sp-link { align-self: flex-start; font-size: 10.5px; color: #5d7f62; padding: 2px 0; text-decoration: underline; text-decoration-color: #c3d3b9; text-underline-offset: 2px; }
 :host .workspace .sp-link:hover:not(:disabled) { color: #2e5b41; }
 :host .workspace .sp-font-preview { padding: 10px 11px; background: #f9faf4; border: 1px solid #efede9; border-radius: 8px; }
-:host .workspace .sp-folder-card { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border: 1px solid #e5e8dc; border-radius: 9px; background: #f9faf4; }
+:host .workspace .sp-folder-card { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 9px; padding: 10px 11px; border: 1px solid #e5e8dc; border-radius: 9px; background: #f9faf4; }
 :host .workspace .sp-folder-icon { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: #fff; border: 1px solid #e5e8dc; color: #7c7f72; flex: none; }
-:host .workspace .sp-folder-path { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-:host .workspace .sp-folder-path strong { font-size: 11.5px; color: #4a4d44; font-weight: 600; }
-:host .workspace .sp-folder-path span { font-size: 10px; color: #999c90; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-:host .workspace .sp-folder-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; }
+:host .workspace .sp-folder-path { flex: 1 1 150px; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+:host .workspace .sp-folder-path strong { font-size: 13px; color: #4a4d44; font-weight: 600; }
+:host .workspace .sp-folder-path span { font-size: 13px; line-height: 1.5; color: #5c6958; overflow-wrap: anywhere; }
+:host .workspace .sp-folder-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; margin-left: auto; }
 :host .workspace .sp-btn { padding: 6px 10px; border-radius: 7px; border: 1px solid #d8dbcf; background: #fff; font-size: 11px; color: #55584d; font-weight: 550; }
 :host .workspace .sp-btn:hover:not(:disabled) { background: #f5f4f1; border-color: #c8ccbf; }
 :host .workspace .sp-note { margin: 0; font-size: 10px; line-height: 1.6; color: #999c90; }

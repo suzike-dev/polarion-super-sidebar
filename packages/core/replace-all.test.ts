@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RichDocument } from './rich-document.ts';
-import { replaceAllText } from './replace-all.ts';
+import { replaceAllText, replaceGlossaryMatches } from './replace-all.ts';
+import { glossaryFixMatches, RulePackSchema } from './requirement-lint.ts';
+import { richSchema } from './rich-schema.ts';
 import { restyleDocument } from './restyle.ts';
 
 const html = '<p>温度阈值 25 °C，温度单位 °C</p><table><tr><td>温度传感器</td><td>25 °C</td></tr></table><p><strong>温度</strong>说明</p>';
@@ -16,6 +18,15 @@ test('replaceAllText replaces every match, preserves structure and serializes cl
   assert.match(saved, /<strong>环境温度<\/strong>/);
   const reopened = new RichDocument(saved);
   assert.equal(reopened.serialize(reopened.document), saved);
+});
+
+test('a glossary translation with no shared characters retains both original marked runs', () => {
+  const model = new RichDocument("<p class='native'><b id='start'>Brake</b><i style='color:red'>Boost</i></p>");
+  const pack = RulePackSchema.parse({ glossary: [{ term: '刹车助力', aliases: ['BrakeBoost'] }] });
+  const matches = glossaryFixMatches(richSchema.nodeFromJSON(model.document), pack, 'BrakeBoost', '刹车助力', false);
+  const fix = replaceGlossaryMatches(model.document, matches, 'BrakeBoost', '刹车助力', false);
+  assert.equal(fix.replacements, 1);
+  assert.equal(model.serialize(fix.document), "<p class='native'><b id='start'>刹车</b><i style='color:red'>助力</i></p>");
 });
 
 test('case-insensitive replacement and explicit failures', () => {

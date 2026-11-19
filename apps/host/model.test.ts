@@ -272,6 +272,40 @@ test('indexSync：全项目拉取后按当前文档 outline 过滤，不依赖 d
   assert.equal(remote.captured, 'id:SPE-1'); // 自定义查询透传
 });
 
+test('旧模型索引和重新同步使用同一需求范围，并保留章节上已有的模块备注', async t => {
+  const marks = [{ rootId, modules: ['TMS_HPMode'] }];
+  const row = (workItemId: string, type: string, marked = false) => ({ workItemId, type, title: '相同标题', updated: 'v1', links: [], marks: marked ? marks : [] });
+  const rows = [row('FIX-1', 'heading'), row('FIX-2', 'softwarerequirement'), row('FIX-3', 'customHeadingPolicy'), row('FIX-4', ' Heading ', true), row('FIX-5', 'softwarerequirement', true), row('FIX-6', '')];
+  const remote = new SharedAttachment();
+  const model = client(t, remote), store = model['store'];
+  const root = scannedRoot(makeRoot(t));
+  remote.offline = true;
+  store.put('model-roots', target.projectId, { roots: [root] });
+  store.put('model-index', target.projectId, { items: rows, total: 6, annotated: 2, syncedAt: 7, query: '' });
+  const pending = ['FIX-2', 'FIX-3', 'FIX-6'];
+  const check = async () => {
+    const trace = await model.traceView(target);
+    assert.deepEqual(trace.unannotated.map(item => item.workItemId), pending);
+    assert.deepEqual([trace.total, trace.annotated], [4, 1]);
+    const group = trace.groups.find(group => group.moduleKey === 'TMS_HPMode')!;
+    assert.deepEqual(group.items.map(item => item.workItemId), ['FIX-5']);
+    assert.deepEqual(group.markedHeadings?.map(item => [item.workItemId, item.marks]), [['FIX-4', marks]]);
+    const { count, prompt } = model.autolinkPrompt(target);
+    assert.equal(count, pending.length);
+    assert.deepEqual([...prompt.matchAll(/- (FIX-\d+)｜/g)].map(match => match[1]), pending);
+    const digest = modelContextDigest(store, target.projectId);
+    assert.match(digest, /已标注 1\/4/);
+    assert.match(digest, /已关联需求 1 条/);
+  };
+  await check(); // The first open must work with the unmodified legacy row and no sync.
+  t.mock.method(remote, 'modelNotes', async () => ({ items: rows.map(item => item.workItemId === 'FIX-1' ? { ...item, type: '' } : item), total: rows.length }));
+  t.mock.method(remote, 'outline', async () => ({ items: rows.map(item => ({ id: item.workItemId, type: item.type })) }));
+  const synced = await model.indexSync(target, '');
+  assert.deepEqual([synced.total, synced.annotated], [4, 1]);
+  await check();
+  assert.equal(remote.writeAttempts, 0);
+});
+
 test('autolinkPrompt：未标注清单 + 模块清单 + 写入规则；全已标注时引导', async t => {
   const { model, putIndex } = await patrolFixture(t);
   // 全部已标注 → 引导语而不是任务。

@@ -41,7 +41,8 @@ footer{background:#f7f8f2;border-color:#e3e7d9;color:#687766}
 .generation-preview-trigger{display:grid;place-items:center;gap:6px;width:100%;border:0;background:transparent;padding:0;cursor:zoom-in}.generation-preview-trigger span{font-size:12px;color:#1e573c}
 .diagram-preview-dialog{width:calc(100vw - 32px);height:calc(100vh - 32px);max-width:none;max-height:none;padding:0;border:1px solid #d6dfcb;border-radius:8px;background:#fff;color:#29302a;overflow:hidden}.diagram-preview-dialog[open]{display:flex;flex-direction:column}.diagram-preview-dialog::backdrop{background:#1b262073}.diagram-preview-dialog header{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;background:#fff}.diagram-preview-dialog header strong{font-size:14px;flex:1;min-width:120px}.diagram-preview-dialog header>div{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.diagram-preview-dialog header span{font-size:12px;min-width:42px;text-align:center}.diagram-preview-scroll{flex:1;min-height:0;overflow:auto;background:#f7f8f2;padding:24px}.diagram-preview-scroll img{display:block;height:auto;max-height:none;margin:auto}.diagram-preview-dialog>p{font-size:12px;margin:0;padding:10px 16px;border-top:1px solid #e3e7d9;color:#687766}
 .board-hint{padding:7px 18px;border-top:1px solid #e3e7d9;background:#eff4e7;color:#1f4430;font-size:12px;line-height:1.6}
-.board-align{display:flex;align-items:center;gap:6px;padding:6px 18px;border-top:1px solid #e3e7d9;background:#fbfcf5;font-size:12px;color:#586458}
+.board-align{display:flex;flex:none;align-items:center;gap:6px;padding:6px 18px;border-top:1px solid #e3e7d9;background:#fbfcf5;font-size:12px;color:#586458;overflow-x:auto;scrollbar-width:thin}
+.board-align>*{flex:none;white-space:nowrap}
 .board-align>span{color:#687766}
 .board-align>button{min-height:26px;padding:2px 10px;font-size:12px;background:#fff;border:1px solid #d6dfcb;border-radius:5px;color:#29302a}
 .board-align>button:hover:not(:disabled){background:#eff4e7;border-color:#8fb089}
@@ -73,8 +74,9 @@ footer>.board-status{max-width:62%;overflow:hidden;text-overflow:ellipsis;white-
 
 /* Mermaid import dialog. */
 .mermaid-modal{width:min(560px,100%)}
-.mermaid-body{display:flex;flex-direction:column;gap:10px;padding:16px 18px}
-.mermaid-body textarea{min-height:220px;resize:vertical;font-family:Consolas,'Cascadia Mono',monospace;font-size:13px;line-height:1.6;padding:10px 12px;border:1px solid #c4d2bc;border-radius:6px;color:#29302a;background:#fff}
+.mermaid-modal>header{flex:none}
+.mermaid-body{display:flex;flex-direction:column;gap:10px;padding:16px 18px;min-height:0;overflow:auto;overscroll-behavior:contain}
+.mermaid-body textarea{min-height:min(220px,28vh);flex:1 0 auto;resize:vertical;font-family:Consolas,'Cascadia Mono',monospace;font-size:13px;line-height:1.6;padding:10px 12px;border:1px solid #c4d2bc;border-radius:6px;color:#29302a;background:#fff}
 .mermaid-body textarea:focus-visible{outline:2px solid #1e573c;outline-offset:1px}
 .mermaid-error{margin:0;font-size:12px;color:#b3261e;background:#fdecea;border:1px solid #f5c6c0;border-radius:6px;padding:8px 10px}
 .mermaid-actions{display:flex;justify-content:flex-end}
@@ -88,3 +90,31 @@ footer>.board-status{max-width:62%;overflow:hidden;text-overflow:ellipsis;white-
 .shortcut-grid p span{color:#586458;flex:1;min-width:0}
 .shortcut-grid kbd{flex:none;min-width:fit-content;font:600 11px Consolas,'Cascadia Mono',monospace;background:#f2f4ec;border:1px solid #d6dfcb;border-bottom-width:2px;border-radius:5px;padding:2px 7px;color:#2a3b2d;white-space:nowrap}
 @media(max-width:640px){.shortcut-grid{grid-template-columns:1fr}}
+
+/* 短窗（如 580×290 的嵌入画板）：固定顶栏/错误条/导入条/多选工具条/底栏，
+   只让画布收缩，避免弹性布局把“返回正文”和“插入正文草稿”挤没。 */
+main>header,main>.board-error,main>.board-import-bar,main>.generation-hint,main>.board-align,main>footer{flex:none}
+main>.canvas{flex:1 1 auto;min-height:0}
+.board-import-bar{display:none}
+
+@media (max-height:420px){
+  main>header{min-height:0;padding:6px 12px;gap:6px;flex-wrap:nowrap}
+  main>header .board-mark{width:32px;height:32px;font-size:22px}
+  main>header .board-title{gap:1px}
+  main>header .board-title small{display:none}
+  main>header .board-title input{max-width:100%;font-size:14px;line-height:1.25;min-width:60px}
+  main>header .board-actions{width:auto;margin-left:auto;flex-wrap:nowrap;gap:4px}
+  main>header .board-actions>button{min-height:28px;padding:3px 8px;font-size:11px}
+  main>header .board-actions>span{display:none}
+  main>.board-error{padding:4px 12px;font-size:11px;line-height:1.45}
+  main>.generation-hint{display:none}
+  main>footer{padding:4px 12px;font-size:10px;line-height:1.45;gap:8px;flex-wrap:nowrap}
+  main>footer>span:last-child{display:none}
+  main>footer>.board-status{max-width:none;flex:1}
+  main>.board-align{padding:4px 12px;gap:4px;font-size:11px}
+  main>.board-align>button{min-height:24px;padding:1px 8px}
+  .board-import-bar{display:flex;flex:none;align-items:center;gap:4px;padding:4px 12px;border-top:1px solid #e3e7d9;background:#fbfcf5;color:#687766;font-size:11px}
+  .board-import-bar>span{flex:none;color:#687766}
+  .board-import-bar>button{flex:none;display:inline-flex;align-items:center;gap:4px;min-height:24px;padding:1px 8px;font-size:11px;border:1px solid #d6dfcb;border-radius:5px;background:#fff;color:#29302a}
+  .board-import-bar>button:hover:not(:disabled){background:#eff4e7;border-color:#8fb089}
+}

@@ -1,6 +1,7 @@
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { browser } from 'wxt/browser';
 import { isDocumentRoute, parseChangeDeepLink, pendingChangeRecordId } from '../lib/change-deep-link.ts';
+import { selectedRangeWithin } from '../lib/experience-selection.ts';
 export default defineContentScript({
   matches: ['https://polarion.pufafen.com/polarion/*'], allFrames: true, matchAboutBlank: true, runAt: 'document_start',
   main(ctx) {
@@ -54,6 +55,8 @@ export default defineContentScript({
       clearTimeout(timer); timer = ctx.setTimeout(() => {
         const selection = window.getSelection(); const text = selection?.toString().trim();
         if (!text || !selection?.anchorNode || selection.anchorNode.getRootNode() !== document || document.querySelector('input[type="password"]')) return;
+        const sidebar = document.querySelector('polarion-super-sidebar')?.shadowRoot;
+        if (sidebar && selectedRangeWithin(sidebar)) return;
         const item = itemFor(selection.anchorNode); const surrounding = item?.element.textContent ?? ''; const index = surrounding.indexOf(text);
         void browser.runtime.sendMessage({ type: 'selection', context: { id: crypto.randomUUID(), text: text.slice(0, 60000), workItemId: item?.id, source: 'selection', capturedAt: Date.now(), prefix: index < 0 ? '' : surrounding.slice(Math.max(0, index - 100), index), suffix: index < 0 ? '' : surrounding.slice(index + text.length, index + text.length + 100) } }).catch(() => {});
       }, 160);

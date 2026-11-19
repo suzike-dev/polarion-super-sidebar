@@ -64,51 +64,113 @@
 @media (max-width:1050px){.ro-layout{flex-direction:column}.ro-side{flex:0 0 auto;flex-direction:row;overflow:auto}.ro-mini{min-width:240px}.ro-side .ro-groups{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
 /* 从编辑工作台打开总览时，编辑层隐藏但保持挂载：关闭总览后原编辑现场原样回来。 */
 .workspace-root.overview-open .editor-layer{visibility:hidden;pointer-events:none}
-/* 整册体检：汇总行 + 规则分布 + 逐条发现。 */
-.ro-icon.active{background:var(--ui-accent-soft,#e7f3ec);color:var(--ui-accent,#0f766e)}
-.ro-quality-summary{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:2px 2px 10px;font-size:11px;color:var(--ui-muted)}
-.ro-quality-summary b{color:var(--ui-ink)}
-.ro-rule-chip{border:1px solid var(--ui-line,#e1e6d8);border-radius:9px;padding:2px 7px;font-size:9.5px;color:var(--ui-secondary)}
-.ro-quality-row{display:flex;align-items:center;gap:9px;width:100%;border:1px solid var(--ui-soft-line,#edf1e4);border-radius:7px;background:#fff;padding:7px 10px;margin-bottom:5px;text-align:left;cursor:pointer}
-.ro-quality-row:hover{background:var(--ui-subtle,#f4f7ef)}
-.ro-quality-row .ro-name{flex:1;min-width:0}
-.ro-quality-row i{font-style:normal;font-size:9.5px;padding:2px 7px;border-radius:8px;background:#fdf1e3;color:#9a5b16;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ro-quality-row i.info{background:#eef2fb;color:#22577a}
-.ro-quality-row i.unreadable{background:#f3f5ec;color:var(--ui-muted)}
-.ro-quality-row i.more{background:#f3f5ec;color:var(--ui-muted)}
+/* 报告有独立的阅读字号和栏宽，结构总览仍使用原来的卡片尺寸。 */
+.ro-report {
+  --ro-text-size: calc(var(--assistant-font-size, 13px) + 3px);
+  --ro-meta-size: max(12px, calc(var(--ro-text-size) - 2px));
+  --ro-inset: max(14px, 1.1em);
+  container: quality-report / inline-size;
+  left: auto;
+  right: var(--ro-right);
+  width: min(50vw, 980px);
+  max-width: calc(100vw - var(--ro-right) - 16px);
+  font: var(--ro-text-size)/1.55 var(--ui-font, 'Microsoft YaHei UI', sans-serif);
+}
+/* 侧栏最宽 560px，同时容纳不了报告时，让报告铺开并盖在助手之上。 */
+@media (max-width: 900px) {
+  .ro-report { left: 8px; right: 8px; width: auto; min-width: 0; max-width: none; z-index: 100050; }
+}
+.ro-icon.active { background: var(--ui-accent-soft); color: var(--ui-accent); }
+.ro-report .ro-head { flex-wrap: wrap; gap: 4px 12px; padding-inline: var(--ro-inset); }
+.ro-report .ro-titles { flex: 0 1 auto; max-width: 100%; }
+.ro-report .ro-titles strong { font-size: 1.25em; }
+.ro-report .ro-titles span, .ro-report .ro-count, .ro-report .ro-foot, .ro-report .ro-kbd {
+  font-size: var(--ro-meta-size); color: var(--ui-secondary);
+}
+.ro-report .ro-actions { margin-inline-start: auto; }
+.ro-report .ro-icon { width: 2em; height: 2em; color: var(--ui-secondary); }
+.ro-report .ro-search { margin-inline: var(--ro-inset); }
+.ro-report .ro-search input { height: auto; padding: .45em 7em .45em 1.4em; font: inherit; }
+.ro-report .ro-search input::placeholder { color: var(--ui-secondary); }
+.ro-report .ro-clear { right: 4.3em; }
+.ro-report .ro-foot { padding-inline: var(--ro-inset); }
+.ro-report-body { display: block; overflow: auto; scrollbar-gutter: stable; padding: .7em var(--ro-inset); overflow-wrap: anywhere; }
+.ro-report-body a { color: var(--ui-accent-ink); }
+.ro-report-body .ro-quality-id, .ro-report-body .ro-impact-link { padding: 0; border: 0; background: none; color: var(--ui-accent-ink); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.ro-report-body .ro-state { font-size: inherit; color: var(--ui-secondary); }
+.ro-report-body .ro-failed { color: var(--ui-danger); }
+.ro-report-body .ro-state button { height: auto; padding: .35em .75em; font-size: var(--ro-meta-size); }
+@container quality-report (max-width: 540px) {
+  .ro-head .ro-titles { flex-basis: 100%; }
+  .ro-report .ro-kbd { display: none; }
+  .ro-report .ro-clear { right: 0; }
+  .ro-report .ro-search input { padding-inline-end: 2em; }
+}
 /* 悬浮带（编辑工作台 + AI 协作）：与右侧悬浮助手共享 18px 内边距的浮动带，底边不再贴视口底，恢复下边框与全圆角。 */
 @media (min-width: 761px){.workspace-root.floating-band .requirements-overview{bottom:18px;left:18px;border-bottom:1px solid var(--ui-line,#e1e6d8);border-radius:10px}}
-/* 体检报告：分数环 + 章分组色带 + 门禁徽标。 */
-.ro-quality-score{display:flex;align-items:center;gap:14px;padding:2px 2px 10px;border-bottom:1px solid var(--ui-soft-line,#edf1e4);margin-bottom:8px}
-.score-ring{--score:0;width:56px;height:56px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;background:conic-gradient(hsl(calc(var(--score)*1.2) 55% 42%) calc(var(--score)*1%), #eef2ea 0);position:relative}
-.score-ring::before{content:'';position:absolute;inset:5px;border-radius:50%;background:#fff}
-.score-ring b{position:relative;font-size:15px;color:var(--ui-ink)}
-.score-ring small{position:relative;font-size:8px;color:var(--ui-muted)}
-.ro-quality-score .score-facts{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:11px;color:var(--ui-muted)}
-.score-facts b{color:var(--ui-ink)}
-.ro-gates-line{font-size:11px;color:var(--ui-secondary)}
-.ro-gates-line.muted{color:var(--ui-muted)}
-.ro-quality-chapter{border-left:3px solid hsl(var(--h,120) 32% 55%);padding-left:10px;margin-bottom:10px}
-.ro-quality-chapter h4{display:flex;align-items:center;gap:8px;margin:0 0 5px;font-size:11.5px;color:var(--ui-ink)}
-.ro-quality-chapter h4 span{font-size:10px;color:var(--ui-muted);font-weight:400}
-.ro-gate{flex-shrink:0;font-size:9.5px;padding:1px 7px;border-radius:9px}
-.ro-gate.pass{background:#e7f3ec;color:#0f766e}
-.ro-gate.fail{background:#fbe4df;color:#8c3b26}
-/* 体检行：整行可点开条目 + 独立 AI 改写动作。 */
-.ro-quality-row{display:flex;align-items:stretch;gap:6px;width:100%;border:1px solid var(--ui-soft-line,#edf1e4);border-radius:7px;background:#fff;padding:0;margin-bottom:5px;overflow:hidden}
-.ro-quality-row:hover{background:var(--ui-subtle,#f4f7ef)}
-button.ro-quality-open{display:flex;align-items:center;gap:9px;flex:1;min-width:0;border:0;background:transparent;padding:7px 10px;text-align:left;cursor:pointer}
-.ro-quality-rewrite{flex-shrink:0;border:0;border-left:1px solid var(--ui-soft-line,#edf1e4);background:#fbfdf9;color:var(--ui-accent,#0f766e);font-size:10px;font-weight:600;padding:0 10px;cursor:pointer}
-.ro-quality-rewrite:hover{background:var(--ui-accent-soft,#e7f3ec)}
-/* 门禁策略弹层。 */
-.ro-policy-btn{border:1px solid var(--ui-line,#e1e6d8);border-radius:9px;background:#fff;padding:1px 8px;font-size:9.5px;color:#2f5d43;cursor:pointer}
-.ro-policy-btn:hover{background:var(--ui-subtle,#f4f7ef)}
-.ro-policy{display:flex;flex-direction:column;gap:6px;border:1px solid var(--ui-line,#e1e6d8);border-radius:8px;padding:9px 11px;background:#fff;margin:0 0 8px;font-size:10.5px;color:var(--ui-secondary)}
-.ro-policy strong{font-size:11px;color:var(--ui-ink)}
-.ro-policy small{font-size:9.5px;color:var(--ui-muted)}
-.ro-policy>label{display:flex;align-items:center;gap:6px}
-.ro-policy .ro-policy-score input{width:52px;border:1px solid var(--ui-line);border-radius:5px;padding:2px 5px;font-size:10.5px}
-.ro-policy .ro-policy-score em{font-style:normal;font-size:9.5px;color:#9a5b16}
-.ro-policy-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:2px}
-.ro-policy-actions button{border:1px solid var(--ui-line);border-radius:6px;background:#fff;padding:4px 10px;font-size:10px;color:var(--ui-secondary)}
-.ro-policy-actions .primary{background:#2f4a34;border-color:#2f4a34;color:#f2f6ea}
+/* 体检结果和各规则的命中次数。 */
+.ro-quality-score {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .4em .9em;
+  padding-bottom: .8em; margin-bottom: .8em; border-bottom: 1px solid var(--ui-line);
+}
+.score-ring {
+  width: 4.5em; height: 4.5em; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-radius: 50%; line-height: 1.2; background: conic-gradient(hsl(calc(var(--score) * 1.2) 55% 42%) calc(var(--score) * 1%), #e5eadf 0);
+}
+.score-ring::before { content: ''; position: absolute; inset: .3em; border-radius: 50%; background: #fff; }
+.score-ring b { position: relative; font-size: 1.3em; color: var(--ui-ink); }
+.score-ring small { position: relative; font-size: var(--ro-meta-size); color: var(--ui-secondary); }
+.score-facts { display: grid; gap: .25em; min-width: 0; }
+.ro-result-counts, .ro-gates-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2em .85em; }
+.ro-report-source, .ro-gates-line { font-size: var(--ro-meta-size); color: var(--ui-secondary); }
+.ro-gates-line, .ro-rule-totals { grid-column: 1 / -1; }
+.ro-rule-totals { display: flex; flex-wrap: wrap; gap: .35em; list-style: none; margin: 0; padding: 0; }
+@container quality-report (max-width: 540px) {
+  .score-facts { display: contents; }
+  .ro-report-source { grid-column: 1 / -1; }
+}
+.ro-rule-chip { max-width: 100%; padding: .15em .55em; border: 1px solid var(--ui-line); border-radius: 6px; background: #fff; color: var(--ui-secondary); }
+.ro-rule-chip b { color: var(--ui-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ro-quality-chapter { border-inline-start: 3px solid hsl(var(--h,120) 32% 55%); padding-inline-start: .65em; margin-bottom: 1em; }
+.ro-quality-chapter h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5em; margin: 0 0 .35em; font-size: 1.1em; color: var(--ui-ink); }
+.ro-quality-chapter h4 span { font-size: var(--ro-meta-size); color: var(--ui-secondary); font-weight: 400; }
+/* 编号与标题打开阅读，紧邻的规则与详情展开记录，改写是独立按钮。 */
+.ro-quality-row { margin-bottom: .4em; border: 1px solid var(--ui-line); border-radius: 7px; background: #fff; }
+.ro-quality-line { display: flex; flex-direction: column; align-items: flex-start; gap: .25em; padding: .45em .7em; }
+.ro-quality-open, .ro-quality-toggle, .ro-quality-actions {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .25em .55em; max-width: 100%; min-width: 0; text-align: start;
+}
+.ro-quality-open, .ro-quality-toggle { padding: .1em 0; border-radius: 4px; }
+.ro-quality-open .ro-id {
+  max-width: 100%; flex: 0 1 auto; font: 600 var(--ro-meta-size)/1.5 var(--ui-mono, monospace); color: var(--ui-accent-ink); overflow-wrap: anywhere;
+}
+.ro-quality-open .ro-name {
+  flex: 0 1 auto; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere;
+  font-size: calc(var(--ro-text-size) + 1px); line-height: 1.5; font-weight: 600; color: var(--ui-ink);
+}
+.ro-quality-toggle { align-items: center; gap: .25em .4em; font-size: var(--ro-meta-size); color: var(--ui-secondary); }
+.ro-findings { display: contents; }
+.ro-finding, .ro-gate, .ro-unreadable { max-width: 100%; border-radius: 5px; padding: .12em .45em; line-height: 1.5; overflow-wrap: anywhere; }
+.ro-finding { font-size: var(--ro-text-size); background: #fcf0df; color: #79460f; }
+.ro-finding.info { background: #edf2fa; color: #234f72; }
+.ro-gate.pass { background: #e7f3ec; color: #205d41; }
+.ro-gate.fail { background: #fbe8e2; color: #813822; }
+.ro-unreadable { background: var(--ui-subtle); color: var(--ui-secondary); }
+.ro-more { color: var(--ui-accent-ink); text-decoration: underline; text-underline-offset: .18em; }
+.ro-quality-rewrite, .ro-policy-btn, .ro-policy-actions button {
+  border: 1px solid var(--ui-line); border-radius: 6px; padding: .18em .65em; background: #fff; color: var(--ui-accent-ink); font-size: var(--ro-meta-size);
+}
+.ro-quality-line button:hover:not(:disabled), .ro-policy-btn:hover { background: var(--ui-subtle); }
+.ro-report .ro-quality-line button:focus-visible { outline-offset: 1px; }
+.ro-quality-detail { border-top: 1px solid var(--ui-line); padding: .65em .8em; line-height: 1.65; color: var(--ui-secondary); overflow-wrap: anywhere; user-select: text; }
+.ro-quality-detail :is(ol, ul) { margin: .5em 0; padding-inline-start: 1.75em; }
+.ro-quality-detail li + li { margin-top: .6em; }
+.ro-detail-meta { font-size: var(--ro-meta-size); }
+.ro-detail-rule, .ro-quality-detail strong { color: var(--ui-ink); font-weight: 600; }
+.ro-quality-detail p { margin: .15em 0; white-space: pre-wrap; }
+.ro-link-group { display: flex; flex-wrap: wrap; gap: .2em .75em; }
+.ro-policy { display: grid; gap: .4em; border: 1px solid var(--ui-line); border-radius: 8px; padding: .65em .8em; background: #fff; margin: 0 0 .7em; }
+.ro-policy small, .ro-policy-score em { font-size: var(--ro-meta-size); color: var(--ui-secondary); }
+.ro-policy > label, .ro-policy-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .4em; }
+.ro-policy-score input { width: 4em; border: 1px solid var(--ui-line); border-radius: 5px; padding: .1em .35em; }
+.ro-policy-actions .primary { background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; }

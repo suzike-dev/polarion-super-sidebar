@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Node } from '@tiptap/pm/model';
+import type { TextMatch } from './editor-text.ts';
 
 /* ------------------------------------------------------------------ */
 /* 需求质量体检：规则包 + 纯文本/文档启发式扫描。v0.14 规格 A/B/C 组。 */
@@ -81,38 +82,65 @@ const CRITERION = /(?:不超过|不小于|不大于|小于|大于|至少|最多|
 const CONDITION = /当\b|若\b|如果|一旦|检测到|接收到|收到|处于|启用|激活|在[^。；\n]{0,12}时/;
 const ENUMERATION = /(?:^|\n|\s)[0-9一二三四五六七八九十]+[.、）)]/;
 
-/** 大小写不敏感子串匹配；拉丁词暂不做词边界（如 BrakeBoostV2 会命中 BrakeBoost，最长匹配已缓解大部分）。 */
-function findWord(text: string, lower: string, needle: string, from: number): number {
-  return lower.indexOf(needle, from);
-}
+function escapeWord(word: string) { return word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
-function scanWords(text: string, pack: RulePack): LintIssue[] {
-  const lower = text.toLowerCase();
-  const taken: [number, number][] = [];
-  const overlaps = (from: number, to: number) => taken.some(([a, b]) => from < b && a < to);
-  // 候选按长度降序：先长后短，短词不再叠在长词命中范围上（制动助力 优先于 助力）。
-  const needles: {needle: string; issue: Omit<LintIssue, 'from' | 'to' | 'matchedText'>}[] = [];
+/** Lookahead visits overlapping literal matches and keeps offsets in the original UTF-16 string. */
+function wordPattern(word: string) { return new RegExp(`(?=(${escapeWord(word)}))`, 'giu'); }
+
+function wordScanner(pack: RulePack) {
+  const standards = [...new Set(pack.glossary.map(entry => entry.term))].map(term => ({ term, pattern: wordPattern(term) }));
+  const longestTerm = standards.reduce((length, entry) => Math.max(length, entry.term.length), 0);
+  type Finding = Omit<LintIssue, 'from' | 'to' | 'matchedText'>;
+  const needles: { word: string; issue: Finding; aliasFor?: string }[] = [];
   for (const rule of pack.lintRules) {
     if (!rule.enabled || (rule.type !== 'fuzzy-word' && rule.type !== 'anaphora')) continue;
-    for (const word of rule.words) needles.push({ needle: word, issue: { ruleId: rule.id, severity: rule.severity, message: rule.message } });
+    for (const word of rule.words) needles.push({ word, issue: { ruleId: rule.id, severity: rule.severity, message: rule.message } });
   }
-  for (const entry of pack.glossary) {
-    for (const alias of entry.aliases) needles.push({ needle: alias, issue: { ruleId: `glossary:${entry.term}`, severity: 'warn', message: `术语不统一：建议使用标准术语「${entry.term}」`, suggestion: entry.term } });
-    if (entry.forbidden) needles.push({ needle: entry.term, issue: { ruleId: `glossary-forbidden:${entry.term}`, severity: 'warn', message: `禁用术语「${entry.term}」` } });
+  for (const { term, aliases, forbidden } of pack.glossary) {
+    const issue: Finding = forbidden
+      ? { ruleId: `glossary-forbidden:${term}`, severity: 'warn', message: `禁用术语「${term}」` }
+      : { ruleId: `glossary:${term}`, severity: 'warn', message: `术语不统一：建议使用标准术语「${term}」`, suggestion: term };
+    if (forbidden) needles.push({ word: term, issue });
+    for (const word of aliases) needles.push({ word, aliasFor: term, issue });
   }
-  needles.sort((a, b) => b.needle.length - a.needle.length);
-  const issues: LintIssue[] = [];
-  for (const { needle, issue } of needles) {
-    const lowerNeedle = needle.toLowerCase();
-    for (let from = findWord(text, lower, lowerNeedle, 0); from !== -1; from = findWord(text, lower, lowerNeedle, from + 1)) {
-      const to = from + needle.length;
-      if (!overlaps(from, to)) {
-        taken.push([from, to]);
-        issues.push({ ...issue, matchedText: text.slice(from, to), from, to });
+  const candidates = needles.sort((a, b) => b.word.length - a.word.length).map(({ word, ...rest }) => ({ pattern: wordPattern(word), ...rest }));
+  return (text: string) => {
+    const standardsAt = new Map<number, { term: string; end: number }[]>();
+    for (const { term, pattern } of standards) for (const match of text.matchAll(pattern)) {
+      const entries = standardsAt.get(match.index) ?? [];
+      entries.push({ term, end: match.index + match[1]!.length }); standardsAt.set(match.index, entries);
+    }
+    const overlapsStandard = (from: number, to: number, spelling: string, target: string) => {
+      for (let pos = Math.max(0, from - longestTerm + 1); pos < to; pos++) {
+        const blocked = standardsAt.get(pos)?.some(({ term, end }) => {
+          if (end <= from) return false;
+          if (from === pos && to === end) return term !== target || spelling === term;
+          return from > pos || to < end; // A whole longer alias may contain a shorter standard.
+        });
+        if (blocked) return true;
+      }
+      return false;
+    };
+    type Hit = LintIssue & { from: number; to: number };
+    const issues: Hit[] = [], occupied: (Hit | undefined)[] = [];
+    for (const { pattern, issue, aliasFor } of candidates) {
+      for (const match of text.matchAll(pattern)) {
+        const from = match.index, matchedText = match[1]!, to = from + matchedText.length;
+        if (aliasFor && overlapsStandard(from, to, matchedText, aliasFor)) continue;
+        let previous: Hit | undefined;
+        for (let i = from; i < to && !previous; i++) previous = occupied[i];
+        if (!previous) {
+          const hit = { ...issue, matchedText, from, to };
+          issues.push(hit);
+          for (let i = from; i < to; i++) occupied[i] = hit;
+        } else if (aliasFor && previous.from === from && previous.to === to && previous.suggestion && previous.suggestion !== issue.suggestion) {
+          previous.ruleId = 'glossary-ambiguous'; previous.message = `「${matchedText}」对应多个术语条目，请核对项目术语表。`;
+          delete previous.suggestion;
+        }
       }
     }
-  }
-  return issues;
+    return issues;
+  };
 }
 
 function scanItem(text: string, pack: RulePack): LintIssue[] {
@@ -138,17 +166,17 @@ function scanItem(text: string, pack: RulePack): LintIssue[] {
 
 /** 纯文本扫描：词级规则带字符偏移，条目级规则（non-atomic / no-criterion）无范围。 */
 export function lintText(text: string, pack: RulePack): LintIssue[] {
-  return [...scanWords(text, pack), ...scanItem(text, pack)].sort((a, b) => (a.from ?? Number.MAX_SAFE_INTEGER) - (b.from ?? Number.MAX_SAFE_INTEGER));
+  return [...wordScanner(pack)(text), ...scanItem(text, pack)].sort((a, b) => (a.from ?? Number.MAX_SAFE_INTEGER) - (b.from ?? Number.MAX_SAFE_INTEGER));
 }
 
 /** 文档扫描：词级规则给出 PM 位置（用于行内高亮），条目级规则以整篇纯文本评估。 */
 export function lintDocument(doc: Node, pack: RulePack): LintIssue[] {
-  const issues: LintIssue[] = [];
+  const issues: LintIssue[] = [], scanWords = wordScanner(pack);
   doc.descendants((block, pos) => {
     if (!block.isTextblock) return; // 继续进入 Polarion 分组、列表和表格单元格。
     // 与 editor-text.findTextMatches 相同的遍历：跨内联对象的文本不拼成一段，避免高亮范围穿过图片/表格内联节点。
     let text = '', start = pos + 1;
-    const flush = () => { if (text) { for (const issue of scanWords(text, pack)) issues.push({ ...issue, from: start + issue.from!, to: start + issue.to! }); } text = ''; };
+    const flush = () => { if (text) { for (const issue of scanWords(text)) issues.push({ ...issue, from: start + issue.from, to: start + issue.to }); } text = ''; };
     block.forEach((node, offset) => { if (node.isText) { if (!text) start = pos + 1 + offset; text += node.text; } else flush(); });
     flush();
     return false;
@@ -156,4 +184,16 @@ export function lintDocument(doc: Node, pack: RulePack): LintIssue[] {
   const itemPack: RulePack = { ...pack, lintRules: pack.lintRules.filter(rule => rule.type === 'non-atomic' || rule.type === 'no-criterion' || rule.type === 'no-condition' || rule.type === 'long-sentence') };
   issues.push(...scanItem(doc.textBetween(0, doc.content.size, '\n', '\n'), itemPack));
   return issues.sort((a, b) => (a.from ?? Number.MAX_SAFE_INTEGER) - (b.from ?? Number.MAX_SAFE_INTEGER));
+}
+
+export function glossaryAliasPattern(alias: string, caseSensitive: boolean) {
+  return new RegExp(`^(?:${escapeWord(alias)})$`, caseSensitive ? 'u' : 'iu');
+}
+
+/** Resolve one glossary suggestion against exactly the findings offered by the quality editor. */
+export function glossaryFixMatches(doc: Node, pack: RulePack, alias: string, term: string, caseSensitive: boolean): TextMatch[] {
+  const spelling = glossaryAliasPattern(alias, caseSensitive);
+  return lintDocument(doc, pack).flatMap(issue =>
+    issue.suggestion === term && issue.from !== undefined && issue.to !== undefined && spelling.test(issue.matchedText)
+      ? [{ from: issue.from, to: issue.to }] : []);
 }

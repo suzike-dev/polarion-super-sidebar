@@ -85,6 +85,18 @@ export function VariantPanel({draft, beforeApply, prepareNativeSave, onOpenVaria
   const [previewBusy, setPreviewBusy] = useState(false);
   const [lastApply, setLastApply] = useState<{applyId: string; variantWorkItemId: string} | null>(null);
   const request = useRef(0);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const dialogTrigger = useRef<HTMLButtonElement | null>(null);
+  const dialogOpen = !!(details || preview);
+  useEffect(() => {
+    if (dialogOpen) return () => dialogTrigger.current?.focus({preventScroll: true});
+  }, [dialogOpen]);
+  useEffect(() => {
+    const root = closeButton.current?.getRootNode() as ShadowRoot | Document | undefined;
+    const trigger = root?.activeElement as HTMLElement | null;
+    closeButton.current?.focus({preventScroll: true});
+    return () => { if (trigger?.isConnected) trigger.focus({preventScroll: true}); };
+  }, []);
   const target: Target = draft.target;
   const onErrorRef = useRef(onError); onErrorRef.current = onError;
   const onClearErrorRef = useRef(onClearError); onClearErrorRef.current = onClearError;
@@ -201,11 +213,22 @@ export function VariantPanel({draft, beforeApply, prepareNativeSave, onOpenVaria
 
   const patchDetails = (patch: Partial<DetailsState>) => setDetails(current => current ? {...current, ...patch} : current);
 
-  return <aside className="variant-panel" role="dialog" aria-label="变体管理">
-    <header className="variant-head">
+  return <aside className="variant-panel" role="dialog" aria-label="变体管理" onKeyDown={event => {
+    if (event.key !== 'Escape' || event.nativeEvent.isComposing) return;
+    event.preventDefault(); event.stopPropagation();
+    if (busy || detailsBusy || previewBusy) return;
+    if (details) setDetails(null);
+    else if (preview) setPreview(null);
+    else if (renaming) setRenaming(null);
+    else if (confirmUnlink) setConfirmUnlink('');
+    else if (creating) setCreating(false);
+    else onClose();
+  }}>
+    <header className="variant-head" inert={dialogOpen}>
       <div className="variant-title"><GitBranch size={16}/><div><strong>变体管理</strong><small>主文档 {draft.workItemId} · {mainTitle}</small></div></div>
-      <button className="icon" title="关闭变体管理" onClick={onClose}><X size={15}/></button>
+      <button ref={closeButton} className="icon" title="关闭变体管理" onClick={onClose}><X size={15}/></button>
     </header>
+    <div className="variant-body" inert={dialogOpen} onClickCapture={event => { dialogTrigger.current = (event.target as Element).closest('button'); }}>
     <p className="variant-note">主工作项默认作为「默认」变体；其他变体是 Polarion 中的独立工作项。变体正文、标题、归属链接、详细配置和当前接入状态都保存在 Polarion，本地只保留未保存草稿。{role && <> 链接角色：<code>{role}</code>。</>}</p>
     {warning && <div className="variant-alert"><AlertTriangle size={14}/><span>{warning}</span></div>}
     {diverged && <div className="variant-alert"><AlertTriangle size={14}/><span>主文档正文已被直接编辑，目前不属于任何已保存变体。可以新建一个变体保存当前内容。</span></div>}
@@ -226,7 +249,7 @@ export function VariantPanel({draft, beforeApply, prepareNativeSave, onOpenVaria
         <div className="variant-row-head"><strong title={defaultRow.title}>默认（主文档）</strong>{!activeVariantId && <span className="variant-badge active">当前接入</span>}</div>
         <div className="variant-row-meta"><code>{defaultRow.workItemId}</code><span>{stateLabel[defaultRow.draftState]}</span></div>
         <div className="variant-row-actions">
-          <button onClick={() => onOpenVariant(defaultRow.workItemId)}><Pencil size={12}/>编辑主正文</button>
+          <button onClick={onClose}><Pencil size={12}/>编辑主正文</button>
           <button disabled={detailsBusy} onClick={() => void openDetails('default:' + defaultRow.workItemId)}><Info size={12}/>详细配置</button>
         </div>
         <div className="variant-hover" role="tooltip"><strong>默认变体 · {defaultRow.workItemId}</strong><dl><dt>客户</dt><dd>{defaultRow.details?.customer || '—'}</dd><dt>项目</dt><dd>{defaultRow.details?.project || '—'}</dd><dt>车型</dt><dd>{defaultRow.details?.vehicle || '—'}</dd><dt>配置</dt><dd>{defaultRow.details?.configuration || '—'}</dd></dl>{defaultRow.details?.notes && <p>{defaultRow.details.notes}</p>}</div>
@@ -255,17 +278,18 @@ export function VariantPanel({draft, beforeApply, prepareNativeSave, onOpenVaria
       {loading && !rows.length && !defaultRow && <p className="variant-empty">正在从 Polarion 同步变体…</p>}
     </div>
     {lastApply && <div className="variant-undo"><span>上次接入：<code>{lastApply.variantWorkItemId}</code></span><button className="secondary" disabled={busy} onClick={() => void undo()}>撤销接入</button></div>}
+    </div>
     {preview && <div className="variant-preview" role="dialog" aria-label="确认接入变体">
-      <header><strong>接入 {preview.variant.workItemId}</strong><button className="icon" title="关闭预览" onClick={() => setPreview(null)}><X size={14}/></button></header>
+      <header><strong>接入 {preview.variant.workItemId}</strong><button autoFocus className="icon" title="关闭预览" disabled={previewBusy} onClick={() => setPreview(null)}><X size={14}/></button></header>
       <p className="variant-preview-note">将用变体正文覆盖 <code>{draft.workItemId}</code> 的正文。主工作项 ID、文档位置、评论和审批不变；接入前会自动保存一份可撤销快照。</p>
       {preview.changed ? <span className="variant-badge dirty">正文不同</span> : <span className="variant-badge active">正文相同</span>}
       {preview.warnings.map(text => <div className="variant-alert" key={text}><AlertTriangle size={13}/><span>{text}</span></div>)}
-      <section><h4>主工作项当前正文</h4><pre>{textOf(preview.mainHtml).slice(0, 800) || '（空）'}</pre></section>
-      <section><h4>变体正文</h4><pre>{textOf(preview.variantHtml).slice(0, 800) || '（空）'}</pre></section>
+      <section><h4>主工作项当前正文</h4><pre>{textOf(preview.mainHtml) || '（空）'}</pre></section>
+      <section><h4>变体正文</h4><pre>{textOf(preview.variantHtml) || '（空）'}</pre></section>
       <footer><button className="secondary" disabled={previewBusy} onClick={() => setPreview(null)}>取消</button><button className="primary" disabled={previewBusy} onClick={() => void apply()}><Check size={13}/>{previewBusy ? '正在接入…' : '确认接入'}</button></footer>
     </div>}
     {details && <div className="variant-preview variant-details" role="dialog" aria-label="变体详细配置">
-      <header><strong>{details.isDefault ? '默认变体详细配置' : '变体详细配置'}</strong><button className="icon" title="关闭详细配置" onClick={() => setDetails(null)}><X size={14}/></button></header>
+      <header><strong>{details.isDefault ? '默认变体详细配置' : '变体详细配置'}</strong><button autoFocus={details.isDefault} className="icon" title="关闭详细配置" disabled={detailsBusy} onClick={() => setDetails(null)}><X size={14}/></button></header>
       <p className="variant-preview-note">配置保存在变体工作项的 <code>sidebar-variant.json</code> 附件中，随 Polarion 同步；保存后可再次编辑。</p>
       <label className="variant-field"><span>名称 <small>{details.isDefault ? '跟随主工作项标题' : '保存时同步到 Polarion 标题'}</small></span><input autoFocus maxLength={120} value={details.label} disabled={details.isDefault || detailsBusy} onChange={event => patchDetails({label: event.target.value})}/></label>
       <label className="variant-field"><span>客户</span><input maxLength={200} value={details.customer} disabled={detailsBusy} onChange={event => patchDetails({customer: event.target.value})}/></label>

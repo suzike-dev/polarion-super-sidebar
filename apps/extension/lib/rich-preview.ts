@@ -11,6 +11,10 @@ const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '
 
 /** Display-only transformation. This HTML must never be used as the source of a save. */
 export function richPreview(source: string, nodes: readonly SourceNode[], target: Target, Parser: typeof DOMParser = DOMParser) {
+  return richPreviewDocument(source, nodes, target, Parser).html;
+}
+
+export function richPreviewDocument(source: string, nodes: readonly SourceNode[], target: Target, Parser: typeof DOMParser = DOMParser) {
   const edits: { start: number; end: number; html: string }[] = [];
   const opaque = nodes.filter(n => { const macro = macroNameOf(n.polarionId); return macro !== null && macro !== 'table'; });
   const outerOpaque = opaque.filter(n => !opaque.some(parent => parent !== n && parent.start <= n.start && parent.end >= n.end));
@@ -21,7 +25,7 @@ export function richPreview(source: string, nodes: readonly SourceNode[], target
   const parsed = new Parser().parseFromString(html, 'text/html');
   for (const element of Array.from(parsed.body.querySelectorAll('*'))) {
     const tag = element.tagName.toLowerCase();
-    const workItem = tag === 'span' && element.getAttribute('data-type')?.toLowerCase() === 'workitem' ? element.getAttribute('data-item-id')?.trim() ?? '' : '';
+    const workItem = tag === 'span' && (!element.hasAttribute('data-type') || element.getAttribute('data-type')?.toLowerCase() === 'workitem') ? element.getAttribute('data-item-id')?.trim() : undefined;
     if (!tags.has(tag)) { element.replaceWith(parsed.createTextNode(['script', 'style', 'iframe', 'object', 'embed'].includes(tag) ? '[受保护内容]' : element.textContent ?? '')); continue; }
     for (const attr of Array.from(element.attributes)) {
       const key = attr.name.toLowerCase();
@@ -39,7 +43,12 @@ export function richPreview(source: string, nodes: readonly SourceNode[], target
       } else if (!attrs.has(key)) element.removeAttribute(key);
     }
     // 原生引用是空 span，由 Polarion 脚本补文字；本地预览自己补上编号并保留可点击标记。
-    if (workItem) { element.textContent = workItem; element.setAttribute('class', 'preview-workitem-ref'); element.setAttribute('data-workitem-ref', workItem); }
+    if (workItem) {
+      const button = parsed.createElement('button');
+      button.type = 'button'; button.className = 'preview-workitem-ref';
+      button.setAttribute('data-workitem-ref', workItem); button.textContent = workItem;
+      element.replaceChildren(button);
+    }
   }
   // Keep explicit source table widths inside a local scroll region. This wrapper is
   // display-only, added after sanitization, and never becomes editable/save content.
@@ -66,7 +75,8 @@ export function richPreview(source: string, nodes: readonly SourceNode[], target
     const block = formula.getAttribute('data-sidebar-formula') === 'block';
     try { formula.innerHTML = katex.renderToString(tex, { output: 'mathml', throwOnError: false, displayMode: block }); formula.classList.add(block ? 'formula-block' : 'formula-inline'); } catch { /* 保留源码 */ }
   }
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https://polarion.pufafen.com data: blob:; style-src 'unsafe-inline'"><style>
+  const hasContent = /[^\s\u200b-\u200d\u2060\ufeff]/u.test(parsed.body.textContent ?? '') || !!parsed.body.querySelector('img, table, hr, [data-sidebar-formula], [data-workitem-ref], [data-protected]');
+  const documentHtml = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https://polarion.pufafen.com data: blob:; style-src 'unsafe-inline'"><style>
 html{min-height:100%;background:#fff}
 body{font:10pt/1.5 'Segoe UI',Selawik,'Open Sans',Arial,sans-serif;color:#000000;margin:0;padding:24px 28px;box-sizing:border-box;min-width:0;overflow-wrap:anywhere}
 h1,h2,h3,h4,h5,h6{line-height:1.5;margin:0}h1,h2,h3{line-height:1.2}
@@ -87,7 +97,8 @@ code{background:#eef2f7;padding:2px 5px;color:#af4e66;font-size:.92em;font-famil
 [data-source-node]:hover{background:#eaf2fd;outline:1px dashed #9dbce5}
 [data-protected]{display:inline-block;padding:8px 12px;border:1px dashed #c6d2e3;border-radius:5px;background:#f4f6f9;color:#5b6e85;font-size:12px}
 .preview-workitem-ref{display:inline-block;padding:0 5px;border:1px solid #e6d5bb;border-radius:4px;background:#fbf4e8;color:#7a5316;font-size:12.5px;white-space:nowrap;cursor:pointer;text-decoration:none}
-.preview-workitem-ref:hover{background:#f6ead4;border-color:#d9c19c}
+.preview-workitem-ref{font-family:inherit;line-height:inherit}
+.preview-workitem-ref:hover,.preview-workitem-ref:focus-visible{background:#f6ead4;border-color:#d9c19c}
 pre{white-space:pre-wrap;max-width:100%;overflow:auto}
 ${highlightThemeCss}
 [data-sidebar-formula]{font-family:Consolas,'Courier New',monospace}
@@ -101,4 +112,5 @@ ul[data-sidebar-tasks] li[data-sidebar-task]>span[data-task-marker]{position:abs
 img{cursor:zoom-in}
 @media(max-width:600px){body{padding:18px 16px}}
 </style></head><body>${parsed.body.innerHTML}</body></html>`;
+  return { html: documentHtml, hasContent };
 }

@@ -50,11 +50,43 @@ test('术语表：别名命中给标准词建议，最长匹配优先', () => {
   assert.ok(!issues.some(issue => issue.matchedText === '助力'));
 });
 
+test('标准词内的短别名不再高亮，混排时只标出独立旧词', () => {
+  const pack = RulePackSchema.parse({ glossary: [{ term: '验收示例信号', aliases: ['示例信号'] }] });
+  const hits = lintText('验收示例信号、示例信号', pack);
+  assert.deepEqual(hits.map(({ matchedText, from, to }) => [matchedText, from, to]), [['示例信号', 7, 11]]);
+  assert.deepEqual(lintText('验收示例信号、验收示例信号', pack), []);
+});
+
+test('重叠词按完整标准拼写与最长别名判定，大小写建议保留原始 UTF-16 位置', () => {
+  const pack = RulePackSchema.parse({ glossary: [
+    { term: '验收信号', aliases: ['旧信号', '验收信号', 'RPM'] },
+    { term: '验收长信号', aliases: ['旧信号扩展'] },
+    { term: 'RPM', aliases: ['rpm'] },
+    { term: '车速', aliases: ['车速信号'] },
+  ] });
+  const text = 'İ😀｜旧信号扩展｜旧信号｜RPM｜rpm｜车速信号｜验收信号';
+  const hits = lintText(text, pack);
+  assert.deepEqual(hits.map(hit => [hit.matchedText, hit.suggestion]), [
+    ['旧信号扩展', '验收长信号'], ['旧信号', '验收信号'], ['rpm', 'RPM'], ['车速信号', '车速'],
+  ]);
+  for (const hit of hits) assert.equal(text.slice(hit.from, hit.to), hit.matchedText);
+});
+
 test('禁用术语直接警示且无替换建议', () => {
   const pack = RulePackSchema.parse({ ...defaultRulePack(), glossary: [{ term: '脚刹', aliases: [], forbidden: true }] });
   const issue = lintText('驾驶员踩下脚刹', pack).find(item => item.ruleId === 'glossary-forbidden:脚刹');
   assert.ok(issue);
   assert.equal(issue!.suggestion, undefined);
+});
+
+test('同一别名有两个目标或目标禁用时，保留警示并禁止自动替换', () => {
+  const pack = RulePackSchema.parse({ glossary: [
+    { term: '标准甲', aliases: ['shared', '标准乙'] }, { term: '标准乙', aliases: ['SHARED'] },
+    { term: '禁用名', aliases: ['旧禁名'], forbidden: true },
+  ] });
+  const hits = lintText('ShArEd｜标准乙｜旧禁名｜禁用名', pack);
+  assert.deepEqual(hits.map(hit => hit.matchedText), ['ShArEd', '旧禁名', '禁用名']);
+  assert.ok(hits.every(hit => hit.suggestion === undefined));
 });
 
 test('停用规则不再命中', () => {

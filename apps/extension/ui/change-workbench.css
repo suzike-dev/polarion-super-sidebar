@@ -20,7 +20,8 @@
 .cw-error button,.cw-notice button{width:20px;height:20px;display:grid;place-items:center;border-radius:4px;color:inherit;opacity:.7}
 .cw-error button:hover,.cw-notice button:hover{background:#0000000d;opacity:1}
 .cw-notice{background:#fbf7ea;border-color:#eee2c3;color:#7c6624}
-.cw-body{flex:1;min-height:0;display:flex}
+.cw-body{flex:1;min-height:0;display:flex;container:change-body / inline-size}
+.cw-back-to-history{display:none}
 .cw-side{flex:0 0 304px;min-height:0;display:flex;flex-direction:column;gap:8px;padding:10px;background:#f5f7ee;border-right:1px solid #e7ecdf;overflow:hidden}
 .cw-main{flex:1;min-width:0;min-height:0;overflow:auto;background:#f8faf4;scrollbar-gutter:stable}
 .cw-session{flex:0 0 auto;background:#fff;border:1px solid #e2e8d8;border-radius:9px;padding:11px 12px;box-shadow:0 1px 0 rgba(30,45,32,.03)}
@@ -307,14 +308,16 @@
 .cw-danger-confirm{height:29px;padding:0 11px;border-radius:6px;border:1px solid #c98f88;background:#9b443c;color:#fff;font-size:11px;font-weight:600;display:inline-flex;align-items:center}
 .cw-danger-confirm:hover{background:#8c3a34}
 .cw-danger-confirm:disabled{opacity:.45;cursor:not-allowed}
-.cw-modal{width:min(480px,100%);background:#fbfcf7;border:1px solid #dfe6d6;border-radius:12px;box-shadow:0 24px 70px rgba(28,44,32,.28);overflow:hidden}
+.cw-modal{width:min(480px,100%);max-height:100%;display:flex;flex-direction:column;background:#fbfcf7;border:1px solid #dfe6d6;border-radius:12px;box-shadow:0 24px 70px rgba(28,44,32,.28);overflow:hidden}
+.cw-modal>header,.cw-modal>footer{flex:none}
 .cw-modal>header{display:flex;align-items:flex-start;gap:10px;padding:13px 14px;border-bottom:1px solid #e7ecdf;background:#f8faf3}
 .cw-modal>header>div{flex:1;min-width:0}
 .cw-modal>header strong{display:block;font-size:13px}
 .cw-modal>header small{display:block;margin-top:2px;font-size:10px;line-height:1.55;color:#7d8a80}
 .cw-modal>header>button{width:24px;height:24px;display:grid;place-items:center;border-radius:5px;color:#6e7b6c;flex:none}
 .cw-modal>header>button:hover{background:#e9f0e2;color:#174630}
-.cw-modal-body{padding:14px;display:flex;flex-direction:column;gap:7px}
+.cw-modal-body{padding:14px;display:flex;flex-direction:column;gap:7px;min-height:0;overflow:auto;overscroll-behavior:contain}
+.cw-modal-body>*{flex-shrink:0}
 .cw-modal-body label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;color:#5d7462}
 .cw-modal-body input{height:32px;border:1px solid #d9e2d0;border-radius:6px;background:#fff;padding:0 9px;font:11px inherit;color:#1B272E}
 .cw-modal-arrow{display:flex;align-items:center;gap:5px;font-size:9.5px;color:#9aa69b;padding-left:4px}
@@ -326,7 +329,9 @@
 .cw-event-time{flex:0 0 92px;font:10px ui-monospace,Consolas,monospace;color:#5d7462}
 .cw-event-count{flex:1;font-size:10.5px;color:#8a958c}
 .cw-event-action{flex:none;font-size:10px;color:#1e573c;font-weight:600}
-.cw-range-picker{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 0}
+.cw-range-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:4px 0 0}
+.cw-range-picker select{min-width:0;max-width:100%}
+.cw-detail-title h2,.cw-field-chips span{overflow-wrap:anywhere}
 .cw-range-picker label{display:flex;flex-direction:column;gap:4px;font-size:10px;color:#5d7462}
 .cw-range-picker select{height:30px;border:1px solid #d9e2d0;border-radius:6px;background:#fff;padding:0 6px;font:10.5px inherit;color:#33453a}
 @media(max-width:600px){.cw-range-picker{grid-template-columns:1fr}}
@@ -372,7 +377,24 @@
 .cw-hover-card footer:after{content:"→";font-size:11px;line-height:1;color:#1e573c}
 @keyframes cw-hover-in{from{opacity:0;transform:translateY(4px) scale(.99)}to{opacity:1;transform:none}}
 @media(max-width:1040px){.cw-side{flex-basis:238px}.cw-detail{padding:15px}}
-@media(max-width:800px){.cw-body{flex-direction:column}.cw-side{flex:0 0 auto;max-height:38%;border-right:0;border-bottom:1px solid #e7ecdf}.cw-pair.side{grid-template-columns:1fr 1fr}.cw-stat-grid{flex-wrap:wrap}.cw-stat{flex:1 1 40%;border-bottom:1px solid #eef2e7}.cw-detail{padding:13px}.cw-empty{margin:22px auto}}
+@container change-body (max-width: 720px) {
+  .cw-side { flex: 1; min-width: 0; border-right: 0; overflow-y: auto; }
+  .cw-records { flex: 1 0 auto; overflow: visible; }
+  .cw-body:not(.cw-reading) .cw-main, .cw-reading .cw-side { display: none; }
+  .cw-main { scroll-padding-top: 104px; }
+  .cw-back-to-history { display: block; position: sticky; top: 0; z-index: 4; width: 100%; padding: 8px 13px; text-align: left; font-weight: 600; }
+  .change-workbench .cw-back-to-history { color: #1e573c; background: #f8faf4; border-bottom: 1px solid #dfe6d6; }
+  /* 筛选行吸在返回按钮下方，避免搜索框滚到按钮背后点不到。 */
+  .cw-filter-row { position: sticky; top: 41px; z-index: 3; background: #fbfcf8; box-shadow: 0 3px 8px rgba(30,45,32,.05); }
+  .cw-detail { padding: 0 12px 20px; }
+  .cw-detail-head { position: static; display: block; }
+  .cw-detail-actions { justify-content: flex-start; max-width: none; margin-top: 8px; }
+  .cw-stat { padding: 8px; }
+  .cw-records .cw-record-main b { white-space: normal; overflow-wrap: anywhere; }
+}
+@media (max-width:760px) {
+  .change-workbench { left: 8px; right: 8px; bottom: 8px; min-width: 0; z-index: 100200; border: 1px solid #dfe6d6; border-radius: 10px; }
+}
 @media(prefers-reduced-motion:reduce){.change-workbench *{animation:none !important;transition:none !important;scroll-behavior:auto !important}}
 /* 从编辑工作台打开变更管理时，编辑层隐藏但保持挂载，关闭后原编辑现场回来。 */
 .workspace-root.changes-open .editor-layer{visibility:hidden;pointer-events:none}

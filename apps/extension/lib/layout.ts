@@ -126,6 +126,23 @@ function matchesLazyLoad(baseline: string, current: string, doc: Document) {
   }
   return loaded && before.innerHTML === after.innerHTML;
 }
+const panelLocks = new WeakMap<HTMLElement, { count: number; wasInert: boolean }>();
+/** A save in an editor that has since closed may finish while its successor is saving. */
+export function lockNativePanelInput() {
+  const panel = document.querySelector<HTMLElement>('.polarion-dle-MainDockPanel');
+  if (!panel) return () => {};
+  const lock = panelLocks.get(panel) ?? {count: 0, wasInert: panel.inert};
+  lock.count++;
+  panelLocks.set(panel, lock);
+  panel.inert = true;
+  return () => {
+    if (--lock.count === 0) {
+      panel.inert = lock.wasInert;
+      panelLocks.delete(panel);
+    }
+  };
+}
+
 export class NativeState {
   private doc?: Document; private baseline?: string; private edited = false;
   private inputEpoch=0;

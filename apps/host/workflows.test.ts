@@ -352,8 +352,43 @@ test('批量运行：每个工作项独立会话跑同一流程，去重并限 1
     const prompts = f.store.list<Run>('run').filter(run => run.workflow).map(run => run.prompt);
     assert.ok(prompts.some(prompt => prompt.includes('SPE-1')));
     assert.ok(prompts.some(prompt => prompt.includes('SPE-2')));
+    assert.ok(prompts.every(prompt => prompt.includes('批量附注')));
+    const history = f.workflows.history(target.projectId);
+    assert.deepEqual(history.map(({ workItemId, sessionId }) => ({ workItemId, sessionId })).sort((a, b) => a.workItemId!.localeCompare(b.workItemId!)), results);
+    assert.ok(history.every(row => row.note === '批量附注' && row.steps[0]?.status === 'done'));
     assert.throws(() => f.workflows.runBatch(target, def.id, [], 'auto', ''), /WORKFLOW_BATCH_EMPTY/);
   } finally { f.close(); }
+});
+
+test('轨迹按项目筛选，从冻结上下文取本项目的最后一个工作项，缺少导航字段的旧记录保留步骤', () => {
+  const store = new Store(':memory:');
+  try {
+    const workflows = new Workflows(store);
+    const session = store.createSession(target, '已有会话');
+    const otherTarget = { ...target, projectId: 'other' };
+    const foreign = { ...context('FOREIGN-1')[0]!, target: otherTarget };
+    const run: WorkflowRun = {
+      id: 'recent', defId: 'def', defName: '历史流程', sessionId: session.id, target,
+      contexts: [...context('PINNED-1'), ...context('LOCAL-2'), foreign], permissionMode: 'auto', status: 'done', currentIndex: 1,
+      def: { name: '历史流程', steps: [{ id: 's1', title: '第一步', prompt: '核对', pause: false }] },
+      steps: [{ stepId: 's1', status: 'done', resultTail: '历史证据' }], startedAt: 2, updatedAt: 2,
+    };
+    store.put('workflow-run', run.id, run);
+    store.put('workflow-run', 'old', { ...run, id: 'old', contexts: undefined, sessionId: undefined, startedAt: 1 });
+    store.put('workflow-run', 'other', { ...run, id: 'other', target: otherTarget, startedAt: 3 });
+    const history = workflows.history(target.projectId);
+    assert.deepEqual(history.map(row => row.id), ['recent', 'old']);
+    assert.equal(history[0]!.sessionId, session.id);
+    assert.equal(history[0]!.workItemId, 'LOCAL-2');
+    assert.equal('contexts' in history[0]!, false);
+    assert.equal('sessionId' in history[1]!, false);
+    assert.equal('workItemId' in history[1]!, false);
+    assert.equal(history[1]!.steps[0]!.resultPreview, '历史证据');
+    assert.deepEqual(workflows.history(target.projectId, 1), [history[0]]);
+    const [foreignRun] = workflows.history(otherTarget.projectId);
+    assert.equal(foreignRun!.workItemId, 'FOREIGN-1');
+    assert.equal('sessionId' in foreignRun!, false);
+  } finally { store.close(); }
 });
 
 test('批量运行：超过 10 条时截断（独立夹具，不启动引擎）', () => {

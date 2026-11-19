@@ -2,7 +2,7 @@ import { Store } from './store.ts';
 import { Rules } from './rules.ts';
 import { lintText } from '../../packages/core/requirement-lint.ts';
 import type { GateId, GatePolicy, GateResult, GatesItemView, GatesView, Target } from '../../packages/protocol/index.ts';
-import { defaultGatePolicy, GatePolicySchema } from '../../packages/protocol/index.ts';
+import { defaultGatePolicy, GatePolicySchema, VERIFICATION_ROLE } from '../../packages/protocol/index.ts';
 
 /**
  * v0.16 生命周期门禁一期：基于覆盖索引对整册逐条判定四道门——
@@ -10,7 +10,6 @@ import { defaultGatePolicy, GatePolicySchema } from '../../packages/protocol/ind
  * 全过才算 passed；结果供总览体检页与编辑器影响卡展示，形成“分数/链接/准则”门禁。
  */
 const CRITERION_HINT = /(满足|符合|不得|不应|至少|最多|不超过|小于|大于|等于|范围|以内|之前|之后|判据|验收|\d+\s*(ms|s|min|%|℃|°C|km\/h|kph|V|A|Hz))/i;
-const TEST_ROLE = /test|verif|valid/i;
 const gateLabels: Record<GateId, string> = { quality: '质量体检', criterion: '验证准则', upstream: '上游链接', module: '实现模块' };
 
 type CoverageRow = { workItemId: string; title: string; outline: string; text: string; marks: { modules: string[] }[]; forwardLinks: { role: string }[] };
@@ -41,7 +40,7 @@ export class Gates {
       const text = `${row.title}\n${row.text}`;
       const warns = lintText(text, pack).filter(issue => issue.severity === 'warn');
       const hasCriterion = CRITERION_HINT.test(row.text);
-      const upstreamCount = (row.forwardLinks ?? []).filter(link => !TEST_ROLE.test(link.role)).length;
+      const upstreamCount = (row.forwardLinks ?? []).filter(link => !VERIFICATION_ROLE.test(link.role)).length;
       const moduleCount = (row.marks ?? []).reduce((count, mark) => count + mark.modules.length, 0);
       const gates: GateResult[] = [
         policy.enabled.quality ? { gate: 'quality', label: gateLabels.quality, pass: warns.length === 0, detail: warns.length ? `命中 ${warns.length} 处警示：${warns[0]!.message}` : '规则包无警示命中' } : { gate: 'quality', label: gateLabels.quality, pass: true, detail: '策略已停用' },

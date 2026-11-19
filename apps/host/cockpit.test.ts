@@ -11,7 +11,9 @@ import { Snapshots } from './snapshots.ts';
 import type { Coverage } from './coverage.ts';
 import { Macros } from './macros.ts';
 import { defaultRulePack } from '../../packages/core/requirement-lint.ts';
-import type { Run, Target, WorkEvent } from '../../packages/protocol/index.ts';
+import { Service } from './service.ts';
+import { Drafts, Polarion } from './polarion.ts';
+import { PROJECT_EVENT_LIMIT, isCoverageOrphan, isInboxPendingProposal, openReviewIssues, type Command, type CoverageView, type DashboardView, type DocumentQualityReport, type Proposal, type ReviewRecordView, type Target, type TimelineView, type WatchView, type WorkEvent } from '../../packages/protocol/index.ts';
 
 const target: Target = { origin: 'https://polarion.pufafen.com', projectId: 'ck-test', document: 'Requirements/Ck' };
 
@@ -28,6 +30,117 @@ function seedCoverage(store: Store, rows: { id: string; title: string; text: str
     items: rows.map(row => ({ workItemId: row.id, title: row.title, type: 'Requirement', outline: '', updated: 'v1', marks: row.modules ? [{ rootId: 'r1', modules: row.modules }] : [], text: row.text, forwardLinks: row.forward ?? [], backLinks: row.back ?? [] })),
   });
 }
+
+async function request<T>(service: Service, command: Command): Promise<T> {
+  const reply = await service.request({ protocol: 1, id: crypto.randomUUID(), command });
+  if (!reply.ok) assert.fail(`${command.method}: ${reply.error}`);
+  return reply.value as T;
+}
+
+function offlineService(t: TestContext) {
+  const store = openStore(t);
+  const remote = new Polarion();
+  remote.start = () => { throw Error('Unexpected remote transport'); };
+  return { store, remote, service: new Service(store, new Drafts(store, remote)) };
+}
+
+test('dashboard drilldowns use exact document proposals, warning alerts, project reviews and the newest 500 project events', async t => {
+  const { store, service } = offlineService(t);
+  const otherDocument = { ...target, document: 'Requirements/Other' };
+  const otherProject = { ...target, projectId: 'elsewhere' };
+  for (const [id, scope, status, kind] of [
+    ['mine', target, 'pending', 'replace-all-text'], ['tool', target, 'pending', 'tool'], ['gate', target, 'pending', 'gate'],
+    ['history', target, 'applied', 'replace-all-text'], ['other-doc', otherDocument, 'pending', 'replace-all-text'], ['other-project', otherProject, 'pending', 'replace-all-text'],
+  ] as const) store.put('proposal', id, { id, target: scope, status, op: { kind }, createdAt: 1 });
+  const putReview = (id: string, at: number, scope: Target, status: string, cards: string[]) => store.put('review-record', id, {
+    id, at, projectId: scope.projectId, document: scope.document, status, issues: cards.map((status, index) => ({ id: `${id}-${index}`, severity: 'minor', summary: id, status })),
+  });
+  putReview('outside-window', 1, target, 'open', ['open']);
+  for (let at = 2; at <= 18; at++) putReview(`finished-${at}`, at, target, 'done', []);
+  putReview('closed-with-old-card', 19, target, 'done', ['open']);
+  putReview('local', 20, target, 'open', ['open', 'resolved', 'ignored']);
+  putReview('foreign-doc', 21, otherDocument, 'open', ['open', 'open']);
+  putReview('foreign-project', 22, otherProject, 'open', ['open']);
+  store.put('model-roots', target.projectId, { roots: [{ id: 'one', label: 'one', path: 'fixture' }, { id: 'two', label: 'two', path: 'fixture' }] });
+  store.put('model-check', target.projectId + ':one', { baselineAt: 1, at: 2, findings: [{ side: 'model', moduleName: 'X', workItems: [] }] });
+  seedCoverage(store, [
+    { id: 'O', title: '孤立', text: '' }, { id: 'V', title: '只有验证', text: '', forward: [{ workItemId: 'T-1', role: 'validates' }] },
+    { id: 'M', title: '只有实现', text: '', modules: ['M'] }, { id: 'U', title: '只有上游', text: '', forward: [{ workItemId: 'U-1', role: 'derives' }] },
+  ]);
+  for (const [id, scope, origin] of [['dynamic', target, 'dynamic'], ['saved', target, 'manual'], ['elsewhere', otherProject, 'manual']] as const) {
+    store.put('workflow-def', id, { id, projectId: scope.projectId, origin, updatedAt: 1 });
+  }
+  service.worksets.save(target, { name: 'm', kind: 'orphans', query: '' });
+  service.worksets.save(otherProject, { name: 'elsewhere', kind: 'gaps', query: '' });
+  for (let n = 1; n <= 505; n++) service.events.record(target.projectId, 'note', String(n), { workItemId: n % 2 ? 'IN-DOC' : 'OTHER-DOC' });
+  service.events.record(otherProject.projectId, 'note', 'unrelated');
+  const dashboard = await request<DashboardView>(service, { method: 'dashboard.view', target });
+  const proposals = await request<Proposal[]>(service, { method: 'proposals.list', target });
+  const alerts = await request<WatchView>(service, { method: 'watch.view', target });
+  const reviews = await request<ReviewRecordView[]>(service, { method: 'review.list', target });
+  const coverage = await request<CoverageView>(service, { method: 'coverage.view', target });
+  const events = await request<WorkEvent[]>(service, { method: 'events.list', projectId: target.projectId, limit: PROJECT_EVENT_LIMIT });
+  assert.deepEqual(proposals.filter(isInboxPendingProposal).map(row => row.id), ['mine']);
+  assert.equal(dashboard.pendingProposals, 1);
+  assert.deepEqual(alerts.alerts.map(row => row.level), ['warn', 'info']); assert.equal(dashboard.alerts, 1);
+  assert.equal(reviews.length, 20); assert.equal(reviews[0]?.document, otherDocument.document);
+  assert.deepEqual(reviews.flatMap(openReviewIssues).map(card => card.id), ['foreign-doc-0', 'foreign-doc-1', 'local-0']); assert.equal(dashboard.reviewOpen, 3);
+  assert.deepEqual(coverage.items.filter(isCoverageOrphan).map(row => row.workItemId), ['O']); assert.equal(dashboard.coverage?.orphans, 1);
+  assert.deepEqual([dashboard.workflows, dashboard.worksets], [2, 1]);
+  assert.equal(dashboard.events, 500); assert.equal(events.length, dashboard.events);
+  assert.equal(events[0]?.subject, '505'); assert.equal(events.at(-1)?.subject, '6');
+  assert(events.every(row => row.projectId === target.projectId)); assert.equal(new Set(events.map(row => row.workItemId)).size, 2);
+  const projectTimeline = await request<TimelineView>(service, { method: 'timeline.view', target });
+  const itemTimeline = await request<TimelineView>(service, { method: 'timeline.view', target, workItemId: 'IN-DOC' });
+  assert.equal(projectTimeline.scope, 'project'); assert.equal(projectTimeline.entries.length, 400);
+  assert.equal(itemTimeline.scope, 'item'); assert.equal(itemTimeline.entries.length, 200);
+  const overflow = await service.request({ protocol: 1, id: crypto.randomUUID(), command: { method: 'events.list', projectId: target.projectId, limit: 501 } });
+  assert.equal(overflow.ok, false);
+});
+
+test('last quality report preserves historical and foreign-document data without running a scan or recording an event', async t => {
+  const { store, service } = offlineService(t);
+  const empty: DocumentQualityReport = { at: 5, total: 0, checked: 0, clean: 0, items: [], byRule: [], ruleSource: 'default' };
+  assert.equal(await request(service, { method: 'quality.document.last', target }), null);
+  store.put('quality-report', target.projectId, empty);
+  assert.deepEqual(await request(service, { method: 'quality.document.last', target }), empty);
+  assert.equal((await request<DashboardView>(service, { method: 'dashboard.view', target })).quality?.findings, 0);
+  const otherDocument = { ...empty, document: 'Requirements/Second', at: 9 };
+  store.put('quality-report', target.projectId, otherDocument);
+  assert.deepEqual(await request(service, { method: 'quality.document.last', target }), otherDocument);
+  assert.equal(await request(service, { method: 'quality.document.last', target: { ...target, projectId: 'elsewhere' } }), null);
+  assert.equal(service.events.list(target.projectId).length, 0);
+});
+
+test('document quality includes text past 1200 characters, dirty draft bodies, read-only references and unreadable items', async t => {
+  const { store, remote, service } = offlineService(t);
+  const ids = ['LONG', 'DIRTY', 'REFERENCE', 'UNREADABLE', 'CLEAN'];
+  remote.outline = async () => ({ documentId: target.document, title: 'fixture', items: ids.map((id, i) => ({ id, title: id, type: 'requirement', status: 'draft', outline: String(i + 1) })) });
+  remote.changeList = async () => [];
+  const reads: string[] = [];
+  remote.read = async (_scope, id) => {
+    reads.push(id);
+    if (id === 'REFERENCE') throw Error('WORK_ITEM_DOCUMENT_MISMATCH');
+    if (id === 'UNREADABLE') throw Error('unavailable');
+    return { id, title: id, description: id === 'LONG' ? `<p>${'读取；'.repeat(450)}</p><table><tr><td><p>尽快</p></td></tr></table>` : '<p>100 ms</p>', updated: 'v1' };
+  };
+  remote.peek = async (_scope, workItemId) => ({ workItemId, title: workItemId, description: '<p>尽快</p>' });
+  const dirty = { id: crypto.randomUUID(), target, workItemId: 'DIRTY', title: '本地标题', state: 'dirty', revision: 2, baseHtml: '<p>100 ms</p>', baseUpdated: 'v1', html: '<p>尽快</p>' };
+  store.put('draft', dirty.id, dirty);
+  const report = await request<DocumentQualityReport>(service, { method: 'quality.document.check', target, limit: 300 });
+  assert.equal(report.document, target.document); assert.deepEqual([report.total, report.checked, report.clean], [5, 5, 1]);
+  for (const id of ['LONG', 'DIRTY', 'REFERENCE']) assert(report.items.find(row => row.workItemId === id)?.issues.some(issue => issue.ruleId === 'fuzzy-default' && issue.matchedText === '尽快'), id);
+  assert.equal(report.items.find(row => row.workItemId === 'DIRTY')?.title, dirty.title); assert(!reads.includes('DIRTY'));
+  assert.equal(report.items.find(row => row.workItemId === 'REFERENCE')?.readOnlyReference, true);
+  assert.equal(report.items.find(row => row.workItemId === 'UNREADABLE')?.unreadable, true);
+  assert.deepEqual(await request(service, { method: 'quality.document.last', target }), report);
+  assert.equal((await request<DashboardView>(service, { method: 'dashboard.view', target })).quality?.findings, 4);
+  assert.equal(service.events.list(target.projectId).length, 1);
+  const qualitySet = service.worksets.save(target, { name: '最近报告', kind: 'quality', query: '' });
+  const items = service.worksets.items({ ...target, document: 'Requirements/Other' }, qualitySet.id).items;
+  assert.deepEqual(items.map(row => row.workItemId), ['LONG', 'DIRTY', 'REFERENCE', 'UNREADABLE']);
+  assert.equal(items[1]!.title, dirty.title); assert.equal(items.at(-1)?.reason, '正文读取失败');
+});
 
 test('parseJsonBlock：围栏优先，兜底整段，失败抛错', () => {
   assert.deepEqual(parseJsonBlock('说明\n```json\n[1,2]\n```\n尾注'), [1, 2]);
@@ -100,8 +213,49 @@ test('Worksets：四类活队列 + 重名保护', t => {
   ], byRule: [], ruleSource: 'default' });
   const qualitySet = worksets.save(target, { name: '体检发现', kind: 'quality', query: '' });
   assert.deepEqual(worksets.items(target, qualitySet.id).items.map(item => item.workItemId), ['SPE-2']);
+  seedCoverage(store, Array.from({ length: 310 }, (_, n) => ({ id: `SPE-${n}`, title: '高压', text: '' })));
+  assert.equal(worksets.items(target, search.id).items.length, 310);
+  assert.equal(worksets.items(target, gaps.id).items.length, 310);
   worksets.remove(search.id);
   assert.equal(worksets.list(target.projectId).length, 3);
+});
+
+test('morning cards use receiver acknowledgements and schedule one attempt per local day', async t => {
+  const { store, service } = offlineService(t);
+  const start = new Date(2026, 10, 20, 0, 6, 0);
+  t.mock.timers.enable({ apis: ['Date', 'setInterval'], now: start });
+  const responses: Record<string, string> = { ok: '{"code":0}', rejected: '{"code":19024}', legacy: '{"StatusCode":0}', denied: '{"StatusCode":19024}', invalid: '<html>', empty: '{}' };
+  const packets: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
+    const endpoint = new URL(url).pathname.slice(1);
+    assert.equal(init.method, 'POST');
+    assert.equal(JSON.parse(String(init.body)).msg_type, 'interactive');
+    packets.push(endpoint);
+    return new Response(responses[endpoint]);
+  });
+  const configure = (...routes: string[]) => store.put('change-feishu', target.projectId, { groups: routes.map(route => ({ id: crypto.randomUUID(), label: route, webhook: `http://127.0.0.1/${route}`, secret: '' })) });
+  const preview = await request<{ digest: string }>(service, { method: 'brief.preview', target });
+  assert(preview.digest);
+  assert.equal((await request<{sent: boolean}>(service, {method: 'brief.send', target})).sent, false);
+  assert.deepEqual(packets, []);
+  configure(...Object.keys(responses));
+  const delivery = await request<{sent: boolean; reason: string; results: {ok: boolean}[]}>(service, {method: 'brief.send', target});
+  assert.deepEqual(delivery.results.map(row => row.ok), [true, false, true, false, false, false]);
+  assert.equal(delivery.sent, true); assert.match(delivery.reason, /部分发送成功（2\/6 个群）/);
+  configure('rejected');
+  store.put('brief-config', target.projectId, { at: '00:07' });
+  await request(service, {method: 'brief.toggle', target, enabled: true});
+  const count = packets.length;
+  service.startBriefScheduler();
+  t.mock.timers.tick(60_000);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.deepEqual(packets.slice(count), ['rejected']);
+  assert.match(service.events.list(target.projectId)[0]!.subject, /定时晨报发送失败（0\/1 个群）/);
+  assert(store.get('brief-sent', `brief-sent:${target.projectId}:2026-11-20`));
+  store.put('brief-config', target.projectId, {id: target.projectId, document: target.document, at: '00:08', enabled: true});
+  t.mock.timers.tick(60_000);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(packets.length, count + 1);
 });
 
 test('Macros：从会话录制（跳过工作流自动轮）、定时到点去重', t => {
@@ -161,7 +315,7 @@ test('基线快照：保存/列出/前后对比增量', async t => {
   let orphanCount = 3, qualityClean = 2, gatesPassed = 1;
   const coverage = { view: () => ({ items: new Array(5).fill(null).map((_, index) => ({ workItemId: 'W' + index })), summary: { withUpstream: 1, withModule: 2, withVerification: 0, orphans: orphanCount } }) } as unknown as Coverage;
   const gates = { view: async () => ({ summary: { total: 5, passed: gatesPassed, byGate: { quality: 0, criterion: 1, upstream: 1, module: 2 } } }) } as unknown as Gates;
-  const reviews = { list: () => [{ issues: [{ status: 'open' }, { status: 'resolved' }] }] } as unknown as Reviews;
+  const reviews = { list: () => [{ status: 'open', issues: [{ status: 'open' }, { status: 'resolved' }] }, { status: 'done', issues: [{ status: 'open' }] }] } as unknown as Reviews;
   const snapshots = new Snapshots(store, coverage, gates, reviews);
   store.put('quality-report', target.projectId, { checked: 5, clean: qualityClean, byRule: [] });
   const first = await snapshots.save(target, '发版前');

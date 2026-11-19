@@ -1,5 +1,17 @@
-const key='__polarionSidebarTrustedEvents';
-function events():WeakSet<Event>{const scope=globalThis as unknown as Record<string,unknown>;return(scope[key]??=new WeakSet<Event>()) as WeakSet<Event>;}
-// This set lives in the extension's isolated world, not the page's JavaScript world.
-export function markUserEvent(event:Event){events().add(event);}
-export function isUserEvent(event:Event){return event.isTrusted||events().has(event);}
+// Both content scripts share the extension's isolated world. A forwarded click is valid only during its dispatch.
+function activeClicks(): WeakSet<Event> {
+  const scope = globalThis as typeof globalThis & { __polarionSidebarTrustedEvents?: WeakSet<Event> };
+  return scope.__polarionSidebarTrustedEvents ??= new WeakSet<Event>();
+}
+
+export function dispatchUserClick(target: EventTarget, original: MouseEvent, copy: UIEvent) {
+  if (!original.isTrusted || original.type !== 'click' || copy.type !== 'click') return target.dispatchEvent(copy);
+  const clicks = activeClicks();
+  clicks.add(copy);
+  try { return target.dispatchEvent(copy); }
+  finally { clicks.delete(copy); }
+}
+
+export function isUserEvent(event: Event) {
+  return event.type === 'click' && (event.isTrusted || activeClicks().has(event));
+}

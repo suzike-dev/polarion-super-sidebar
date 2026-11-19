@@ -87,6 +87,26 @@ test('new turns default to auto while explicit and legacy permissions remain fro
     assert.throws(()=>store.startRun(session.id,explicit.requestId,explicit.prompt,[],target,[]),/REQUEST_ID_REUSED/);
   } finally {store.close();}
 });
+test('a queued run keeps its auto-save opt-out and a replay must use the same setting', t => {
+  const store = new Store(':memory:');
+  t.after(() => store.close());
+  const session = store.createSession(target, 'review');
+  const command = { method: 'runs.start', sessionId: session.id, requestId: crypto.randomUUID(), target, prompt: 'edit', contexts: [] };
+  assert.equal(CommandSchema.safeParse({ ...command, autoSave: true }).success, false);
+  const submit = (id: string, autoSave?: false) => store.startRun(session.id, id, command.prompt, [], target, [], 'auto', 'queue', undefined, undefined, autoSave);
+  const ordinary = submit(command.requestId);
+  assert.ok(!Object.hasOwn(store.require('run', ordinary.run.id), 'autoSave'));
+  assert.equal(submit(command.requestId).created, false);
+  assert.throws(() => submit(command.requestId, false), /REQUEST_ID_REUSED/);
+  const reviewId = crypto.randomUUID();
+  const review = submit(reviewId, false);
+  assert.equal(review.run.status, 'queued');
+  assert.equal(submit(reviewId, false).run.id, review.run.id);
+  assert.throws(() => submit(reviewId), /REQUEST_ID_REUSED/);
+  store.put('run', ordinary.run.id, { ...ordinary.run, status: 'completed' });
+  assert.equal(store.claimQueued(session.id)?.autoSave, false);
+});
+
 test('session engine affinity, immutable context and idempotent turn submission', () => {
   const store = new Store(':memory:');
   const session = store.createSession(target, 'test');

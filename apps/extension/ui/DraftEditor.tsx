@@ -7,7 +7,7 @@ import { DOMParser as PMParser } from '@tiptap/pm/model';
 import { Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Quote, Link, Undo2, Redo2, Table2, Plus, Minus, X, Check, Maximize2, Minimize2, ChevronDown, Subscript, Superscript, Eraser, Highlighter, Palette, Code, Columns3, Rows3, PanelTop, WrapText, CopyCheck, GitFork, Search, Download, ImagePlus, MessageSquare, PenTool, GitBranch, Sigma, ListCollapse, Tags, Wand2 } from 'lucide-react';
 import { browser } from 'wxt/browser';
 import { richExtensions,richSchema,sanitizeRichJSON } from '../../../packages/core/rich-schema';
-import {sameTarget,type Asset,type Draft,type DedupMatch,type ImpactView,type Target} from '../../../packages/protocol/index';
+import {MAX_CONTEXT_TEXT,sameTarget,type Asset,type Draft,type DedupMatch,type ImpactView,type Run,type Target} from '../../../packages/protocol/index';
 import type { SourceNode } from '../../../packages/core/lossless-html';
 import { rpc } from '../lib/client';
 import { RichSurface } from './RichSurface';
@@ -21,10 +21,10 @@ import {TableQuickMenu} from './TableQuickMenu';
 import {CellSelection} from '@tiptap/pm/tables';
 import {DocumentTableView} from '../lib/editor-table';
 import {pasteRichContent} from '../../../packages/core/rich-paste';
-import {findTextMatches,replaceSelectedMatch,replaceAllMatches} from '../../../packages/core/editor-text';
+import {findTextMatches,replaceSelectedMatch,replaceAllMatches,qualitySentence,staleQualityFinding} from '../../../packages/core/editor-text';
 import {imageClipboardSerializer,internalClipboardImage} from '../../../packages/core/rich-clipboard';
 import {applyTablePreset,tidyDocument,tablePresetLabels,type TablePreset} from '../../../packages/core/document-tidy';
-import {lintDocument,defaultRulePack,type LintIssue} from '../../../packages/core/requirement-lint';
+import {lintDocument,glossaryFixMatches,defaultRulePack,type LintIssue} from '../../../packages/core/requirement-lint';
 import {qualityLintExtension,lintHover,loadRulePack,watchRulePack} from '../lib/quality-lint';
 import {QualityLintStatus,QualityLintCard} from './QualityLint';
 import type {Proposal} from '../../../packages/protocol/index';
@@ -32,7 +32,8 @@ import './quality-lint.css';
 import {handleRichPaste,richEditorExtras,withFormulaViews} from '../lib/editor-rich';
 import {ConflictReview} from './ConflictReview';
 import {isUserEvent} from '../lib/ui-event-trust';
-import {saveError} from '../lib/save-feedback';
+import {nativeSyncFailure, saveError, type NativeSaveResult} from '../lib/save-feedback';
+import {lockNativePanelInput} from '../lib/layout';
 import {BoardDialog} from './BoardDialog';
 import {placeBoardImage,replaceBoardPreview} from '../lib/board-placement';
 import {registerBoardReceiver,codeRecoverySuffix,type BoardCode} from '../lib/board-code';
@@ -45,8 +46,9 @@ import './editor-tools.css';
 import {SingleLineToolbar,ToolbarMenu,nativeFontSizes,selectionTypography} from './EditorToolbar';
 import {editorPopoverPlacement} from '../lib/editor-popover';
 type DraftView = Draft & { nodes: SourceNode[]; version: string };
-type RichReply = { editorId: string; draft: DraftView; document: JSONContent };
-type Props = { onLintRewrite: (issue: LintIssue, text: string) => Promise<void>; requestedBoard?:BoardGenerationRequest|null;onBoardOpened:()=>void;draft: DraftView; onUpdate: (d: DraftView) => void; onClose: () => void; onError: (e: unknown) => void; prepareNativeSave: () => Promise<'clean' | 'dirty' | 'unknown'>; onContext: (text: string) => void; onSaved: (saved:DraftView) => Promise<void>;initialScrollTop?:number;aiOpen:boolean;onToggleAI:()=>void;onShowAI:()=>void;onClearBoardContext:()=>void;onPrepareAI:(handler:(()=>Promise<void>)|null)=>void;remoteRevision?:number; onOpenVariant:(workItemId:string)=>void; onOpenWorkItem:(workItemId:string)=>void; onDeepLint?:(workItemId:string,title:string)=>void; onVariantChanged:(saved:DraftView,notice:string)=>Promise<void>; onClearError:()=>void };
+export type RichReply = { editorId: string; draft: DraftView; document: JSONContent };
+type EditCheckpoint = { draftId: string; editorId: string; revision: number; document: JSONContent };
+type Props = { initialRich?: RichReply; onQualityInspect: (text: string, sourceLabel: string) => Promise<Run>; onQualityRun: (text: string, issue: LintIssue, scope?: Run['qualityRewrite']) => Promise<Run>; requestedBoard?:BoardGenerationRequest|null;onBoardOpened:()=>void;draft: DraftView; onUpdate: (d: DraftView) => void; onClose: () => void; onError: (e: unknown) => void; prepareNativeSave: () => Promise<'clean' | 'dirty' | 'unknown'>; onContext: (text: string) => void; onSaved: (saved:DraftView) => Promise<NativeSaveResult>;initialScrollTop?:number;aiOpen:boolean;onToggleAI:()=>void;onShowAI:()=>void;onClearBoardContext:()=>void;onPrepareAI:(handler:(()=>Promise<void>)|null)=>void;remoteRevision?:number; onOpenVariant:(workItemId:string)=>void; onOpenWorkItem:(workItemId:string)=>void; onVariantChanged:(saved:DraftView,notice:string)=>Promise<void>; onClearError:()=>void };
 const colors = ['#24374b', '#2563eb', '#0f766e', '#c2410c', '#b91c1c', '#7c3aed'];
 const fills = ['#ffffff', '#eff6ff', '#ecfdf5', '#fff7ed', '#fef2f2', '#f5f3ff'];
 /** 工程句式库（v0.16 句式模式库一期）：常用需求句型模板，占位符 <> 由作者替换；沉淀自项目评审高频问题。 */
@@ -90,6 +92,35 @@ export function DraftEditor(props: Props) {
   const [ready, setReady] = useState(false), [mode, setMode] = useState<'edit' | 'diff' | 'preview'>('edit'), [ribbon, setRibbon] = useState('text'), [focus, setFocus] = useState(true);
   useEffect(() => { setFocus(true); }, [draft.id]);
   const [busy, setBusy] = useState(false), [sync, setSync] = useState('正在载入'), [issue, setIssue] = useState(''), [tick, setTick] = useState(0),[loadError,setLoadError]=useState(''),[loadAttempt,setLoadAttempt]=useState(0);
+  const [receipt, setReceipt] = useState<{state: 'pending' | 'confirmed' | 'unconfirmed'; text: string} | null>(null);
+  const [draftReadAction, setDraftReadAction] = useState<'reload' | 'reconcile' | null>(null);
+  const [draftReadNotice, setDraftReadNotice] = useState('');
+  const saveAttempt = useRef(0);
+  const beginSave = () => { setReceipt(null); setDraftReadNotice(''); return ++saveAttempt.current; };
+  useLayoutEffect(() => () => { saveAttempt.current++; }, [draft.id]);
+  const reportVerifiedSave = async (saved: DraftView, attempt: number, detail = '', alreadySaved = false) => {
+    if (attempt !== saveAttempt.current) return false;
+    const destination = alreadySaved ? '当前内容已在 Polarion' : saved.variantOf ? '已保存到变体' : '已保存到 Polarion';
+    const summary = `修订 ${saved.revision} · ${destination}${detail}`;
+    setSync('');
+    setReceipt({state: 'pending', text: summary + (saved.variantOf ? '' : ' · 正在同步原生页面…')});
+    try {
+      const result = await onSaved(saved);
+      if (attempt !== saveAttempt.current) return false;
+      const nativeText = {
+        heading: '原生文档仅显示标题，标题已同步', body: '原生正文已同步',
+        variant: `主工作项 ${saved.variantOf} 未改动`, stale: '当前视图已变化，原生页面未同步（保存不受影响）',
+        degraded: '已提交原生页面刷新，显示可能稍后更新',
+      }[result];
+      setReceipt({state: 'confirmed', text: `${summary} · ${nativeText}`});
+      return true;
+    } catch (error) {
+      // The remote write already succeeded; native page display is a separate,
+      // non-blocking step. Never turn it into a save failure.
+      if (attempt === saveAttempt.current) setReceipt({state: 'confirmed', text: `${summary} · 原生页面显示未同步（${nativeSyncFailure(error)}），可手动刷新文档；保存不受影响`});
+      return true;
+    }
+  };
   const [tableMenu,setTableMenu]=useState<{left:number;top:number}|null>(null);
   const [popup, setPopup] = useState<string | null>(null), [link, setLink] = useState(''), [search, setSearch] = useState(''), [replace, setReplace] = useState('');
   const [linkText,setLinkText]=useState(''),[caseSensitive,setCaseSensitive]=useState(false);
@@ -100,7 +131,8 @@ export function DraftEditor(props: Props) {
   // 整篇操作（排版整理等）的独立提示：用浮动提示条展示，不依赖会被保存链覆盖的 sync 文案。
   const [tidyNote,setTidyNote]=useState('');const tidyNoteTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const showTidyNote=(message:string)=>{setTidyNote(message);if(tidyNoteTimer.current)clearTimeout(tidyNoteTimer.current);tidyNoteTimer.current=setTimeout(()=>setTidyNote(''),4000);};
-  const runLint=(e:Editor)=>{lintIssues.current=lintDocument(e.state.doc,lintPack.current);setLintTick(v=>v+1);};
+  const lintSnapshot = useRef<Editor['state']['doc'] | null>(null);
+  const runLint=(e:Editor)=>{lintSnapshot.current=e.state.doc;lintIssues.current=lintDocument(e.state.doc,lintPack.current);setLintTick(v=>v+1);};
   useEffect(() => watchRulePack((projectId, pack) => {
     if (projectId !== draft.target.projectId) return;
     lintPack.current = pack;
@@ -191,7 +223,7 @@ export function DraftEditor(props: Props) {
   const closePopup=()=>{setPopup(null);editor.current?.view.focus();};
   useEffect(()=>{if(popup){const root=popupRoot.current;(root?.querySelector<HTMLElement>('input:not([type=color]),select')??root?.querySelector<HTMLElement>('button:not(:disabled)'))?.focus();}},[popup]);
   useEffect(()=>{setTableMenu(null);setPopup(null);},[mode,busy]);
-  const [rows, setRows] = useState(3), [cols, setCols] = useState(3), [cellWidth, setCellWidth] = useState(140), [cellHeight, setCellHeight] = useState(40), [recovery, setRecovery] = useState<any>(null);
+  const [rows, setRows] = useState(3), [cols, setCols] = useState(3), [cellWidth, setCellWidth] = useState(140), [cellHeight, setCellHeight] = useState(40), [recovery, setRecovery] = useState<EditCheckpoint | null>(null);
   const [formula, setFormula] = useState({ tex: '', kind: 'block' as 'block' | 'inline' });
   const [selected, setSelected] = useState(false); const inTable = !!editor.current?.isActive('table');
   const [bubble,setBubble]=useState<{left:number;top:number}|null>(null);
@@ -204,7 +236,7 @@ export function DraftEditor(props: Props) {
   const hasUserSelection=useRef(false);
   const openBoard=async(existing=false,generationRequest?:BoardGenerationRequest,code?:BoardCode)=>{
     const e=editor.current;
-    if(!e||busy||board||draft.state==='uncertain')return;
+    if(!e||busy||board)return;
     setBusy(true);e.setEditable(false,false);
     try {
       await flushRef.current();
@@ -216,11 +248,11 @@ export function DraftEditor(props: Props) {
   };
   useEffect(()=>{if(ready&&props.requestedBoard?.draftId===draft.id&&!board){const request=props.requestedBoard;props.onBoardOpened();void openBoard(false,request);}},[ready,props.requestedBoard,draft.id]);
   useEffect(()=>registerBoardReceiver(code=>{
-    if(!ready||busy||board||draft.state==='uncertain')return false;
+    if(!ready||busy||board)return false;
     void openBoard(false,undefined,code);
     return true;
   }),[ready,busy,board,draft.state,draft.id]);
-  const closeBoard=()=>{pendingBoardRef.current=null;setPendingBoard(null);latest.current.onClearBoardContext();setBoard(null);setBusy(false);editor.current?.setEditable(latest.current.draft.state!=='uncertain',false);};
+  const closeBoard=()=>{pendingBoardRef.current=null;setPendingBoard(null);latest.current.onClearBoardContext();setBoard(null);setBusy(false);editor.current?.setEditable(true,false);};
   const boardAttrs=(record:BoardRecord)=>({src:'polarion-asset:'+record.previewId,assetId:record.previewId,alt:record.manifest.title,title:'可编辑工程画板 · 源文件与预览一起保存',width:760,height:null,align:'center'});
   const finishBoardInsert=async()=>{
     try {
@@ -255,7 +287,7 @@ export function DraftEditor(props: Props) {
   const importImages=async(files:File[])=>{
     const e=editor.current;if(!e||imageBusy.current||!files.length)return;imageBusy.current=true;setBusy(true);e.setEditable(false,false);const selection=e.state.selection.getBookmark();
     try{const nodes:JSONContent[]=[];for(const file of files){if(!/^image\/(png|jpeg|gif|webp)$/.test(file.type))throw Error('请选择 PNG、JPEG、GIF 或 WebP 图片。');setSync('正在加入图片…');const asset=await uploadAsset(file,draft.target);if(asset.extraction!=='image')throw Error('文件不是可识别的图片。');nodes.push({type:'image',attrs:{src:'polarion-asset:'+asset.id,assetId:asset.id,alt:file.name,align:'left',width:null,height:null}});}if(e.isDestroyed)return;e.view.dispatch(e.state.tr.setSelection(selection.resolve(e.state.doc)));if(replaceImage.current&&nodes.length===1)e.commands.updateAttributes('image',nodes[0]!.attrs!);else e.commands.insertContent(nodes);await flushRef.current();}
-    catch(error){setIssue((error as Error).message);}finally{replaceImage.current=false;imageBusy.current=false;if(!e.isDestroyed)e.setEditable(latest.current.draft.state!=='uncertain',false);setBusy(false);}
+    catch(error){setIssue((error as Error).message);}finally{replaceImage.current=false;imageBusy.current=false;if(!e.isDestroyed)e.setEditable(true,false);setBusy(false);}
   };
   const importImagesRef=useRef(importImages);importImagesRef.current=importImages;
   const importRichClipboard=async(html:string,files:File[],event:ClipboardEvent)=>{
@@ -289,7 +321,7 @@ export function DraftEditor(props: Props) {
       }
       if(e.isDestroyed)return;const slice=PMParser.fromSchema(e.schema).parseSlice(dom.body),selection=bookmark.resolve(e.state.doc);
       pasteRichContent(e.view,event,slice,selection);await flushRef.current();
-    }catch(error){setIssue((error as Error).message);}finally{imageBusy.current=false;if(!e.isDestroyed)e.setEditable(latest.current.draft.state!=='uncertain',false);setBusy(false);}
+    }catch(error){setIssue((error as Error).message);}finally{imageBusy.current=false;if(!e.isDestroyed)e.setEditable(true,false);setBusy(false);}
   };
   const importRichClipboardRef=useRef(importRichClipboard);importRichClipboardRef.current=importRichClipboard;
   const checkpointKey = 'rich-recovery:' + draft.id;
@@ -311,12 +343,34 @@ export function DraftEditor(props: Props) {
     if (pending.current) await flush();
   };
   const flushRef = useRef(flush); flushRef.current = flush;
+  const closeKeepingEdits = async () => {
+    setBusy(true);
+    editor.current?.setEditable(false, false);
+    try {
+      await flushRef.current();
+    } catch (reason) {
+      const document = pending.current;
+      if (!session.current || !document) { setIssue(saveError(reason)); setBusy(false); return; }
+      const backup: EditCheckpoint = { draftId: draft.id, editorId: session.current.editorId, revision: revision.current, document };
+      try {
+        await checkpointWrites.current.catch(() => {});
+        await browser.storage.local.set({ [checkpointKey]: backup });
+      } catch (error) {
+        setIssue('无法保存恢复备份。请导出当前输入后重试。' + (error as Error).message);
+        setBusy(false); return;
+      }
+      onError(new Error(`${draft.workItemId} 的输入已备份，重新打开可恢复。${saveError(reason)}`));
+    }
+    onClose();
+  };
   useEffect(()=>{props.onPrepareAI(()=>flushRef.current());return()=>props.onPrepareAI(null);},[draft.id]);
   const create = (view: RichReply) => {
+    const content = sanitizeRichJSON(view.document);
+    richSchema.nodeFromJSON(content).check();
     hasUserSelection.current=false;
     setTableMenu(null);setPopup(null);setRefQuery(null);
     editor.current?.destroy();imageCleanup.current();const resolver=imageResolver(view.draft);imageCleanup.current=resolver.dispose; session.current = view; revision.current = view.draft.revision; pending.current = null;
-    const e = new Editor({ element: surface.current!, extensions: withFormulaViews([...richExtensions().map(extension=>extension.name==='image'?editableImage(resolver.resolve):extension.name==='table'?extension.configure({View:DocumentTableView}):extension), richEditorExtras(), Extension.create({name:'documentSearch',addProseMirrorPlugins(){return[new Plugin({props:{decorations(state){const s=searchState.current;if(!s.query)return null;return DecorationSet.create(state.doc,findTextMatches(state.doc,s.query,s.caseSensitive).map(m=>Decoration.inline(m.from,m.to,{class:m.from===state.selection.from&&m.to===state.selection.to?'search-match search-match-current':'search-match'})));}}})];}}),qualityLintExtension(lintIssues),editorGuard(() => setIssue('此操作会移除特殊宏。原始对象已保留，请在其前后编辑正文。'))]), content: sanitizeRichJSON(view.document),
+    const e = new Editor({ element: surface.current!, extensions: withFormulaViews([...richExtensions().map(extension=>extension.name==='image'?editableImage(resolver.resolve):extension.name==='table'?extension.configure({View:DocumentTableView}):extension), richEditorExtras(), Extension.create({name:'documentSearch',addProseMirrorPlugins(){return[new Plugin({props:{decorations(state){const s=searchState.current;if(!s.query)return null;return DecorationSet.create(state.doc,findTextMatches(state.doc,s.query,s.caseSensitive).map(m=>Decoration.inline(m.from,m.to,{class:m.from===state.selection.from&&m.to===state.selection.to?'search-match search-match-current':'search-match'})));}}})];}}),qualityLintExtension(lintIssues),editorGuard(() => setIssue('此操作会移除特殊宏。原始对象已保留，请在其前后编辑正文。'))]), content, enableContentCheck: true,
       editorProps: {
         attributes: { 'aria-label': '工作项富文本编辑器', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'false' },
         clipboardSerializer:imageClipboardSerializer(richSchema,{target:draft.target,workItemId:draft.workItemId}),
@@ -358,17 +412,87 @@ export function DraftEditor(props: Props) {
     });
     editor.current = e; setReady(true); setSync('已保存到本地'); setIssue(''); runLint(e); latest.current.onUpdate(view.draft);
   };
+  // Keep the existing editor and its undo history when a read only changes the save state.
+  const loadSharedDraft = async (attempt: number, checked?: DraftView) => {
+    if (attempt !== saveAttempt.current) return;
+    const current = session.current?.draft;
+    let result = checked;
+    if (!result || !current || result.revision !== revision.current || result.html !== current.html) {
+      const view = await rpc<RichReply>({ method: 'drafts.rich.read', draftId: draft.id });
+      if (attempt !== saveAttempt.current) return;
+      if (view.draft.id !== draft.id || view.draft.workItemId !== draft.workItemId || !sameTarget(view.draft.target, draft.target)) throw Error('WORK_ITEM_ID_MISMATCH');
+      if (pending.current || inFlight.current || (checked && checked.revision !== view.draft.revision) || view.draft.revision < (latest.current.remoteRevision ?? 0)) throw Error('STALE_DRAFT');
+      result = view.draft;
+      if (!current || result.revision !== revision.current || result.html !== current.html) {
+        create(view);
+        return result;
+      }
+    }
+    if (session.current) session.current.draft = result;
+    latest.current.onUpdate(result);
+    return result;
+  };
+  const readDraft = async (action: 'reload' | 'reconcile') => {
+    if (busy || recovery) return;
+    const attempt = beginSave();
+    const caption = action === 'reload' ? '载入本地草稿' : '核对服务端';
+    setBusy(true); setDraftReadAction(action); setDraftReadNotice(`正在${caption}…`);
+    editor.current?.setEditable(false, false);
+    try {
+      await flushRef.current();
+      if (attempt !== saveAttempt.current) return;
+      const previous = revision.current;
+      const checked = action === 'reconcile' ? await rpc<DraftView>({ method: 'drafts.reconcile', draftId: draft.id, expectedRevision: previous }) : undefined;
+      const result = await loadSharedDraft(attempt, checked);
+      if (!result || attempt !== saveAttempt.current) return;
+      const text = action === 'reconcile' ? '已核对服务端' : result.revision === previous ? '当前已是最新本地草稿' : '已载入最新本地草稿';
+      const detail = { clean: '与保存基线一致', dirty: '工作台有本地修改，可直接保存', uncertain: '上次保存结果待确认，再次保存会直接覆盖', conflict: '服务端也有修改，可比较两个版本' }[result.state];
+      setDraftReadNotice(`${result.workItemId} · ${text}（修订 ${result.revision}）。${detail}。`);
+      setSync(''); setIssue(''); onClearError();
+    } catch (error) {
+      if (attempt === saveAttempt.current) {
+        setDraftReadNotice(''); setIssue(`${draft.workItemId} ${caption}失败。${saveError(error)}`);
+      }
+    } finally {
+      if (attempt === saveAttempt.current) { setBusy(false); setDraftReadAction(null); }
+    }
+  };
+  const restoreEdit = async (backup: EditCheckpoint) => {
+    if (busy || inFlight.current) return;
+    setBusy(true); setIssue('');
+    const restore = async () => {
+      if (backup.draftId !== draft.id) throw Error('备份与当前草稿不匹配。');
+      const updated = await rpc<DraftView>({ method: 'drafts.rich.apply', draftId: draft.id, editorId: backup.editorId, expectedRevision: backup.revision, document: backup.document });
+      // 写入已成功。即使回读暂时失败，再试也使用同一来源会话的最新修订。
+      const saved = { ...backup, revision: updated.revision };
+      setRecovery(saved);
+      await browser.storage.local.set({ [checkpointKey]: saved });
+      const opened = await rpc<RichReply>({ method: 'drafts.rich.read', draftId: draft.id });
+      if (opened.draft.revision !== updated.revision) throw Error('恢复后草稿又有更新，请核对最新版本。');
+      create(opened);
+      await browser.storage.local.remove(checkpointKey);
+      setRecovery(null); setSync('已恢复到本地草稿');
+    };
+    const operation = restore(); inFlight.current = operation;
+    try { await operation; }
+    catch (reason) { setIssue('恢复未完成，备份可导出。' + saveError(reason)); }
+    finally { inFlight.current = null; setBusy(false); }
+  };
   const previewLintFix = async (issue: LintIssue) => {
     if (!issue.suggestion || !issue.matchedText) throw Error('这条提示没有可用的替换建议。');
     await flushRef.current();
-    return rpc<Proposal>({ method:'proposals.create', source:'lint', target:draft.target, workItemId:draft.workItemId, summary:`术语统一：${issue.matchedText} → ${issue.suggestion}`, op:{kind:'replace-all-text',draftId:draft.id,expectedRevision:revision.current,from:issue.matchedText,to:issue.suggestion,caseSensitive:true} });
+    const e = editor.current;
+    if (!e || e.isDestroyed) throw Error('编辑器已关闭。');
+    const lintMatches = glossaryFixMatches(e.state.doc, lintPack.current, issue.matchedText, issue.suggestion, false);
+    if (!lintMatches.some(m => m.from === issue.from && m.to === issue.to)) throw Error('这处术语已变化，请重新运行体检并预览。');
+    return rpc<Proposal>({ method:'proposals.create', source:'lint', target:draft.target, workItemId:draft.workItemId, summary:`术语统一：${issue.matchedText} → ${issue.suggestion}`, op:{kind:'replace-all-text',draftId:draft.id,expectedRevision:revision.current,from:issue.matchedText,to:issue.suggestion,caseSensitive:false,lintMatches} });
   };
   const applyLintFix = async (proposal: Proposal, click: Event) => {
     if (!isUserEvent(click)) throw Error('请点击确认按钮保存体检修复。');
     const e = editor.current;
     if (!e || e.isDestroyed || busy) throw Error('编辑器忙，请重新预览。');
-    const panel = document.querySelector<HTMLElement>('.polarion-dle-MainDockPanel'), wasInert = panel?.inert;
-    if (panel) panel.inert = true;
+    const attempt = beginSave();
+    const unlock = lockNativePanelInput();
     e.setEditable(false,false); setBusy(true);
     try {
       await flushRef.current();
@@ -376,28 +500,89 @@ export function DraftEditor(props: Props) {
       const nativeState = draft.variantOf ? 'clean' : await prepareNativeSave();
       if (e.isDestroyed) throw Error('编辑器已关闭。');
       const result = await rpc<{proposal:Proposal; draft?:DraftView}>({method:'proposals.approve',id:proposal.id,nativeState});
+      if (attempt !== saveAttempt.current) return;
       const verified = result.proposal.savedToPolarion === true && result.proposal.status === 'applied';
+      const detail = ` · 替换 ${result.proposal.matchCount} 处 · ${result.proposal.recordId ? '项目变更记录已写入' : '项目变更记录待核对'}`;
+      const nativeReceipt = verified && result.draft ? reportVerifiedSave(result.draft, attempt, detail) : undefined;
       if (!e.isDestroyed && result.draft) {
         latest.current.onUpdate(result.draft);
-        try { const view = await rpc<RichReply>({method:'drafts.rich.read',draftId:draft.id}); if (!e.isDestroyed && !pending.current) create(view); }
-        catch (error) { setIssue('重新载入草稿失败：' + (error as Error).message); }
+        try {
+          const view = await rpc<RichReply>({method:'drafts.rich.read',draftId:draft.id});
+          if (!e.isDestroyed && !pending.current && attempt === saveAttempt.current) {
+            create(view);
+            if (verified && view.draft.revision === result.draft.revision) setSync('');
+            editor.current?.setEditable(false, false);
+          }
+        } catch (error) { if (attempt === saveAttempt.current) setIssue('重新载入草稿失败：' + (error as Error).message); }
       }
       if (!verified || !result.draft) { setSync('体检修复未完成，请核对草稿状态'); throw Error(result.proposal.error ?? '保存尚未核实'); }
-      setSync(`已保存并回读 · 替换 ${result.proposal.matchCount} 处 · ${result.proposal.recordId ? '项目变更记录已写入' : '项目变更记录待核对'}`);
-      try { await onSaved(result.draft); } catch (error) { setIssue('正文已保存，原生页面刷新失败：' + (error as Error).message); }
-      if (result.proposal.recordError) setIssue('正文已保存，变更记录写入失败：' + result.proposal.recordError);
-    } finally { if (panel) panel.inert = wasInert ?? false; setBusy(false); }
+      await nativeReceipt;
+      if (attempt === saveAttempt.current && result.proposal.recordError) setIssue('正文已保存，变更记录写入失败：' + result.proposal.recordError);
+    } finally {
+      unlock();
+      if (attempt === saveAttempt.current) {
+        if (editor.current && !editor.current.isDestroyed) editor.current.setEditable(true, false);
+        setBusy(false);
+      }
+    }
   };
-  const rewriteLintIssue = async (issue: LintIssue) => {
-    await flushRef.current();
+  function inspectionSource() {
+    const displayed = editor.current && !editor.current.isDestroyed;
+    const unsynced = displayed && !recovery && (pending.current || inFlight.current);
+    const version = displayed ? revision.current : draft.revision;
+    const parts = [unsynced ? `编辑器未同步输入（基于草稿修订 ${version}）` : `本地草稿修订 ${version}`];
+    if (!displayed) parts.push('编辑器尚未载入，使用草稿正文');
+    if (recovery) parts.push('另有未恢复的备份');
+    if (draft.state === 'uncertain') parts.push('上次保存待确认');
+    if (draft.state === 'conflict') parts.push('与服务端存在差异');
+    if (draft.state === 'dirty') parts.push('待保存到 Polarion');
+    return parts.join(' · ');
+  }
+  const inspectQuality = async () => {
+    // Capture the displayed text synchronously. Inspection must never flush the rich edit queue.
+    const e = editor.current;
+    let doc;
+    if (e && !e.isDestroyed) doc = e.state.doc;
+    else {
+      const template = document.createElement('template');
+      template.innerHTML = draft.html;
+      doc = PMParser.fromSchema(richSchema).parse(template.content);
+    }
+    const text = doc.textBetween(0, doc.content.size, '\n', node => {
+      if (node.type.name === 'image') return `[图片 ${node.attrs.alt || node.attrs.title || '无说明'}]`;
+      return node.attrs.workItemId || node.attrs.tex || node.attrs.text || node.attrs.label || '\n';
+    });
+    const source = inspectionSource() + (text.length > MAX_CONTEXT_TEXT ? ` · 本次取前 ${MAX_CONTEXT_TEXT} 个字符（共 ${text.length}）` : '');
+    const run = await props.onQualityInspect(text.slice(0, MAX_CONTEXT_TEXT), source);
+    if (layer.current?.isConnected) showTidyNote(`AI 深检${run.status === 'queued' ? '已排队' : '已发起'}。${source}`);
+  };
+  const runQualityCheck = async (issue: LintIssue) => {
     const e = editor.current;
     if (!e || e.isDestroyed) throw Error('编辑器已关闭。');
-    await props.onLintRewrite(issue,e.getText());
+    const snapshot = e.state.doc;
+    let position: ReturnType<typeof qualitySentence> | undefined;
+    if (issue && (issue.from !== undefined || issue.to !== undefined)) {
+      if (lintSnapshot.current !== snapshot || !lintIssues.current.includes(issue) || issue.from === undefined || issue.to === undefined) throw Error(staleQualityFinding);
+      position = qualitySentence(snapshot, issue.from, issue.to, issue.matchedText);
+    }
+    try { await flushRef.current(); }
+    catch (error) { if (position && error instanceof Error && error.message === 'STALE_DRAFT') throw Error(staleQualityFinding); throw error; }
+    if (e.isDestroyed || e !== editor.current || (position && e.state.doc !== snapshot)) throw Error(staleQualityFinding);
+    const scope = position && issue ? { ...position, draftId: draft.id, workItemId: draft.workItemId, expectedRevision: revision.current, ruleId: issue.ruleId, message: issue.message } : undefined;
+    const run = await props.onQualityRun(scope?.sentence ?? e.getText(), issue, scope);
+    if (!e.isDestroyed) {
+      showTidyNote(`AI 改写${run.status === 'queued' ? '已排队' : '已发起'}，可在 AI 协作面板查看。`);
+    }
   };
   useEffect(() => {
     let disposed = false;setReady(false);setLoadError('');
     void (async () => {
-      try { const [view, stored] = await Promise.all([rpc<RichReply>({ method: 'drafts.rich.read', draftId: draft.id }), browser.storage.local.get(checkpointKey)]); if (disposed) return; create(view); if (stored[checkpointKey]) setRecovery(stored[checkpointKey]); void loadRulePack(draft.target).then(pack => { if (disposed) return; lintPack.current = pack; const e = editor.current; if (e && !e.isDestroyed) { runLint(e); e.view.dispatch(e.state.tr.setMeta('quality-lint', true).setMeta('addToHistory', false)); } }); }
+      try { const seeded = !loadAttempt && props.initialRich?.draft.id === draft.id && props.initialRich.draft.revision === draft.revision ? props.initialRich : undefined;
+        const [view, stored] = await Promise.all([seeded ?? rpc<RichReply>({ method: 'drafts.rich.read', draftId: draft.id }), browser.storage.local.get(checkpointKey)]);
+        if (disposed) return;
+        const checkpoint = stored[checkpointKey] as EditCheckpoint | undefined;
+        if (checkpoint) setRecovery(checkpoint);
+        create(view); void loadRulePack(draft.target).then(pack => { if (disposed) return; lintPack.current = pack; const e = editor.current; if (e && !e.isDestroyed) { runLint(e); e.view.dispatch(e.state.tr.setMeta('quality-lint', true).setMeta('addToHistory', false)); } }); }
       catch (e) { if (!disposed) {setLoadError('这条正文暂时无法载入编辑器。原始内容仍可阅读，请重试或查看阅读模式。');setIssue((e as Error).message); setSync('载入失败'); } }
     })();
     const beforeUnload = (event: BeforeUnloadEvent) => { if (pending.current || inFlight.current) { event.preventDefault(); event.returnValue = ''; } };
@@ -416,15 +601,15 @@ export function DraftEditor(props: Props) {
     if (pos >= 0) { const node = e.state.doc.nodeAt(pos); if (!node) return; const transformed = applyTablePreset(node.toJSON(), preset).doc; e.view.dispatch(e.state.tr.replaceWith(pos, pos + node.nodeSize, e.state.schema.nodeFromJSON(transformed))); setSync(`已为当前表格套用「${tablePresetLabels[preset]}」· 可撤销`); }
     else { const result = applyTablePreset(e.getJSON(), preset); e.commands.setContent(result.doc); setSync(result.tables ? `已为全文 ${result.tables} 张表格套用「${tablePresetLabels[preset]}」· 可撤销` : '正文里还没有表格'); }
   });
-  const tidyAll = () => act(e => { const result = tidyDocument(e.getJSON(), { tableDefaults: true }); e.commands.setContent(result.doc); const parts: string[] = []; if (result.changes.emptyParagraphs) parts.push(`清理空段 ${result.changes.emptyParagraphs} 处`); if (result.changes.resizedImages) parts.push(`图片限宽 ${result.changes.resizedImages} 张`); if (result.changes.tables) parts.push(`补全表格边框 ${result.changes.tables} 张`); if (result.changes.quotes) parts.push(`引号规范 ${result.changes.quotes} 处`); if (result.changes.hexPrefixes) parts.push(`十六进制前缀 ${result.changes.hexPrefixes} 处`); if (result.changes.spaces) parts.push(`多余空格 ${result.changes.spaces} 处`); if (result.changes.punctuation) parts.push(`重复标点 ${result.changes.punctuation} 处`); const message = parts.length ? `排版整理完成：${parts.join(' · ')} · 可撤销` : '排版已经整洁（单个空行按正文分段保留；连续空行、首尾空段会被合并清理）';
+  const tidyAll = () => act(e => { const result = tidyDocument(e.getJSON(), { tableDefaults: true }); e.commands.setContent(sanitizeRichJSON(result.doc)); const parts: string[] = []; if (result.changes.emptyParagraphs) parts.push(`清理空段 ${result.changes.emptyParagraphs} 处`); if (result.changes.resizedImages) parts.push(`图片限宽 ${result.changes.resizedImages} 张`); if (result.changes.tables) parts.push(`补全表格边框 ${result.changes.tables} 张`); if (result.changes.quotes) parts.push(`引号规范 ${result.changes.quotes} 处`); if (result.changes.hexPrefixes) parts.push(`十六进制前缀 ${result.changes.hexPrefixes} 处`); if (result.changes.spaces) parts.push(`多余空格 ${result.changes.spaces} 处`); if (result.changes.punctuation) parts.push(`重复标点 ${result.changes.punctuation} 处`); const message = parts.length ? `排版整理完成：${parts.join(' · ')} · 可撤销` : '排版已经整洁（单个空行按正文分段保留；连续空行、首尾空段会被合并清理）';
     // setContent 触发的 onUpdate→本地保存链会不断覆盖 sync 文案，因此用独立提示条显示结果。
     showTidyNote(message); });
   useEffect(()=>{if(!ready||busy||!props.remoteRevision||props.remoteRevision<=revision.current)return;if(pending.current||inFlight.current){setIssue('AI 已更新共享草稿；你尚未同步的输入仍保留，请先审阅差异。');return;}let cancelled=false;void rpc<RichReply>({method:'drafts.rich.read',draftId:draft.id}).then(view=>{if(!cancelled&&!pending.current&&!inFlight.current&&view.draft.revision>revision.current){create(view);setSync('AI 更新已载入 · 可查看修改对照');}}).catch(e=>setIssue(String(e)));return()=>{cancelled=true;};},[props.remoteRevision,ready,busy]);
-  useEffect(()=>{editor.current?.setEditable(!busy&&draft.state!=='uncertain',false);},[ready,busy,draft.state]);
-  const button = (title: string, icon: React.ReactNode, run: (e: Editor) => void, active = false, disabled = false) => <button type="button" className={'rt-button ' + (active ? 'active' : '')} aria-label={title} title={title} disabled={!ready || disabled || busy || draft.state==='uncertain'} onMouseDown={e => e.preventDefault()} onClick={() => act(run)}>{icon}</button>;
+  useEffect(()=>{editor.current?.setEditable(!busy && !recovery, false);}, [ready, busy, recovery]);
+  const button = (title: string, icon: React.ReactNode, run: (e: Editor) => void, active = false, disabled = false) => <button type="button" className={'rt-button ' + (active ? 'active' : '')} aria-label={title} title={title} disabled={!ready || disabled || busy} onMouseDown={e => e.preventDefault()} onClick={() => act(run)}>{icon}</button>;
   const paint = (attrs: Record<string, string>) => act(e => { e.chain().focus().setMark('paint', attrs).run(); });
   const captureFormat=(e:Editor)=>{if(brush.current){brush.current=null;setBrushing(false);return;}let marks=e.state.selection.$from.marks();let found=false;e.state.doc.nodesBetween(e.state.selection.from,e.state.selection.to,node=>{if(!found&&node.isText){marks=node.marks;found=true;}});brush.current=marks.filter(m=>!['sourceText','link'].includes(m.type.name)).map(m=>({type:m.type.name,attrs:{...m.attrs,sid:null}}));setBrushing(true);setPopup(null);};
-  const exportCurrent = () => { const data = JSON.stringify({ target: draft.target, workItemId: draft.workItemId, editorId: session.current?.editorId, revision: revision.current, document: editor.current?.getJSON() }, null, 2); const url = URL.createObjectURL(new Blob([data], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = draft.workItemId + '-local-edit.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+  const exportEdit = (snapshot?: EditCheckpoint) => { const data = JSON.stringify({ target: draft.target, workItemId: draft.workItemId, ...(snapshot ?? { draftId: draft.id, editorId: session.current?.editorId, revision: revision.current, document: editor.current?.getJSON() }) }, null, 2); const url = URL.createObjectURL(new Blob([data], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = draft.workItemId + '-local-edit.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
   const findNext = (replaceCurrent = false,backwards=false) => {
     const e = editor.current; if (!e || !search) return;
     if(replaceCurrent){const tr=replaceSelectedMatch(e.state,search,replace,caseSensitive);if(tr)e.view.dispatch(tr);}
@@ -435,34 +620,59 @@ export function DraftEditor(props: Props) {
   const searchIndex=searchMatches.findIndex(m=>m.from===editor.current?.state.selection.from&&m.to===editor.current?.state.selection.to);
   useEffect(()=>{if(ready&&props.initialScrollTop!==undefined){const canvas=surface.current?.closest<HTMLElement>('.rich-canvas');if(canvas)canvas.scrollTop=props.initialScrollTop;}},[ready,props.initialScrollTop]);
   const save = async (event: React.MouseEvent) => {
-    const background=!!draft.variantOf;
-    if (!isUserEvent(event.nativeEvent)) {setIssue(`保存没有收到有效的用户点击，请重新点击“${background?'保存到变体':'保存到 Polarion'}”。`);return;} setBusy(true);setIssue('');setSync('正在同步本地修改…');
-    const panel = document.querySelector<HTMLElement>('.polarion-dle-MainDockPanel'); const wasInert = panel?.inert; if (panel) panel.inert = true;
-    editor.current?.setEditable(false,false);
-    let verified=false;const canvas=surface.current?.closest<HTMLElement>('.rich-canvas'),scrollTop=canvas?.scrollTop??0;
-    try { await flushRef.current();const nativeState=background?'clean':await prepareNativeSave();setSync('正在写入并回读核对…'); const result = await rpc<DraftView>({ method: 'drafts.save', draftId: draft.id, expectedRevision: revision.current, nativeState }); verified=true;onUpdate(result);revision.current=result.revision;if(session.current)session.current.draft=result;setSync(background?'已保存到变体 · 主工作项未改动':'已写入 Polarion · 回读一致');onClearError();await onSaved(result);
-      // 守望推送：保存成功后读缓存影响卡（不触发扫描），关联模块疑似过期时提示做一致性巡检。
-      if (!background) void rpc<{ staleCount: number }>({ method: 'impact.view', target: draft.target, workItemId: draft.workItemId })
-        .then(view => { if (view.staleCount > 0) setIssue(`已保存。守望提醒：${view.staleCount} 个关联实现模块在基准后变化过（疑似过期），建议在模型工作台做一次一致性巡检。`); })
-        .catch(() => { /* 影响卡依赖覆盖索引，未建时静默跳过 */ }); }
-    catch (e) {
-      if(verified){setSync('已写入 Polarion · 回读一致');setIssue('保存已成功，原生正文尚未同步：'+(e as Error).message);}
-      else {onError(e);setSync('保存未完成 · 草稿已保留');setIssue(saveError(e));try{latest.current.onUpdate(await rpc<DraftView>({method:'drafts.read',draftId:draft.id}));}catch{/* Preserve the original write error. */}}
+    if (busy) return;
+    if (!isUserEvent(event.nativeEvent)) {setIssue(`保存没有收到有效的用户点击，请重新点击“${draft.variantOf?'保存到变体':'保存到 Polarion'}”。`);return;}
+    const attempt = beginSave(), unlock = lockNativePanelInput();
+    setBusy(true); setIssue(''); setSync('正在同步本地修改…');
+    editor.current?.setEditable(false, false);
+    const canvas = surface.current?.closest<HTMLElement>('.rich-canvas'), scrollTop = canvas?.scrollTop ?? 0;
+    let saved: (DraftView & {wroteToPolarion?: boolean}) | undefined;
+    try {
+      await flushRef.current();
+      // The open workbench is the source of truth. Saving replaces the remote
+      // description; no content comparison decides whether the write happens.
+      const nativeState = draft.variantOf ? 'clean' : await prepareNativeSave();
+      if (attempt !== saveAttempt.current) return;
+      setSync('正在保存到 Polarion…');
+      saved = await rpc<DraftView & {wroteToPolarion?: boolean}>({method:'drafts.save', draftId:draft.id, expectedRevision:revision.current, nativeState});
+      if (attempt !== saveAttempt.current) return;
+      onUpdate(saved); revision.current = saved.revision;
+      if (session.current) session.current.draft = saved;
+      onClearError();
+      const synced = await reportVerifiedSave(saved, attempt, '', saved.wroteToPolarion === false);
+      if (synced) void rpc<{staleCount: number}>({method:'impact.view', target:draft.target, workItemId:draft.workItemId})
+        .then(view => { if (attempt === saveAttempt.current && view.staleCount > 0) setIssue(`已保存。守望提醒：${view.staleCount} 个关联实现模块在基准后变化过（疑似过期），建议在模型工作台做一次一致性巡检。`); })
+        .catch(() => { /* The impact index is optional. */ });
+    } catch (error) {
+      if (attempt !== saveAttempt.current) return;
+      if (saved) {
+        setSync(''); setReceipt({state: 'confirmed', text: `修订 ${saved.revision} · 已保存到 Polarion · 原生页面显示未同步（${nativeSyncFailure(error)}），可手动刷新文档；保存不受影响`});
+      } else {
+        onError(error); setSync('保存未完成 · 草稿已保留'); setIssue(saveError(error));
+        try { const current = await rpc<DraftView>({method:'drafts.read',draftId:draft.id}); if (attempt === saveAttempt.current) onUpdate(current); }
+        catch { /* Preserve the original write error. */ }
+      }
+    } finally {
+      unlock();
+      if (attempt === saveAttempt.current) {
+        if (editor.current && !editor.current.isDestroyed) editor.current.setEditable(true, false);
+        setBusy(false);
+        requestAnimationFrame(() => { if (attempt === saveAttempt.current && canvas?.isConnected) canvas.scrollTop = scrollTop; });
+      }
     }
-    finally { if (panel) panel.inert = wasInert ?? false; editor.current?.setEditable(latest.current.draft.state!=='uncertain',false); setBusy(false);requestAnimationFrame(()=>{if(canvas?.isConnected)canvas.scrollTop=scrollTop;}); }
   };
-  const stateLabel = { clean: '与基线一致', dirty: '待保存到 Polarion', conflict: '待合并', uncertain: '待回读核对' }[draft.state];
+  const stateLabel = { clean: '与基线一致', dirty: '待保存到 Polarion', conflict: '服务端也有修改', uncertain: '上次保存待确认' }[draft.state];
   const characterCount=useMemo(()=>editor.current?.getText().length??0,[tick,ready]);
   const typography=ready?selectionTypography(editor.current):{size:'10pt',font:'',line:'1.5'};
   const fontOptions=[['Microsoft YaHei, sans-serif','微软雅黑'],['SimSun, serif','宋体'],['Arial, sans-serif','Arial'],['Consolas, monospace','Consolas']];
   const selectedFont=fontOptions.find(([value])=>typography.font.replaceAll('"','').startsWith(value!.split(',')[0]!))?.[0]??'';
   return <div ref={layer} className={'editor-layer rich-layer ' + (focus ? 'focus-mode ' : '')+(props.aiOpen?'with-ai':'')}><section className="editor rich-workbench" role="dialog" aria-modal="false" aria-label="工作项编辑工作台" onKeyDown={event=>{if(event.key==='Escape'&&!event.nativeEvent.isComposing&&popup){event.preventDefault();event.stopPropagation();closePopup();}}}>
-    <header className="rich-header"><div className="rich-doc-icon"><FileBadge/></div><div className="rich-heading"><span className="eyebrow">{(draft.variantOf?'变体':'工作项')} · {draft.workItemId}</span><h2>{draft.title}</h2>{draft.variantOf&&<button className="variant-chip" title={'返回主工作项 '+draft.variantOf} onClick={()=>onOpenVariant(draft.variantOf!)}><GitBranch size={11}/>主工作项 {draft.variantOf}</button>}</div><div className="rich-window-actions">{!draft.variantOf && <ModuleNotePanel target={draft.target} workItemId={draft.workItemId} toolbar onError={setIssue} />}{!draft.variantOf&&<button className="editor-ai-toggle" aria-pressed={variantsOpen} title="变体管理" onClick={()=>setVariantsOpen(value=>!value)}><GitBranch size={14}/>变体</button>}<button className="editor-ai-toggle" aria-pressed={props.aiOpen} onClick={props.onToggleAI}><MessageSquare size={14}/>AI 协作</button><span className={'sync-status ' + (issue ? 'warning' : '')}><i/>{sync}</span><button className="icon" title={focus ? '退出专注编辑' : '专注编辑'} onClick={() => setFocus(v => !v)}>{focus ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}</button><button className="icon" title="关闭，保留本地草稿" disabled={busy} onClick={() => void flushRef.current().then(onClose).catch(error => { onError(error); onClose(); })}><X size={19}/></button></div></header>
+    <header className="rich-header"><div className="rich-doc-icon"><FileBadge/></div><div className="rich-heading"><span className="eyebrow">{(draft.variantOf?'变体':'工作项')} · {draft.workItemId}</span><h2>{draft.title}</h2>{draft.variantOf&&<button className="variant-chip" title={'返回主工作项 '+draft.variantOf} onClick={()=>onOpenVariant(draft.variantOf!)}><GitBranch size={11}/>主工作项 {draft.variantOf}</button>}</div><div className="rich-window-actions">{!draft.variantOf && <ModuleNotePanel target={draft.target} workItemId={draft.workItemId} toolbar onError={setIssue} />}{!draft.variantOf&&<button className="editor-ai-toggle" aria-pressed={variantsOpen} title="变体管理" onClick={()=>setVariantsOpen(value=>!value)}><GitBranch size={14}/>变体</button>}<button className="editor-ai-toggle" aria-pressed={props.aiOpen} onClick={props.onToggleAI}><MessageSquare size={14}/>AI 协作</button>{sync && <span className={'sync-status ' + (issue ? 'warning' : '')}><i/>{sync}</span>}<button className="icon" title={focus ? '退出专注编辑' : '专注编辑'} onClick={() => setFocus(v => !v)}>{focus ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}</button><button className="icon" title="关闭，保留本地草稿" disabled={busy} onClick={() => void closeKeepingEdits()}><X size={19}/></button></div></header>
     <nav className="editor-toolbar rich-tabs"><div>{[['edit','编辑正文'],['preview','阅读预览'],['diff','修改对照']].map(([key,label]) => <button key={key} className={mode === key ? 'selected' : ''} onClick={() => void flushRef.current().then(() => setMode(key as any)).catch(onError)}>{label}</button>)}</div><span>修订 {draft.revision} <b>·</b> {stateLabel}</span></nav>
-    <div className="rich-controls" hidden={mode !== 'edit'}>
+    <div className="rich-controls" hidden={mode !== 'edit'} inert={!!recovery}>
       <input hidden type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple ref={imageFiles} aria-label="插入正文图片文件" onChange={e=>{if(e.target.files)void importImagesRef.current(Array.from(e.target.files));e.target.value='';}}/>
       <div className="ribbon-tabs"><button className={ribbon === 'text' ? 'active' : ''} onClick={() => setRibbon('text')}>文字与段落</button><button className={ribbon === 'table' ? 'active' : ''} onClick={() => setRibbon('table')}>表格 {inTable && <i/>}</button><button className={ribbon === 'insert' ? 'active' : ''} onClick={() => setRibbon('insert')}>插入与查找</button><span>Ctrl+B / I / U · Ctrl+Z 撤销</span></div>
-      <SingleLineToolbar mode={ribbon} tick={tick} disabled={!ready||busy||draft.state==='uncertain'}>
+      <SingleLineToolbar mode={ribbon} tick={tick} disabled={!ready||busy}>
         <div aria-label="编辑历史">{button('撤销 Ctrl+Z',<Undo2 size={16}/>,e=>{e.chain().focus().undo().run();},false,!editor.current?.can().undo())}{button('重做 Ctrl+Y',<Redo2 size={16}/>,e=>{e.chain().focus().redo().run();},false,!editor.current?.can().redo())}</div>
         {ribbon==='text'&&<>
           <div aria-label="字体与段落样式"><select aria-label="段落样式" value={editor.current?.isActive('heading')?String(editor.current.getAttributes('heading').level):'p'} onChange={event=>act(e=>{const value=event.target.value;value==='p'?e.chain().focus().setParagraph().run():e.chain().focus().setHeading({level:Number(value) as any}).run();})}><option value="p">正文</option>{[1,2,3,4,5,6].map(n=><option key={n} value={n}>标题 {n}</option>)}</select><select aria-label="字体" value={selectedFont} onChange={event=>paint({font:event.target.value})}><option value="" disabled>{typography.font.split(',')[0]?.replaceAll('"','')||'默认字体'}</option>{fontOptions.map(([v,label])=><option key={v} value={v}>{label}</option>)}</select><select aria-label="字号" title="字号（pt），与 Polarion 原生字号一致" value={typography.size} onChange={event=>paint({size:event.target.value})}>{!nativeFontSizes.includes(parseFloat(typography.size))&&<option value={typography.size}>{parseFloat(typography.size)} pt</option>}{nativeFontSizes.map(n=><option key={n} value={n+'pt'}>{n} pt</option>)}</select></div>
@@ -478,9 +688,9 @@ export function DraftEditor(props: Props) {
         </>}
         {ribbon==='insert'&&<>
           <div aria-label="插入内容">{button('插入图片',<><ImagePlus size={16}/><span>图片</span></>,()=>{replaceImage.current=false;imageFiles.current?.click();})}{button('插入表格',<><Table2 size={16}/><span>表格</span></>,()=>setPopup('table'))}{button('插入或编辑链接',<><Link size={16}/><span>链接</span></>,openLink)}{button('插入可编辑画板',<><PenTool size={16}/><span>画板</span></>,()=>void openBoard())}{button('插入公式（行内/块级，LaTeX 语法）',<><Sigma size={16}/><span>公式</span></>,openFormulaEditor)}<ToolbarMenu label="更多插入">{button('插入折叠块（原生 details，Polarion 原生视图不折叠时内容仍完整）',<><ListCollapse size={16}/><span>折叠块</span></>,insertDetails)}{button('插入分隔线',<><Minus size={16}/><span>分隔线</span></>,e=>{e.chain().focus().setHorizontalRule().run();})}{button('行内代码',<><Code size={16}/><span>行内代码</span></>,e=>{e.chain().focus().toggleCode().run();})}{button('代码块',<><Code size={16}/><span>代码块</span></>,e=>{e.chain().focus().toggleCodeBlock().run();},editor.current?.isActive('codeBlock'))}{editor.current?.isActive('codeBlock')&&<label>语言<select aria-label="代码语言" value={editor.current.getAttributes('codeBlock').language??''} onChange={event=>act(e=>{e.chain().focus().updateAttributes('codeBlock',{language:event.target.value||null}).run();})}>{[['','纯文本'],['c','C'],['cpp','C++'],['matlab','MATLAB'],['python','Python'],['json','JSON']].map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></label>}<hr/>{button('插入徽章：信号',<><Tags size={16}/><span>信号徽章</span></>,()=>insertBadge('signal'))}{button('插入徽章：状态',<><Tags size={16}/><span>状态徽章</span></>,()=>insertBadge('status'))}{button('插入徽章：告警',<><Tags size={16}/><span>告警徽章</span></>,()=>insertBadge('alert'))}<hr/>{engineeringSnippets.map(snippet => button(`插入工程句式：${snippet.label}`,<span>{snippet.label}句式</span>,e=>{e.chain().focus().insertContent(snippet.text).run();}))}<hr/>{button('图片属性',<span>图片属性…</span>,e=>{const a=e.getAttributes('image');setImageProperties({alt:a.alt??'',width:a.width?String(a.width):'',height:a.height?String(a.height):'',align:a.align??'left'});setPopup('image');},false,!editor.current?.isActive('image'))}{button('继续编辑选中画板',<span>继续编辑选中画板…</span>,()=>void openBoard(true),false,!editor.current?.isActive('image'))}</ToolbarMenu></div>
-          <div aria-label="查找与备份">{button('一键排版整理：空段清理、图片限宽、表格补边框、引号/十六进制/空格/重复标点规范（代码与公式不动）',<><Wand2 size={16}/><span>排版整理</span></>,tidyAll)}{button('写前查重：与当前文档已索引条目比对，找相似需求和共享术语',<><CopyCheck size={16}/><span>写前查重</span></>,()=>setPopup(popup==='dedup'?null:'dedup'))}{button('影响分析：本条目的实现模块（含疑似过期）、上下游与验证链接',<><GitFork size={16}/><span>影响分析</span></>,()=>setPopup(popup==='impact'?null:'impact'))}{button('查找与替换',<><Search size={16}/><span>查找替换</span></>,()=>setPopup(popup==='search'?null:'search'))}{button('导出当前编辑备份',<Download size={16}/>,exportCurrent)}</div>
+          <div aria-label="查找与备份">{button('一键排版整理：空段清理、图片限宽、表格补边框、引号/十六进制/空格/重复标点规范（代码与公式不动）',<><Wand2 size={16}/><span>排版整理</span></>,tidyAll)}{button('写前查重：与当前文档已索引条目比对，找相似需求和共享术语',<><CopyCheck size={16}/><span>写前查重</span></>,()=>setPopup(popup==='dedup'?null:'dedup'))}{button('影响分析：本条目的实现模块（含疑似过期）、上下游与验证链接',<><GitFork size={16}/><span>影响分析</span></>,()=>setPopup(popup==='impact'?null:'impact'))}{button('查找与替换',<><Search size={16}/><span>查找替换</span></>,()=>setPopup(popup==='search'?null:'search'))}{button('导出当前编辑备份',<Download size={16}/>,() => exportEdit())}</div>
         </>}
-        <div aria-label="文档操作">{ready&&editor.current&&<div inert={busy||draft.state==='uncertain'}><EditorDocTools compact editor={editor.current} onPopup={name=>{if(name==='link')openLink(editor.current!);else setPopup(name);}} onImage={()=>{replaceImage.current=false;imageFiles.current?.click();}} onBoard={()=>void openBoard()} onIssue={setIssue}/></div>}</div>
+        <div aria-label="文档操作">{ready&&editor.current&&<div inert={busy}><EditorDocTools compact editor={editor.current} onPopup={name=>{if(name==='link')openLink(editor.current!);else setPopup(name);}} onImage={()=>{replaceImage.current=false;imageFiles.current?.click();}} onBoard={()=>void openBoard()} onIssue={setIssue}/></div>}</div>
       </SingleLineToolbar>
 
       {popup && layer.current && createPortal(<div className="rich-popover" ref={popupRoot} style={popupPosition} role="dialog" aria-label="编辑属性" onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closePopup();}}}><div className="popover-title"><strong>{{ color:'文字颜色', highlight:'文字高亮', 'cell-color':'单元格底色', table:'插入表格', link:'编辑链接', 'cell-size':'单元格设置', search:'查找与替换',image:'图片属性','paragraph-properties':'段落属性','table-properties':'表格属性','cell-properties':'单元格属性',formula:'插入公式',dedup:'写前查重',impact:'影响分析' }[popup]}</strong><button className="icon" title="关闭工具面板" onClick={closePopup}><X size={14}/></button></div>
@@ -499,12 +709,14 @@ export function DraftEditor(props: Props) {
     </div>
     {tableMenu&&editor.current&&<TableQuickMenu editor={editor.current} position={tableMenu} onClose={()=>setTableMenu(null)} onProperties={()=>setPopup('cell-properties')}/>}
     {lintCard&&layer.current&&createPortal(<QualityLintCard issue={lintCard.issue} left={lintCard.left} top={lintCard.top}/>,layer.current)}
-    {recovery && <div className="rich-alert"><span>检测到上次未同步的编辑，可先导出备份，或恢复到当前编辑器。</span><button onClick={() => { session.current = { ...session.current!, editorId: recovery.editorId }; revision.current = recovery.revision; editor.current?.commands.setContent(recovery.document); setRecovery(null); }}>恢复编辑</button><button onClick={() => { void browser.storage.local.remove(checkpointKey); setRecovery(null); }}>忽略</button></div>}
+    {recovery && <div className="rich-alert" role="status"><span>有一份未同步的编辑备份。恢复后可继续编辑，再保存到 Polarion。</span>
+      <button disabled={busy} onClick={() => void restoreEdit(recovery)}>恢复编辑</button>
+      <button onClick={() => exportEdit(recovery)}>导出备份</button>
+      <button disabled={busy} onClick={() => { void browser.storage.local.remove(checkpointKey).then(() => setRecovery(null)).catch(e => setIssue((e as Error).message)); }}>放弃备份</button></div>}
     {pendingBoard && <div className="rich-alert board-placement" role="status"><span>画板「{pendingBoard.manifest.title}」已就绪：在正文中点击要插入的位置</span><button className="primary" onClick={() => { const e = editor.current; if (e) void placeBoardRef.current(pendingBoard, e.state.doc.content.size); }}>插入到文档末尾</button><button onClick={() => { void placeBoardRef.current(pendingBoard, 0); }}>插入到开头</button><button onClick={closeBoard}>取消放置</button></div>}
-    {issue && <div className="rich-alert" role="alert"><span>{issue}</span><button onClick={exportCurrent}>导出备份</button><button title="关闭编辑提示" onClick={() => setIssue('')}><X size={14}/></button></div>}
+    {issue && <div className="rich-alert" role="alert"><span>{issue}</span><button onClick={() => exportEdit()}>导出备份</button><button title="关闭编辑提示" onClick={() => setIssue('')}><X size={14}/></button></div>}
     {bubble&&mode==='edit'&&!popup&&<div className="selection-toolbar" role="toolbar" aria-label="选区快捷工具" style={bubble}>{button('选区加粗',<Bold size={16}/>,e=>{e.chain().focus().toggleBold().run();},editor.current?.isActive('bold'))}{button('选区斜体',<Italic size={16}/>,e=>{e.chain().focus().toggleItalic().run();})}{button('选区高亮',<Highlighter size={16}/>,e=>{e.chain().focus().setMark('paint',{background:'#fef3c7'}).run();})}{button('选区链接',<Link size={16}/>,openLink)}<span>已加入 AI 上下文</span></div>}
     {draft.state==='conflict'&&<div className="rich-alert"><span>服务端与本地基线不同。先比较两个版本，再决定保留哪份内容。</span><button disabled={!!pending.current||busy} onClick={()=>setReviewing(true)}>比较并处理差异</button></div>}
-    {draft.state==='uncertain'&&<div className="rich-alert"><span>上次保存结果尚未确认，编辑已暂停，请先核对服务端。</span></div>}
     {reviewing&&<ConflictReview draftId={draft.id} onClose={()=>setReviewing(false)} onResolved={async()=>{await checkpointWrites.current;await browser.storage.local.remove(checkpointKey);setRecovery(null);create(await rpc<RichReply>({method:'drafts.rich.read',draftId:draft.id}));setReviewing(false);}}/>}
     {refQuery !== null && ready && mode === 'edit' && <div ref={refPicker} className="workitem-ref-picker" role="listbox" aria-label="引用工作项候选" style={{ position: 'fixed', left: refPos.current.left, top: refPos.current.top }}><div className="workitem-ref-hint"><input ref={refInput} value={refQuery} onChange={event => setRefQuery(event.target.value)} onKeyDown={refInputKeyDown} placeholder="搜索工作项编号或标题…" aria-label="搜索工作项"/><div className="workitem-ref-meta"><span>共 {refTotal.current} 项{refHits.current.length < refTotal.current ? ` · 显示前 ${refHits.current.length}` : ''}</span><small>↑↓ 选择 · Enter 插入 · Esc 关闭</small></div></div>{refHits.current.length ? refHits.current.map((hit, index) => <button key={hit.workItemId} type="button" role="option" aria-selected={index === refIndex.current} className={index === refIndex.current ? 'selected' : ''} onMouseDown={event => event.preventDefault()} onClick={() => insertWorkItemRef(hit.workItemId)}><strong>{hit.workItemId}</strong><span>{hit.title || '未命名工作项'}</span><i>{hit.source === 'document' ? '本文档' : hit.source === 'draft' ? '本地草稿' : 'Polarion'}</i></button>) : <div className="workitem-ref-empty">没有匹配的工作项，继续输入编号或标题</div>}</div>}
     <div className="editor-body rich-canvas" data-mode={mode} onScroll={()=>{setBubble(null);setLintCard(null);}}>
@@ -517,8 +729,21 @@ export function DraftEditor(props: Props) {
       {mode === 'diff' && <DocumentReview draft={draft} onRead={()=>setMode('preview')}/>}
     </div>
     {tidyNote&&<div className="rich-toast" role="status" aria-live="polite">{tidyNote}</div>}
-    <div className="rich-statusbar"><QualityLintStatus key={draft.id} issues={lintIssues.current} onDeepLint={() => { props.onShowAI?.(); showTidyNote('已发起 AI 深检，结果在右侧 AI 协作面板查看。'); props.onDeepLint?.(draft.workItemId, draft.title); }} disabled={!ready || busy || draft.state === 'uncertain' || draft.state === 'conflict'} onPreview={previewLintFix} onRewrite={rewriteLintIssue} onFix={applyLintFix} onJump={issue => { const e = editor.current; if (!e || issue.from === undefined || issue.to === undefined) return; e.chain().setTextSelection({ from: issue.from, to: issue.to }).scrollIntoView().run(); e.view.focus(); }}/><span>{characterCount} 字 <b>·</b> {inTable ? '表格编辑 · 右键快捷操作 · Tab 下一格' : selected ? '选区已传入助手上下文' : '手工与 AI 共用本地草稿'}</span><span>本地自动保存 <b>·</b> 服务端需明确保存</span></div>
-    <footer><span className="muted">{draft.workItemId} <b>·</b> {stateLabel}{draft.variantOf?' · 变体不影响主工作项':''}</span>{['uncertain','conflict'].includes(draft.state) && <button className="secondary" disabled={busy} onClick={() => void rpc<DraftView>({ method: 'drafts.reconcile', draftId: draft.id }).then(onUpdate).catch(onError)}>核对服务端</button>}<button className="secondary" disabled={busy || !!pending.current} onClick={async () => { try { await flushRef.current(); create(await rpc<RichReply>({ method: 'drafts.rich.read', draftId: draft.id })); } catch (e) { onError(e); } }}>载入最新草稿</button><button className="primary save-polarion" disabled={busy || !ready || (draft.state !== 'dirty' && !pending.current)} onClick={save}><Check size={15}/>{busy ? '正在核对并保存…' : draft.variantOf ? '保存到变体' : '保存到 Polarion'}</button></footer>
+    <div className="rich-statusbar"><QualityLintStatus key={draft.id} issues={lintIssues.current} onDeepLint={inspectQuality} inspectionSource={inspectionSource()} writeDisabled={!ready || busy || !!recovery} onPreview={previewLintFix} onRewrite={runQualityCheck} onFix={applyLintFix} onJump={issue => {
+      const current = editor.current;
+      setMode('edit');
+      requestAnimationFrame(() => {
+        if (!current || current !== editor.current || current.isDestroyed) return;
+        const { from, to } = issue;
+        if (from === undefined || to === undefined || from < 0 || to > current.state.doc.content.size || (issue.matchedText && current.state.doc.textBetween(from, to) !== issue.matchedText)) {
+          setIssue('正文已经更新，请重新展开体检后定位。'); return;
+        }
+        current.chain().setTextSelection({ from, to }).scrollIntoView().focus().run();
+      });
+    }}/><span>{characterCount} 字 <b>·</b> {inTable ? '表格编辑 · 右键快捷操作 · Tab 下一格' : selected ? '选区已传入助手上下文' : '手工与 AI 共用本地草稿'}</span><span>本地自动保存 <b>·</b> 服务端需明确保存</span></div>
+    <footer>{receipt
+      ? <span className="save-notice" role="status" aria-label="保存回执" aria-atomic="true" data-state={receipt.state}>{receipt.text}</span>
+      : <span className="muted">{draft.workItemId} <b>·</b> {stateLabel}{draft.variantOf?' · 变体不影响主工作项':''}</span>}{draftReadNotice && <span className="draft-read-notice" role="status">{draftReadNotice}</span>}<button className="secondary" disabled={busy || !!pending.current || draftReadAction !== null} onClick={() => void readDraft('reload')}>{draftReadAction === 'reload' ? '正在载入…' : '载入最新草稿'}</button><button className="primary save-polarion" disabled={busy || !!recovery || !ready || (draft.state === 'clean' && !pending.current)} onClick={save}><Check size={15}/>{busy ? '正在保存…' : draft.variantOf ? '保存到变体' : '保存到 Polarion'}</button></footer>
     {variantsOpen&&!draft.variantOf&&<VariantPanel draft={draft} beforeApply={()=>flushRef.current()} prepareNativeSave={prepareNativeSave} onOpenVariant={onOpenVariant} onChanged={onVariantChanged} onError={onError} onClearError={onClearError} onClose={()=>setVariantsOpen(false)}/>}
   </section>{board&&!pendingBoard&&<BoardDialog code={board.code} draft={draft} record={board.record} generationRequest={board.generationRequest} onSaved={insertBoard} onClose={closeBoard} onContext={onContext} onToggleAI={props.onToggleAI} onShowAI={props.onShowAI}/>}</div>;
 }

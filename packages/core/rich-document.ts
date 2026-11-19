@@ -1,6 +1,8 @@
 import { parseFragment, type DefaultTreeAdapterTypes } from 'parse5';
+import { DecodingMode, HtmlEntityDecoder } from 'entities/decode';
+import { diffTextParts } from './text-diff.ts';
 import type { JSONContent } from '@tiptap/core';
-import { richSchema, safeStyle,calloutTones } from './rich-schema.ts';
+import { richSchema, sanitizeRichJSON, safeStyle,calloutTones } from './rich-schema.ts';
 import {mergeSourceStyle,safeColor} from './rich-style.ts';
 import {documentNodeStyle, headingSizes} from './document-presentation.ts';
 
@@ -8,13 +10,17 @@ type H = DefaultTreeAdapterTypes.Node;
 type J = JSONContent;
 type M = NonNullable<J['marks']>[number];
 type TableSection = { before:string; open:string; close:string; rows:string[]; tag:string };
-type RecordNode = { id: string; tag: string; start: number; end: number; open: string; close: string; raw: string; attrs: Record<string, string>; original: J; children: string[]; synthetic?: boolean; tableLayout?: { sections:TableSection[]; tail:string } };
+type SourceTextRun = { text: string; start?: number; end?: number };
+type RecordNode = { id: string; tag: string; start: number; end: number; open: string; close: string; raw: string; attrs: Record<string, string>; original: J; children: string[]; synthetic?: boolean; codeText?: SourceTextRun[]; tableLayout?: { sections:TableSection[]; tail:string } };
 const tags: Record<string, string> = { p: 'paragraph', pre:'codeBlock', div: 'sourceContainer', ul: 'bulletList', ol: 'orderedList', li: 'listItem', blockquote: 'blockquote', table: 'table', tr: 'tableRow', td: 'tableCell', th: 'tableHeader', hr: 'horizontalRule', br: 'hardBreak' };
 const marks: Record<string, string> = { strong: 'bold', b: 'bold', em: 'italic', i: 'italic', u: 'underline', s: 'strike', del: 'strike', strike: 'strike', code: 'code', a: 'link', sub: 'subscript', sup: 'superscript', span: 'sourceSpan' };
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const identity = (j: J) => j.attrs?.sid as string | undefined;
 const macroName = (attrs:Record<string,string>) => attrs.id?.match(/^polarion_wiki\s+macro\s+name=([^;]+)(?:;|$)/)?.[1];
 const hasMacro = (attrs:Record<string,string>) => /^polarion_wiki\s+macro\s+name=/.test(attrs.id??'');
+const elementAttrs = (n: H): Record<string, string> => 'attrs' in n ? Object.fromEntries(n.attrs.map(a => [a.name, a.value])) : {};
+const taskBody = (n: H) => 'childNodes' in n ? n.childNodes.find(child => 'data-task-content' in elementAttrs(child)) : undefined;
+const taskItemSupported = (n: H) => n.nodeName === 'li' && elementAttrs(n)['data-sidebar-task'] === 'true' && !hasMacro(elementAttrs(n)) && !!taskBody(n);
 const containsTable = (n:H):boolean => n.nodeName==='table'||'childNodes'in n&&n.childNodes.some(containsTable);
 const isTableWrapper = (n:H) => 'attrs' in n && macroName(Object.fromEntries(n.attrs.map(a=>[a.name,a.value])))==='table' && ['span','div'].includes(n.nodeName)&&containsTable(n);
 const containsBlockContent = (n:H):boolean => ['table','ol','ul'].includes(n.nodeName)||'childNodes'in n&&n.childNodes.some(containsBlockContent);
@@ -26,6 +32,48 @@ export function escapeText(value: string) {
   return Array.from(value, c => c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c.codePointAt(0)! > 0xffff ? `&#x${c.codePointAt(0)!.toString(16).toUpperCase()};` : c).join('');
 }
 const attr = (v: string) => escapeText(v).replaceAll('"', '&quot;');
+const unmappedText = '此处文字无法与可编辑源码安全对应，草稿未修改。';
+
+/** Assign new characters to the original text positions so a change can cross style marks. */
+function replacementAt(original: string, replacement: string) {
+  const pieces = original.split(''); // indexed by ProseMirror's UTF-16 positions
+  let pos = 0, prefix = '';
+  for (const part of diffTextParts(original, replacement, true)) {
+    if (part.kind === 'same') { pos += part.text.length; continue; }
+    const text = part.after ?? '';
+    if (!part.before) {
+      if (pos) pieces[pos - 1] += text;
+      else prefix += text;
+      continue;
+    }
+    const letters = Array.from(text), end = pos + part.before.length;
+    let index = 0;
+    for (const letter of part.before) {
+      pieces[pos] = pos + letter.length === end ? letters.slice(index).join('') : letters[index] ?? '';
+      if (letter.length === 2) pieces[pos + 1] = '';
+      pos += letter.length; index++;
+    }
+  }
+  pieces[0] = prefix + pieces[0];
+  return pieces;
+}
+
+/** A reference can decode to several UTF-16 units. Preserve its exact spelling unless one changes. */
+function* sourceCharacters(raw: string) {
+  let decoded = '';
+  const decoder = new HtmlEntityDecoder(cp => { decoded += String.fromCodePoint(cp); });
+  for (let start = 0; start < raw.length;) {
+    let value = String.fromCodePoint(raw.codePointAt(start)!), length = value.length;
+    if (value === '&') {
+      decoded = ''; decoder.startEntity(DecodingMode.Legacy);
+      let consumed = decoder.write(raw, start + 1);
+      if (consumed < 0) consumed = decoder.end();
+      if (consumed) { value = decoded; length = consumed; }
+    } else if (value === '\r') { value = '\n'; length = raw[start + 1] === '\n' ? 2 : 1; }
+    yield { start, end: start + length, value };
+    start += length;
+  }
+}
 export class RichDocument {
   readonly version: string;
   readonly source: string;
@@ -39,16 +87,57 @@ export class RichDocument {
     this.source = source;
     const fragment = parseFragment(source, { sourceCodeLocationInfo: true });
     const root = { type: 'doc', content: this.blocks(fragment.childNodes) };
-    if (!root.content.length) root.content.push({ type: 'paragraph' });
-    this.document = richSchema.nodeFromJSON(root).toJSON();
+    const parsed = richSchema.nodeFromJSON(sanitizeRichJSON(root));
+    parsed.check();
+    this.document = parsed.toJSON();
     this.rootRecord = { id: '', tag: '#doc', start: 0, end: source.length, open: '', close: '', raw: source, attrs: {}, original: this.document, children: root.content.map(identity).filter(Boolean) as string[] };
     const baseline = (j: J) => {
       const id = identity(j); if (id && this.records.has(id)) this.records.get(id)!.original = structuredClone(j);
       for (const m of j.marks ?? []) { const r = this.records.get(identity(m)!); if (r && m.type !== 'sourceText') r.original = structuredClone(m); }
       j.content?.forEach(baseline);
     }; baseline(this.document);
-    // Reject unsupported parse results before they can be edited; no lossy recovery.
-    richSchema.nodeFromJSON(this.document).check();
+  }
+  /** Patch only mapped source text. Re-rendering an edited block could also normalize native wrappers or neighbouring entities. */
+  replaceTextRange(from: number, to: number, expected: string, replacement: string) {
+    const doc = richSchema.nodeFromJSON(this.document);
+    if (!expected || to - from !== expected.length || !doc.resolve(from).sameParent(doc.resolve(to)) || doc.textBetween(from, to, '', '\uFFFC') !== expected) throw Error(unmappedText);
+    const pieces = replacementAt(expected, replacement);
+    const patches: { start: number; end: number; html: string }[] = [];
+    const patchRun = (run: SourceTextRun, pos: number) => {
+      const first = Math.max(0, from - pos), last = Math.min(run.text.length, to - pos);
+      if (first >= last || pieces.slice(pos + first - from, pos + last - from).join('') === run.text.slice(first, last)) return;
+      if (run.start === undefined || run.end === undefined) throw Error(unmappedText);
+      let offset = 0;
+      for (const unit of sourceCharacters(this.source.slice(run.start, run.end))) {
+        if (!run.text.startsWith(unit.value, offset)) throw Error(unmappedText);
+        let text = '';
+        for (let i = 0; i < unit.value.length; i++) {
+          const at = offset + i;
+          text += at >= first && at < last ? pieces[pos + at - from] : unit.value[i];
+        }
+        if (text !== unit.value) patches.push({ start: run.start + unit.start, end: run.start + unit.end, html: escapeText(text) });
+        offset += unit.value.length;
+        if (offset >= last) break;
+      }
+      if (offset < last) throw Error(unmappedText);
+    };
+    doc.nodesBetween(from, to, (node, pos, parent) => {
+      if (!node.isText) return;
+      const record = this.records.get(node.marks.find(m => m.type.name === 'sourceText')?.attrs.sid);
+      const runs = record && record.original.text === node.text ? [{ text: node.text!, start: record.start, end: record.end }] : this.records.get(parent?.attrs.sid)?.codeText;
+      if (!runs || runs.map(r => r.text).join('') !== node.text) throw Error(unmappedText);
+      for (const run of runs) { patchRun(run, pos); pos += run.text.length; }
+    });
+    let cursor = 0, html = '';
+    for (const patch of patches.sort((a, b) => a.start - b.start)) {
+      if (patch.start < cursor) throw Error(unmappedText);
+      html += this.source.slice(cursor, patch.start) + patch.html; cursor = patch.end;
+    }
+    html += this.source.slice(cursor);
+    const next = richSchema.nodeFromJSON(new RichDocument(html).document);
+    const expectedText = doc.textBetween(0, from, '', '') + replacement + doc.textBetween(to, doc.content.size, '', '');
+    if (next.textBetween(0, next.content.size, '', '') !== expectedText) throw Error(unmappedText);
+    return html;
   }
   private record(node: H, j: J, synthetic = false) {
     const loc = node.sourceCodeLocation;
@@ -97,7 +186,8 @@ export class RichDocument {
       const r = this.record(n, { type: 'sourceText', text: n.value });
       j.marks = [...parentMarks, { type: 'sourceText', attrs: { sid: r.id } }]; return [j];
     }
-    const attrs = 'attrs' in n ? Object.fromEntries(n.attrs.map(a => [a.name, a.value])) : {};
+    const attrs = elementAttrs(n);
+    if (hasMacro(attrs)) return [{ ...this.opaque(n, true), marks: parentMarks }];
     if(n.nodeName==='span'&&attrs['data-sidebar-formula']!==undefined){
       const j:J={type:'formulaInline',attrs:{tex:(attrs['data-tex']??this.textContent(n)).slice(0,4000)},marks:parentMarks};this.record(n,j);return[j];
     }
@@ -124,13 +214,23 @@ export class RichDocument {
     return ('childNodes' in n ? n.childNodes : []).flatMap(child => this.inline(child, [...parentMarks, mark]));
   }
   private block(n: H): J {
-    const attrs = 'attrs' in n ? Object.fromEntries(n.attrs.map(a => [a.name, a.value])) : {};
-    if((n.nodeName==='ul'&&attrs['data-sidebar-tasks']==='true')||(n.nodeName==='li'&&attrs['data-sidebar-task']==='true')){
-      const task=n.nodeName==='li',all='childNodes'in n?n.childNodes:[],container=task?all.find(c=>'attrs'in c&&c.attrs.some(a=>a.name==='data-task-content')):n;
-      if(!container)return this.opaque(n,false);
-      const content=this.blocks('childNodes'in container?container.childNodes:[]);
-      if(task&&content[0]?.type!=='paragraph')content.unshift({type:'paragraph'});
-      const j:J={type:task?'taskItem':'taskList',attrs:task?{checked:attrs['data-checked']==='true'}:{},content};const r=this.record(n,j);r.children=content.map(identity).filter(Boolean) as string[];return j;
+    const attrs = elementAttrs(n);
+    if (hasMacro(attrs) && (macroName(attrs) !== 'table' || n.nodeName !== 'table' && !isTableWrapper(n))) return this.opaque(n, false);
+    if ((n.nodeName === 'ul' && attrs['data-sidebar-tasks'] === 'true') || (n.nodeName === 'li' && attrs['data-sidebar-task'] === 'true')) {
+      const task = n.nodeName === 'li', container = task ? taskBody(n) : n;
+      if (!container || !('childNodes' in container)) return this.opaque(n, false);
+      if (!task && container.childNodes.some(c => !(c.nodeName === '#text' && 'value' in c && !c.value.trim()) && !taskItemSupported(c))) return this.opaque(n, false);
+      const content = this.blocks(container.childNodes);
+      if (task && content[0]?.type !== 'paragraph') content.unshift({type:'paragraph'});
+      const j: J = {type: task ? 'taskItem' : 'taskList', attrs: task ? {checked: attrs['data-checked'] === 'true'} : {}, content};
+      const r = this.record(n, j);
+      if (task && container.sourceCodeLocation?.startTag) {
+        const loc = container.sourceCodeLocation;
+        r.open = this.source.slice(r.start, loc.startTag!.endOffset);
+        r.close = this.source.slice(loc.endTag?.startOffset ?? loc.endOffset, r.end);
+      }
+      r.children = content.map(identity).filter(Boolean) as string[];
+      return j;
     }
     if(n.nodeName==='table'&&attrs['data-sidebar-callout']&&calloutTones[attrs['data-sidebar-callout']]){
       const kids=(node:H)=>'childNodes' in node?node.childNodes.filter(c=>c.nodeName!=='#text'||('value'in c&&c.value.trim())):[];
@@ -153,10 +253,10 @@ export class RichDocument {
       const body=this.blocks(kids.filter(c=>c!==summary));content.push(...(body.length?body:[{type:'paragraph'}]));
       const j:J={type:'details',attrs:{open:attrs.open!==undefined},content};const r=this.record(n,j);r.children=content.map(identity).filter(Boolean) as string[];return j;
     }
-    if (hasMacro(attrs)&&(macroName(attrs)!=='table'||n.nodeName!=='table'&&!isTableWrapper(n))) return this.opaque(n, false);
     const type = isTableWrapper(n)||isBlockWrapper(n)?'sourceContainer':/^h[1-6]$/.test(n.nodeName) ? 'heading' : tags[n.nodeName];
     if (!type || type === 'hardBreak') return this.opaque(n, false);
     let children = 'childNodes' in n ? n.childNodes : [];
+    if ((type === 'orderedList' || type === 'bulletList') && children.some(c => c.nodeName === 'li' && (hasMacro(elementAttrs(c)) || elementAttrs(c)['data-sidebar-task'] === 'true'))) return this.opaque(n, false);
     let sections:H[]=[];
     if (type === 'table') {
       // Row groups are flattened only in the editing model. Source wrappers,
@@ -168,15 +268,34 @@ export class RichDocument {
       if(children.filter(c=>['colgroup','caption'].includes(c.nodeName)).some(unknownMacro))return this.opaque(n,false);
       if(sections.some(section=>'attrs'in section&&hasMacro(Object.fromEntries(section.attrs.map(a=>[a.name,a.value])))||section.nodeName!=='tr'&&'childNodes'in section&&section.childNodes.some(c=>!['#text','#comment','tr'].includes(c.nodeName))))return this.opaque(n,false);
       children=sections.flatMap(section=>section.nodeName==='tr'?[section]:'childNodes'in section?section.childNodes.filter(c=>c.nodeName==='tr'):[]);
-      if(!children.length||children.some(c=>!c.sourceCodeLocation||'attrs'in c&&hasMacro(Object.fromEntries(c.attrs.map(a=>[a.name,a.value])))))return this.opaque(n,false);
+      if (!children.length || children.some(row => !row.sourceCodeLocation || hasMacro(elementAttrs(row)) || !('childNodes' in row) || row.childNodes.some(cell => !['td','th','#text','#comment'].includes(cell.nodeName) || hasMacro(elementAttrs(cell))))) return this.opaque(n, false);
     }
     const j: J = { type, attrs: { sourceStyle: safeStyle(attrs.style) || null } };
+    if (type === 'paragraph' && Object.keys(attrs).length) j.attrs!.sourceHasAttributes = true;
     if (type === 'heading') j.attrs!.level = Number(n.nodeName[1]);
     if (type === 'orderedList') j.attrs!.start = Number(attrs.start ?? 1);
     if (type === 'paragraph' || type === 'heading') { j.attrs!.textAlign = attrs.style?.match(/(?:^|;)\s*text-align\s*:\s*(left|center|right|justify)/i)?.[1] ?? null; }
     if (type === 'tableCell' || type === 'tableHeader') j.attrs = { ...j.attrs, colspan: Number(attrs.colspan ?? 1), rowspan: Number(attrs.rowspan ?? 1), colwidth: attrs['data-colwidth']?.split(',').map(Number) ?? null };
     const r = this.record(n, j);
-    if(type==='codeBlock') {const text=(node:H):string=>'value' in node?node.value:node.nodeName==='br'?'\n':'childNodes' in node?node.childNodes.map(text).join(''):'';const value=children.map(text).join('');j.content=value?[{type:'text',text:value}]:[];const code=children.find(c=>c.nodeName==='code');const cls=code&&'attrs'in code?code.attrs.find(a=>a.name==='class')?.value:'';j.attrs!.language=cls?.match(/\blanguage-([\w+-]+)/)?.[1]??null;}
+    if (type === 'codeBlock') {
+      const runs: SourceTextRun[] = [];
+      const collect = (node: H, editable: boolean) => {
+        if ('value' in node) {
+          const loc = editable && node.sourceCodeLocation;
+          runs.push({ text: node.value, ...(loc && { start: loc.startOffset, end: loc.endOffset }) });
+        } else if (node.nodeName === 'br') runs.push({ text: '\n' });
+        else if ('childNodes' in node) {
+          const attrs = elementAttrs(node);
+          const plain = editable && !!marks[node.nodeName] && !hasMacro(attrs) && !('data-sidebar-formula' in attrs) && !attrs['data-item-id'];
+          node.childNodes.forEach(child => collect(child, plain));
+        }
+      };
+      children.forEach(child => collect(child, true)); r.codeText = runs;
+      const value = runs.map(run => run.text).join(''); j.content = value ? [{ type: 'text', text: value }] : [];
+      const code = children.find(c => c.nodeName === 'code');
+      const cls = code && 'attrs' in code ? code.attrs.find(a => a.name === 'class')?.value : '';
+      j.attrs!.language = cls?.match(/\blanguage-([\w+-]+)/)?.[1] ?? null;
+    }
     else if (type === 'paragraph' || type === 'heading') j.content = children.flatMap(c => this.inline(c, []));
     else if (['bulletList','orderedList'].includes(type)) j.content=children.filter(c=>c.nodeName!=='#text'||('value'in c&&c.value.trim())).map(c=>{
       if(c.nodeName==='li')return this.block(c);
@@ -206,15 +325,39 @@ export class RichDocument {
   private emptySourceParagraph(n:H):J{const loc=n.sourceCodeLocation;const j:J={type:'paragraph'};this.record({nodeName:'#synthetic',sourceCodeLocation:loc?{...loc,endOffset:loc.startOffset}:undefined} as H,j,true);return j;}
   private textContent(n:H):string{return 'value'in n?String(n.value):'childNodes'in n?n.childNodes.map(c=>this.textContent(c)).join(''):'';}
   private safeLink(href: string) { return /^(https?:\/\/|mailto:|\/|#)/i.test(href) && !/^\/\//.test(href); }
-  serialize(input: J) {
+  /** Match only paragraph wrappers from this session. The pending edit supplies all text and objects. */
+  private recoverStructure(input: J): J {
+    const used = new Set<string>();
+    const collect = (node: J) => {
+      if (node?.type === 'paragraph' && identity(node)) used.add(identity(node)!);
+      if (Array.isArray(node?.content)) node.content.forEach(collect);
+    };
+    const inlineIdentity = (child: J) => identity(child) ?? child.marks?.find(mark => mark.type === 'sourceText')?.attrs?.sid;
+    collect(input);
+    return sanitizeRichJSON(input, (parent, index, inline) => {
+      const source = parent.type === 'doc' ? this.rootRecord.original : this.records.get(identity(parent)!)?.original;
+      if (!source || source.type !== parent.type) return;
+      const anchors = new Set(inline.map(inlineIdentity).filter(Boolean));
+      const candidate = inline.length ? source.content?.find(p => p.type === 'paragraph' && p.content?.some(c => anchors.has(inlineIdentity(c)))) : source.content?.[index];
+      const sid = candidate && identity(candidate);
+      if (candidate?.type !== 'paragraph' || !sid || used.has(sid)) return;
+      used.add(sid);
+      return candidate.attrs;
+    });
+  }
+  serialize(input: J, { recoverStructure = false } = {}) {
+    if (input?.type !== 'doc') throw Error('INVALID_RICH_DOCUMENT_ROOT');
     if (JSON.stringify(input).length > 2_000_000) throw Error('RICH_DOCUMENT_TOO_LARGE');
-    const doc = richSchema.nodeFromJSON(input); doc.check(); const json = doc.toJSON();
-    if (equal(json, this.document)) return this.source;
+    const doc = richSchema.nodeFromJSON(recoverStructure ? this.recoverStructure(input) : input);
+    doc.check();
+    const json = doc.toJSON();
     const seen = new Set<string>(), protectedSeen = new Set<string>();
     const validate = (j: J) => {
       const sid = identity(j);
       if (sid) {
         const r = this.records.get(sid); if (!r) throw Error('STALE_RICH_ANCHOR');
+        // Older checkpoints predate this parser hint. Only the session knows the original HTML attributes.
+        if (j.type === 'paragraph' && r.original.type === 'paragraph' && j.attrs?.sourceHasAttributes !== r.original.attrs?.sourceHasAttributes) j.attrs = { ...j.attrs, sourceHasAttributes: r.original.attrs?.sourceHasAttributes };
         if (seen.has(sid)) throw Error('DUPLICATE_RICH_ANCHOR'); seen.add(sid);
         if (this.protectedIds.has(sid)) { if (!equal(j, r.original)) throw Error('PROTECTED_OBJECT_CHANGED'); protectedSeen.add(sid); }
       } else if (j.type?.startsWith('protected')) throw Error('UNKNOWN_PROTECTED_OBJECT');
@@ -223,10 +366,12 @@ export class RichDocument {
       j.content?.forEach(validate);
     }; validate(json);
     if (protectedSeen.size !== this.protectedIds.size) throw Error('PROTECTED_OBJECT_REMOVED');
+    if (equal(json, this.document)) return this.source;
     const usedWrappers = new Set<string>();
     const wrapper = (j: J, mark = false): [string, string] => {
       const r = this.records.get(identity(j)!); const a = j.attrs ?? {};
       if(j.type==='callout'){const tone=calloutTones[a.tone];if(!tone)throw Error('INVALID_CALLOUT_TONE');return [`<table data-sidebar-callout="${a.tone}" cellpadding="12" cellspacing="0" style="width:100%;border-collapse:collapse;border:0"><tbody><tr><td style="background-color:${tone.background};border:0;border-left:3px solid ${tone.border};padding:12px 16px">`,'</td></tr></tbody></table>'];}
+      if (r && r.original.type === j.type && (j.type === 'taskList' || j.type === 'taskItem' && a.checked === r.original.attrs?.checked)) return [r.open, r.close];
       if(j.type==='taskList')return ['<ul data-sidebar-tasks="true" style="list-style:none;padding-left:4px">','</ul>'];
       if(j.type==='taskItem')return [`<li data-sidebar-task="true" data-checked="${a.checked?'true':'false'}" style="list-style:none;position:relative;padding-left:24px"><span data-task-marker="true" style="position:absolute;left:0;top:0">${a.checked?'☑':'☐'}</span><div data-task-content="true">`,'</div></li>'];
       let tag = r?.tag;
@@ -249,8 +394,9 @@ export class RichDocument {
       const css = (key: string, value: string | null) => { style = style.split(';').filter(s => s.trim() && s.slice(0,s.indexOf(':')).trim().toLowerCase() !== key).join(';'); if (value) style += `;${key}:${value}`; };
       if (a.textAlign !== r?.original.attrs?.textAlign) css('text-align', ['left', 'center', 'right', 'justify'].includes(a.textAlign) ? a.textAlign : null);
       if (a.lineHeight !== r?.original.attrs?.lineHeight && (r || a.lineHeight != null)) css('line-height', /^(1|1\.2|1\.5|1\.75|2)$/.test(a.lineHeight) ? a.lineHeight : null);
-      if (['tableCell', 'tableHeader'].includes(j.type!)) { set('colspan', a.colspan, 1); set('rowspan', a.rowspan, 1); }
       if (['tableCell', 'tableHeader'].includes(j.type!)) {
+        if (a.colspan !== r?.original.attrs?.colspan) set('colspan', a.colspan, 1);
+        if (a.rowspan !== r?.original.attrs?.rowspan) set('rowspan', a.rowspan, 1);
         if (a.fill !== r?.original.attrs?.fill && (r || a.fill != null)) css('background-color', safeColor(a.fill));
         if (a.valign !== r?.original.attrs?.valign && (r || a.valign != null)) css('vertical-align', ['top', 'middle', 'bottom'].includes(a.valign) ? a.valign : null);
         if (a.cellHeight !== r?.original.attrs?.cellHeight) css('height', Number(a.cellHeight) >= 24 && Number(a.cellHeight) <= 600 ? `${Number(a.cellHeight)}px` : null);

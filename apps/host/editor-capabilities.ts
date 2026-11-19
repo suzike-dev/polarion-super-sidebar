@@ -66,7 +66,7 @@ export const TABLE_OPERATION_SCHEMA = z.discriminatedUnion('op', [
 export const EDITOR_AGENT_RULES=`编辑能力与最短路径（本产品契约）：
 已有target/draftId/revision时直接使用；只有缺失身份/版本/待改节点时读取，不重复探索。路由：文字→read_draft取nodeId后replace_text；颜色/加粗→format_text；表格结构（建表、增删行列、列宽、删表）→list_tables后edit_table一次批处理，合并单元格表用read_table→update_table；整篇排版（编号段→标题层级、行距、对齐、空段）→restyle_document；单块操作（段落↔标题↔列表、插入、删除、移动、拆合段）→edit_block（块内唯一文字定位）；新建工作项→create_work_item（空正文创建，内容随后写草稿）；跨文档参考→peek_work_item。仅其它结构排版才read_rich_document→改→update_rich_document。禁止为排版/结构修改用Bash、脚本或文件重建文档；用户正常代码/数据分析、原生命令、Skills和MCP只读能力仍可使用。
 format_text只#RRGGBB/bold，selection与wholeDocument二选一。每次修改用返回的新revision；保留未授权的工程数值/单位/阈值/范围与sid/sourceText/sourceSpan/protected对象，新节点不伪造身份。修改类工具只回摘要，正文按需再读不重复搬运。参数错误查值域换路径，不无限重试；STALE_DRAFT重读基线再合并；REMOTE_CONFLICT/READBACK_REQUIRED走界面流程不盲目重写。
-排版优先原生默认值与整数pt，保留作者显式样式；不承诺像素级回显。新建正文只在已存在或create_work_item新建的本地草稿中增写，Agent不直接写服务端；设置开启「AI 修改后自动保存」时轮末自动写入并回读，未开启时由用户在界面确认保存后才算已保存到Polarion，保存以服务端回读一致为准。任意HTML/CSS、外链图片导入、Mermaid渲染写回不是本产品能力。`;
+排版优先原生默认值与整数pt，保留作者显式样式；不承诺像素级回显。新建正文只在已存在或create_work_item新建的本地草稿中增写，Agent不直接写服务端；允许自动保存的轮次在设置开启「AI 修改后自动保存」时由 Host 在轮末写入并回读，其余轮次由用户审阅草稿并在界面确认保存，保存以服务端回读一致为准。任意HTML/CSS、外链图片导入、Mermaid渲染写回不是本产品能力。`;
 
 const summary={
   version:1,

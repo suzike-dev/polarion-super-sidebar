@@ -8,31 +8,38 @@ import {filterCommands,slashQuery,commandNameMatches} from '../lib/commands';
 import {appendSessionEvents, conversationSections, emptyEventHistory, readSessionBatch, reconcileRuns, turnResponseText, windowTurns} from '../lib/session-events';
 import {applyWorkItemPick, matchWorkItemQuery, splitWorkItems} from '../lib/workitem-picker';
 import {documentWorkItems, filterWorkItems} from '../lib/document-items';
+import {selectedRangeWithin} from '../lib/experience-selection';
 import {AssistantMarkdown} from './AssistantMarkdown';
-import { PanelRightClose, PanelRightOpen, Plus, ArrowUp, Square, Pin, X, Settings, ListTree, MessageSquare, SlidersHorizontal, FileText, History, ChevronRight, ChevronDown, ChevronUp, Check, ExternalLink, GripVertical, TerminalSquare, Paperclip, AlertCircle, Search, PenLine, ListChecks, Quote, RotateCcw, LayoutGrid, Archive, ArchiveRestore, Trash2, FolderPlus, FileDiff, Lightbulb, CornerDownRight, Workflow, Play, Boxes, Inbox, Gauge } from 'lucide-react';
-import type { Context, Draft, Guideline, Run, RunEvent, Session, SessionGroup, Target, EngineCapabilities, Asset, PermissionMode, ExperienceView, WorkflowDef, WorkflowRunView } from '../../../packages/protocol/index';
+import { PanelRightOpen, Plus, ArrowUp, Square, Pin, X, ListTree, MessageSquare, SlidersHorizontal, FileText, History, ChevronRight, ChevronDown, ChevronUp, Check, ExternalLink, GripVertical, TerminalSquare, Paperclip, AlertCircle, Search, PenLine, ListChecks, Quote, RotateCcw, LayoutGrid, Archive, ArchiveRestore, Trash2, FolderPlus, FileDiff, Lightbulb, CornerDownRight, Workflow, Play, Boxes, Inbox, Gauge } from 'lucide-react';
+import { WorkspaceHeader } from './WorkspaceHeader';
+import type { Context, Draft, Guideline, Run, RunEvent, Session, SessionGroup, Target, EngineCapabilities, Asset, PermissionMode, ExperienceView, Macro, WorkflowDef, WorkflowRunView } from '../../../packages/protocol/index';
 import { routeFromUrl, sameTarget, DEFAULT_PERMISSION_MODE, SettingsSchema } from '../../../packages/protocol/index';
 import type {BoardGenerationRequest} from '../../host/boards';
 import type { SourceNode } from '../../../packages/core/lossless-html';
 import { rpc } from '../lib/client';
 import {consumeSave} from '../lib/save-continuation';
+import {listenWorkbenchKeydown} from '../lib/workbench-keyboard';
 import {polarionFeedback} from '../lib/polarion-feedback';
 import {SettingsPanel} from './SettingsPanel';
-import {WorkItemReader, type WorkItemView} from './WorkItemReader';
+import {WorkItemReader, ReaderNotice, type ReaderAction, type WorkItemView} from './WorkItemReader';
 import {ExperienceDialog} from './ExperienceDialog';
 import {WorkflowPanel} from './WorkflowPanel';
 import {RequirementsOverview} from './RequirementsOverview';
 import {ChangeWorkbench} from './ChangeWorkbench';
 import {MemoizedModelWorkbench} from './ModelWorkbench';
-import {ProposalInbox} from './ProposalInbox';
+import {ProposalInbox, type InboxView} from './ProposalInbox';
 import {ReviewPanel} from './ReviewPanel';
-import {DashboardPanel} from './DashboardPanel';
+import {DashboardPanel, type DashboardDestination} from './DashboardPanel';
 import {CommandPalette, type PaletteCommand} from './CommandPalette';
 // 大浮层用 memo 隔离：会话事件流（任务运行中 ~700ms 一批）与 2s 轮询的 setState 不应整树 reconcile 总览/变更工作台。
 const MemoizedOverview = React.memo(RequirementsOverview);
+type WorkspaceDestination = DashboardDestination | 'dashboard' | 'overview' | 'quality' | 'review' | 'model' | 'inbox' | 'feed' | 'meeting' | 'timeline' | 'changes' | 'composer';
+const inboxDestination: Partial<Record<WorkspaceDestination, InboxView>> = { inbox: 'pending', pending: 'actionable', alerts: 'alerts', events: 'events', feed: 'feed', meeting: 'meeting', timeline: 'timeline' };
+const dashboardPanel = { pending: 'inbox', alerts: 'inbox', events: 'inbox', lastQuality: 'overview', openReviews: 'review', orphans: 'model', workflows: 'workflows' } as const satisfies Record<DashboardDestination, string>;
+type DashboardReturn = (typeof dashboardPanel)[DashboardDestination];
 const MemoizedChangeWorkbench = React.memo(ChangeWorkbench);
 
-import { DraftEditor } from './DraftEditor';
+import { DraftEditor, type RichReply } from './DraftEditor';
 import { CapabilitiesPanel } from './CapabilitiesPanel';
 import { NativeInteraction } from './NativeInteraction';
 import { AttachmentCards, AttachmentPreview } from './Attachments';
@@ -41,7 +48,8 @@ import { Layout, NativeState, outline, navigateHeading, documentFrame } from '..
 type DraftView = Draft & { nodes: SourceNode[]; version: string };
 type AssistantSettings = ReturnType<typeof SettingsSchema.parse>;
 const DEFAULT_ASSISTANT_FONT_SIZE = SettingsSchema.shape.assistantFontSize.parse(undefined);
-const errors: Record<string, string> = { NATIVE_EDITOR_DIRTY: '原生文档存在输入，请先在原生界面保存或撤销并刷新，再保存草稿。', NATIVE_EDITOR_UNKNOWN: '尚不能确认原生编辑状态。请先保存或放弃原生修改并刷新文档。', REMOTE_CONFLICT: '服务端内容已变化，草稿保留；需要合并后再保存。', STALE_DRAFT: '草稿已被另一处修改，已保留当前版本，请刷新草稿后继续。', DEVELOPMENT_WRITE_SCOPE: '本地服务仍是旧版，请重新加载扩展后再保存。', READBACK_MISMATCH: '保存回读与草稿不一致，请核对服务端内容；不要重复保存。', SESSION_QUEUE_FULL: '排队请求过多（最多 5 条），请等当前任务推进后再发送。',
+const errors: Record<string, string> = { NATIVE_EDITOR_DIRTY: '原生文档存在输入，请先在原生界面保存或撤销并刷新，再保存草稿。', NATIVE_EDITOR_UNKNOWN: '尚不能确认原生编辑状态。请先保存或放弃原生修改并刷新文档。', REMOTE_CONFLICT: '服务端内容已变化，草稿保留；需要合并后再保存。', STALE_DRAFT: '草稿已被另一处修改，已保留当前版本，请刷新草稿后继续。', DEVELOPMENT_WRITE_SCOPE: '本地服务仍是旧版，请重新加载扩展后再保存。', READBACK_MISMATCH: '服务端内容与本次提交不同，尚未确认覆盖；草稿仍在工作台，可直接再次保存。', SESSION_QUEUE_FULL: '排队请求过多（最多 5 条），请等当前任务推进后再发送。',
+  SESSION_BUSY: '会话中还有进行中或排队的任务。请先停止任务或等待结束，再删除会话。',
   WORK_ITEM_DOCUMENT_MISMATCH: '该工作项不在当前文档，本地也没有对应草稿；请先打开它所在的文档再预览。', DRAFTS_FOLDER_NOT_ABSOLUTE: '共享草稿存储位置必须是绝对路径，例如 D:\\PolarionDrafts。', DRAFTS_FOLDER_INVALID: '共享草稿存储位置无法创建或写入，请检查文件夹权限。', GUIDELINE_NOT_FOUND: '所选附加指令已被删除，请重新选择。', GUIDELINE_EMPTY: '指令内容与本地文件路径不能都为空。', GUIDELINE_FILE_INVALID: '指令文件不存在或不可读，请检查路径。', GUIDELINE_FILE_UNREADABLE: '指令文件当前无法读取，请检查路径。', GUIDELINE_FILE_TOO_LARGE: '指令文件超过 200KB，请精简后重试。',
   VARIANT_NOT_FOUND: '变体记录不存在，请重新同步变体列表。', VARIANT_DRAFT_DIRTY: '变体还有未保存的本地修改，请先打开变体并保存。', MAIN_DRAFT_DIRTY: '主工作项还有未保存的本地修改，请先保存或放弃后再接入变体。', MAIN_CHANGED_SINCE_DRAFT: '主工作项在打开后已被其他位置修改，请先核对服务端。', MAIN_CHANGED_SINCE_APPLY: '主工作项在接入后又发生了变化，不能直接撤销。', VARIANT_BOARD_UNSUPPORTED: '变体正文含画板，当前版本暂不支持跨工作项接入。', VARIANT_BOARD_COPY_FAILED: '画板快照复制失败，主工作项/变体未被修改；请检查画板源文件是否完整。', VARIANT_IMAGE_COPY_FAILED: '变体图片无法复制到主工作项，请先移除或替换相关图片。', VARIANT_LINK_REQUIRED: '变体与主工作项的关联尚未建立，请先重试关联。', VARIANT_LINK_ROLE_INVALID: '配置的链接角色在项目中不可用，请重新选择。', VARIANT_LINK_ROLE_REQUIRED: '项目没有可用的工作项链接角色，无法建立变体归属。', VARIANT_LINK_FAILED: '变体关联写入失败，请稍后重试。', VARIANT_TYPE_REQUIRED: '主工作项缺少类型，无法创建同类型变体。', VARIANT_BACKEND_UNAVAILABLE: '本地 Host 未提供变体写入能力，请重新加载扩展或更新 Host。', WORK_ITEM_CREATE_FAILED: '变体工作项创建失败，请检查项目权限与必填字段。', WORK_ITEM_CREATE_UNVERIFIED: '变体工作项已创建但回读未通过，请在 Polarion 中核对。', VARIANT_APPLY_NOT_FOUND: '找不到这次接入记录，无法撤销。', VARIANT_APPLY_ALREADY_UNDONE: '这次接入已经撤销过了。', VARIANT_DEFAULT_CAPTURE_FAILED: '首次接入需要先把主工作项正文保存为「默认」变体，但保存失败；主工作项未被改动。', VARIANT_DEFAULT_DRAFT_DIRTY: '默认变体还有首次捕获的内容尚未保存；请打开「默认」变体保存后再接入。', VARIANT_DEFAULT_CAPTURE_BOARD: '主工作项正文含画板，无法安全捕获为默认变体；请先移除画板或手动处理。', VARIANT_TARGET_MISMATCH: '变体不属于当前文档，请重新同步变体列表。', NATIVE_ITEM_NOT_LOADED: '主页面当前显示的不是这个工作项，请先回到主工作项再接入。', NATIVE_DOCUMENT_CHANGED: '主页面文档在接入期间发生了变化，请刷新后重试。', NATIVE_REFRESH_FAILED: '主页面正文刷新失败，请手动刷新文档核对。', NATIVE_REFRESH_UNSUPPORTED: '当前 Polarion 版本不支持自动刷新，请手动刷新文档核对。', RUN_NOT_QUEUED: '该任务已不在排队中，请查看输入框上方的队列。', EXPERIENCE_NO_CONVERSATION: '当前会话还没有对话记录，无法沉淀经验。', EXPERIENCE_TIMEOUT: '经验沉淀超时（90 秒），请稍后重试。', EXPERIENCE_UNAVAILABLE: '经验沉淀需要本地 Claude Code 可用，请检查引擎连接后重试。', EXPERIENCE_EMPTY: '本次没有提炼到可沉淀的经验。', EXPERIENCE_FAILED: '经验沉淀执行失败，请稍后重试。',
   WORKFLOW_NAME_EXISTS: '同名工作流已存在，请换一个名称或编辑原有条目。', WORKFLOW_STEP_ID_DUPLICATE: '工作流步骤标识重复，请重新保存。', WORKFLOW_PROJECT_MISMATCH: '该工作流不属于当前项目。', WORKFLOW_SESSION_BUSY: '当前会话已有进行中或暂停的工作流，请先继续或终止它。', WORKFLOW_NOT_PAUSED: '该工作流不在暂停状态。', WORKFLOW_NOT_ACTIVE: '该工作流已结束，无法终止。', WORKFLOWS_UNAVAILABLE: '本地 Host 尚未提供工作流能力，请更新 Host 后重试。' };
@@ -77,7 +85,7 @@ function sessionGroups(sessions: Session[], registered: SessionGroup[]) {
   return [...named, ...buckets.filter(group => group.rows.length > 0)];
 }
 type PreviewRect = { left: number; top: number; right: number; bottom: number };
-type PreviewState = { id: string; text: string; state?: string; source?: 'draft' | 'remote'; loading: boolean; failed?: boolean; rect?: PreviewRect; fallback?: string; revision?: number };
+type PreviewState = { id: string; text: string; state?: string; source?: 'draft' | 'remote'; readOnlyReference?: boolean; loading: boolean; failed?: boolean; rect?: PreviewRect; fallback?: string; revision?: number };
 
 export function App() {
   const [target, setTarget] = useState<Target | null>(() => routeFromUrl(location.href));
@@ -88,7 +96,7 @@ export function App() {
   const [requestedBoard,setRequestedBoard]=useState<BoardGenerationRequest|null>(null);
   const [restoredEditorScroll,setRestoredEditorScroll]=useState<number|undefined>();
   useEffect(()=>{if(!saveNotice)return;const timer=setTimeout(()=>setSaveNotice(''),10000);return()=>clearTimeout(timer);},[saveNotice]);
-  useEffect(()=>{if(!target)return;let disposed=false;const key='save-receipt:'+JSON.stringify(target);void browser.storage.local.get(key).then(async value=>{const receipt=value[key] as {workItemId:string;at:number}|undefined;if(!disposed&&receipt&&Date.now()-receipt.at<120000)setSaveNotice(receipt.workItemId+' 已保存到 Polarion，服务端回读一致。');if(receipt)await browser.storage.local.remove(key);});return()=>{disposed=true;};},[target]);
+  useEffect(()=>{if(!target)return;let disposed=false;const key='save-receipt:'+JSON.stringify(target);void browser.storage.local.get(key).then(async value=>{const receipt=value[key] as {workItemId:string;at:number}|undefined;if(!disposed&&receipt&&Date.now()-receipt.at<120000)setSaveNotice(receipt.workItemId+' 已保存到 Polarion。');if(receipt)await browser.storage.local.remove(key);});return()=>{disposed=true;};},[target]);
   const [contexts, setContexts] = useState<Context[]>([]); const [pinnedOutline, setPinnedOutline] = useState(false);
   const [headings, setHeadings] = useState<ReturnType<typeof outline>>([]); const [sessions, setSessions] = useState<Session[]>([]);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
@@ -112,11 +120,16 @@ export function App() {
   // 动态工作流：定义列表（项目隔离）、管理面板开关、当前会话的运行实例视图。
   const [workflowDefs,setWorkflowDefs]=useState<WorkflowDef[]>([]);
   const [showWorkflows,setShowWorkflows]=useState(false);
-  const [inboxOpen,setInboxOpen]=useState(false);
-  const [inboxTab,setInboxTab]=useState<'pending'|'feed'|'timeline'>('pending');
+  const [inboxMounted,setInboxOpen]=useState(false);
+  const [navigation, setNavigation] = useState<{ destination: WorkspaceDestination; request: number }>({ destination: 'overview', request: 0 });
+  const [workflowDefinitionsRequest, setWorkflowDefinitionsRequest] = useState(0);
+  const [dashboardReturn, setDashboardReturn] = useState<DashboardReturn | null>(null);
+  const [dashboardMounted,setShowDashboard]=useState(false);
+  const returnFrom = useCallback((panel: DashboardReturn) => {
+    if (dashboardReturn === panel) { setDashboardReturn(null); setShowDashboard(true); }
+  }, [dashboardReturn]);
   const [showReview,setShowReview]=useState(false);
   const [reviewStarting,setReviewStarting]=useState(false);
-  const [showDashboard,setShowDashboard]=useState(false);
   const [paletteOpen,setPaletteOpen]=useState(false);
   const [activeWorkflow,setActiveWorkflow]=useState<WorkflowRunView|null>(null);
   const workflowDismissed=useRef('');
@@ -132,7 +145,9 @@ export function App() {
   const historyTrigger=useRef<HTMLButtonElement>(null),historyPanel=useRef<HTMLDivElement>(null),capabilitiesTrigger=useRef<HTMLButtonElement>(null);
   const closeHistory=useCallback(()=>{setHistory(false);historyTrigger.current?.focus();},[]);
   const closeCapabilities=useCallback(()=>{setShowCapabilities(false);capabilitiesTrigger.current?.focus();},[]);
-  useEffect(()=>{if(history)(historyPanel.current?.querySelector('button')??historyPanel.current)?.focus();},[history]);
+  useEffect(() => {
+    if (history) historyPanel.current?.querySelector<HTMLInputElement>('.group-bar-new')?.focus();
+  }, [history]);
   const capabilityRequest=useRef(0),capabilityBusy=useRef(false);
   const composerInput=useRef<HTMLTextAreaElement>(null); const slashMenu=useRef<HTMLDivElement>(null);
   const [slashIndex, setSlashIndex] = useState(0); const [slashHidden, setSlashHidden] = useState(false);
@@ -142,57 +157,94 @@ export function App() {
   const [nativePreview, setNativePreview] = useState<PreviewState | null>(null);
   const [reader, setReader] = useState<WorkItemView | null>(null);
   const readerRequest = useRef(0);
-  /** 软件需求分析总览：覆盖文档区，不挤占侧边栏；入口只有头部一个按钮。 */
-  const [overview, setOverview] = useState(false);
-  /** 变更管理：整个变更工作台，记录写入 Polarion 项目。 */
-  const [changes, setChanges] = useState(false);
-  /** Simulink 模型关联工作台：模型根目录绑定 + 需求↔模块追溯。 */
-  const [model, setModel] = useState(false);
-  const closeModel = useCallback(() => setModel(false), []);
+  const [readerAction, setReaderAction] = useState<ReaderAction | null>(null);
+  const initialRich = useRef<RichReply | undefined>(undefined);
+  const closeReader = useCallback(() => {
+    readerRequest.current++;
+    setReaderAction(null);
+    setReader(null);
+  }, []);
+  useEffect(() => {
+    if (reader || !readerAction || paletteOpen) return;
+    const cancelRead = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return;
+      event.preventDefault(); event.stopImmediatePropagation(); closeReader();
+    };
+    return listenWorkbenchKeydown(document, cancelRead, 'capture');
+  }, [reader, readerAction, paletteOpen, closeReader]);
+  const [overviewMounted, setOverview] = useState(false);
+  const [changesMounted, setChanges] = useState(false);
+  const [modelMounted, setModel] = useState(false);
+  const [panelsBehindEditor, setPanelsBehindEditor] = useState(false);
+  const panelsHidden = !!draft && panelsBehindEditor;
+  const overview = overviewMounted && !panelsHidden, changes = changesMounted && !panelsHidden;
+  const model = modelMounted && !panelsHidden, inboxOpen = inboxMounted && !panelsHidden;
+  const showDashboard = dashboardMounted && !panelsHidden;
+  const panelFocus = useRef<HTMLElement | null>(null);
+  React.useLayoutEffect(() => {
+    if (!draft && panelsBehindEditor) {
+      setPanelsBehindEditor(false);
+      if (panelFocus.current?.isConnected) panelFocus.current.focus({ preventScroll: true });
+    }
+  }, [draft, panelsBehindEditor]);
+  const closeModel = useCallback(() => { closeReader(); setModel(false); returnFrom('model'); }, [closeReader, returnFrom]);
   /** 从飞书卡片深链进入时要直接展开的变更记录 id；手动打开工作台时清空。 */
   const [changeSeed, setChangeSeed] = useState('');
-  /** 打开编辑工作台时临时收起总览/变更管理，关闭编辑后原样恢复（用户期望两个大工作台还在）。 */
-  const overlaysBehindEditor = useRef({overview: false, changes: false});
-  const changesRef = useRef(changes); changesRef.current = changes;
-  const previewCache = useRef(new Map<string, { text: string; state?: string; revision?: number; source?: 'draft' | 'remote'; at: number }>());
   const previewTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const previewHideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const updatePreview = (id: string, patch: Partial<PreviewState>) => setNativePreview(current => current && current.id === id ? { ...current, ...patch } : current);
   /** 正文工作项块悬停的小卡片：先用页面文本即时显示，再补充草稿标题/版本信息。 */
   const schedulePreview = useCallback((id: string, rect?: PreviewRect, fallback?: string) => {
     clearTimeout(previewTimer.current); clearTimeout(previewHideTimer.current);
+    const currentTarget = targetRef.current;
+    if (!currentTarget) return;
+    const stillHere = () => !!targetRef.current && sameTarget(targetRef.current, currentTarget);
     previewTimer.current = setTimeout(async () => {
-      const cached = previewCache.current.get(id);
-      if (cached && Date.now() - cached.at < 60000) { setNativePreview({ id, text: cached.text || fallback?.slice(0, 600) || '', state: cached.state, revision: cached.revision, source: cached.source, loading: false, rect }); return; }
-      setNativePreview({ id, text: fallback?.slice(0, 600) ?? '', fallback: fallback?.slice(0, 600), loading: true, rect });
-      const currentTarget = targetRef.current; if (!currentTarget) return;
+      if (!stillHere()) return;
+      const excerpt = fallback?.slice(0, 600) ?? '';
+      setNativePreview({ id, text: excerpt, loading: true, rect });
       try {
-        const value = await rpc<{ workItemId: string; title: string; text: string; state?: string; revision?: number; source: 'draft' | 'remote' }>({ method: 'workitems.peek', target: currentTarget, workItemId: id });
-        const text = (value.text || '').slice(0, 1200);
-        previewCache.current.set(id, { text, state: value.state, revision: value.revision, source: value.source, at: Date.now() });
-        updatePreview(id, { text: text || fallback?.slice(0, 600) || '', state: value.state, revision: value.revision, source: value.source, loading: false });
-      } catch { updatePreview(id, { loading: false, failed: true }); }
+        const value = await rpc<Pick<PreviewState, 'text' | 'state' | 'revision' | 'source' | 'readOnlyReference'>>({ method: 'workitems.peek', target: currentTarget, workItemId: id });
+        if (stillHere()) updatePreview(id, { ...value, text: value.text || excerpt, loading: false });
+      } catch { if (stillHere()) updatePreview(id, { loading: false, failed: true }); }
     }, 150);
   }, []);
   const hidePreview = useCallback(() => { clearTimeout(previewTimer.current); clearTimeout(previewHideTimer.current); previewHideTimer.current = setTimeout(() => setNativePreview(null), 240); }, []);
   const keepPreview = useCallback(() => { clearTimeout(previewHideTimer.current); }, []);
   const openReader = useCallback(async (workItemId: string) => {
+    const currentTarget = targetRef.current;
+    if (!currentTarget) return;
+    clearTimeout(previewTimer.current);
     setNativePreview(null);
     const ticket = ++readerRequest.current;
+    const current = () => ticket === readerRequest.current && !!targetRef.current && sameTarget(currentTarget, targetRef.current);
+    setReaderAction({ kind: 'read', workItemId });
     try {
-      const currentTarget = targetRef.current; if (!currentTarget) return;
       const view = await rpc<WorkItemView>({ method: 'workitems.read', target: currentTarget, workItemId });
-      if (ticket !== readerRequest.current || !targetRef.current || !sameTarget(currentTarget, targetRef.current)) return;
-      setError(''); setReader(view);
-    } catch (e) { if (ticket === readerRequest.current) setError(errorText(e)); }
+      if (!current()) return;
+      setError(''); setReaderAction(null); setReader(view);
+    } catch (e) {
+      if (current()) setReaderAction({ kind: 'read', workItemId, error: errorText(e) });
+    }
   }, []);
   const openReaderRef = useRef(openReader); openReaderRef.current = openReader;
   // 传给 memo 大浮层的 props 必须引用稳定，否则 memo 失效。
-  const closeOverviewLayer = useCallback(() => setOverview(false), []);
-  const closeChangesLayer = useCallback(() => { setChangeSeed(''); setChanges(false); }, []);
+  const closeOverviewLayer = useCallback(() => { closeReader(); setOverview(false); returnFrom('overview'); }, [closeReader, returnFrom]);
+  const closeInbox = useCallback(() => { closeReader(); setInboxOpen(false); returnFrom('inbox'); }, [closeReader, returnFrom]);
+  const closeReview = useCallback(() => { closeReader(); setShowReview(false); returnFrom('review'); }, [closeReader, returnFrom]);
+  const closeChangesLayer = useCallback(() => { closeReader(); setChangeSeed(''); setChanges(false); }, [closeReader]);
+  const closeDashboard = useCallback(() => { closeReader(); setShowDashboard(false); }, [closeReader]);
   const openItemReader = useCallback((id: string) => void openReaderRef.current?.(id), []);
   const editDraftRef = useRef<(workItemId: string) => unknown>(() => {});
-  const draftRef=useRef(draft);draftRef.current=draft;
+  const draftRef = useRef(draft);
+  // Saves keep the editor busy, so its loaded revision can lag a shared draft update.
+  const latestDraftRevision = useRef(0);
+  if (draftRef.current?.id !== draft?.id) latestDraftRevision.current = 0;
+  draftRef.current = draft;
+  if (draft) {
+    const sharedRevision = drafts.find(row => row.id === draft.id)?.revision ?? 0;
+    latestDraftRevision.current = Math.max(latestDraftRevision.current, draft.revision, sharedRevision);
+  }
   const draftOpenRequest=useRef(0);
   useEffect(()=>{if(draft?.state==='dirty')setSaveNotice('');},[draft?.state,draft?.revision]);
   const [editorAI,setEditorAI]=useState(true);const prepareAI=useRef<(()=>Promise<void>)|null>(null);const priorTab=useRef('ai');
@@ -226,7 +278,7 @@ export function App() {
     setDraft(saved);
     setDrafts(list=>list.map(d=>d.id===saved.id?{...d,revision:saved.revision,state:saved.state}:d));
     try{
-      const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:saved.workItemId,phase:'refresh',expectedHtml:saved.html});
+      const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:saved.workItemId,phase:'refresh',expectedHtml:saved.html,expectedTitle:saved.title});
       if(!result?.ok)throw Error(result?.error??'NATIVE_REFRESH_FAILED');
       native.current.acceptDocumentRefresh();
       setSaveNotice(notice);
@@ -247,7 +299,17 @@ export function App() {
     const update = () => {
       // 普通路由（无 psb 深链参数）要清掉上一次没走完的深链意图，避免之后打开文档时误展开旧记录。
       if (!/[?&]psb=/.test(location.hash)) { try { sessionStorage.removeItem('psb-changes-pending');sessionStorage.removeItem('psb-change-pending'); } catch { /* 忽略 */ } }
-      const next = routeFromUrl(location.href); if (JSON.stringify(next) !== JSON.stringify(targetRef.current)) { routeEpoch.current++;draftOpenRequest.current++;readerRequest.current++;const sameProject = next && next.projectId === targetRef.current?.projectId; setTarget(next); setContexts(list => sameProject ? list.filter(c => c.pinned) : []); if (!sameProject) { setSession(null); setEventHistory(emptyEventHistory()); } setDraft(null); setReader(null); setOverview(false); setChanges(false);setModel(false);setChangeSeed(''); overlaysBehindEditor.current={overview:false,changes:false}; } };
+      const next = routeFromUrl(location.href);
+      if (JSON.stringify(next) === JSON.stringify(targetRef.current)) return;
+      routeEpoch.current++; draftOpenRequest.current++; readerRequest.current++;
+      const sameProject = next && next.projectId === targetRef.current?.projectId;
+      setTarget(next); setContexts(list => sameProject ? list.filter(c => c.pinned) : []);
+      if (!sameProject) { setSession(null); setEventHistory(emptyEventHistory()); }
+      setDraft(null); setReader(null); setReaderAction(null); setNativePreview(null); initialRich.current = undefined;
+      setOverview(false); setChanges(false); setModel(false); setChangeSeed(''); setPanelsBehindEditor(false);
+      setInboxOpen(false); setShowReview(false); setShowDashboard(false); setDashboardReturn(null);
+      setShowWorkflows(false); setWorkflowDefinitionsRequest(0); setPaletteOpen(false);
+    };
     window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update);
   }, []);
   // 分享页/飞书深链：文档 URL 带 ?psb=changes 时自动展开变更工作台，随后清掉参数避免刷新重复打开。
@@ -308,7 +370,7 @@ export function App() {
     void rpc<DraftView>({method:'drafts.read',draftId:saved.draftId}).then(value=>{
       if(disposed||!sameTarget(value.target,target)||value.workItemId!==saved.workItemId)return;
       setRestoredEditorScroll(saved.editorScrollTop);setDraft(value);setEditorAI(true);setTab('ai');
-      setSaveNotice(value.workItemId+' 已保存并回读一致，已恢复编辑工作台。');
+      setSaveNotice(value.workItemId+' 已保存，已恢复编辑工作台。');
       documentFrame()?.contentWindow?.scrollTo(0,saved.scrollTop);
     }).catch(e=>{if(!disposed)setError(errorText(e));});
     return()=>{disposed=true;};
@@ -361,55 +423,60 @@ export function App() {
   const queueOpen = queueExpanded ?? queuedRuns.length <= 3;
   const steerQueued = useCallback(async (run: Run) => { try { await rpc({ method: 'runs.steer', runId: run.id }); window.dispatchEvent(new Event('polarion-sidebar-run-started')); } catch (e) { setError(errorText(e)); } }, []);
   // ---- 动态工作流：触发（与 send 共用上下文组装）、暂停后继续、终止。 ----
-  const startWorkflow = useCallback(async (def: WorkflowDef, note = '') => {
-    if (!target || sending || uploadCount.current) return;
-    const epoch = routeEpoch.current; const stillCurrent = () => epoch === routeEpoch.current && !!targetRef.current && sameTarget(target, targetRef.current);
+  function workflowTarget(epoch: number): Target {
+    const page = routeFromUrl(location.href);
+    if (epoch !== routeEpoch.current || !target || !targetRef.current || !page || !sameTarget(target, targetRef.current) || !sameTarget(target, page)) {
+      throw Error('当前文档已切换，请在当前文档重试。');
+    }
+    return target;
+  }
+  async function prepareWorkflowSession(epoch: number) {
+    workflowTarget(epoch);
+    await prepareAI.current?.();
+    const expected = workflowTarget(epoch);
+    const current = session ?? await newSession();
+    workflowTarget(epoch);
+    if (!current || current.target.projectId !== expected.projectId || current.target.origin !== expected.origin) throw Error('当前会话不属于此项目。');
+    return current;
+  }
+  async function startWorkflow(request: { def: WorkflowDef; note: string } | { goal: string }) {
+    const epoch = routeEpoch.current;
+    if (sending || uploadCount.current) throw Error('请等待当前请求或附件上传完成后再启动工作流。');
     followOutput.current = true; setAwayFromLatest(false); setSending(true); setError('');
     try {
-      await prepareAI.current?.(); if (!stillCurrent()) return;
-      const current = session ?? await newSession(); if (!current || !stillCurrent()) return;
-      if (current.target.projectId !== target.projectId) throw Error('当前会话属于另一项目，请切换到当前项目的会话。');
-      if (current.title === '新工程会话') { const renamed = await rpc<Session>({ method: 'sessions.rename', sessionId: current.id, title: ('工作流：' + def.name).slice(0, 100) }); if (!stillCurrent()) return; setSession(renamed); }
-      // 与 send 相同：悬浮台当前打开的工作项即本轮目标，陈旧选区不能越过它。
+      let current = await prepareWorkflowSession(epoch);
+      const target = workflowTarget(epoch);
+      if (current.title === '新工程会话') {
+        const title = 'def' in request ? '工作流：' + request.def.name : '动态工作流：' + request.goal;
+        current = await rpc<Session>({ method: 'sessions.rename', sessionId: current.id, title: title.slice(0, 100) });
+        workflowTarget(epoch);
+        setSession(current);
+      }
+      // 悬浮台打开的工作项优先于陈旧选区，固定上下文仍随本次运行发送。
       const openDraft = draftRef.current; let outgoing = contexts;
-      const lastNonPinned = [...contexts].reverse().find(c => !c.pinned);
-      if (openDraft && (!lastNonPinned || lastNonPinned.workItemId !== openDraft.workItemId)) {
+      const lastNonPinned = contexts.findLast(c => !c.pinned);
+      if (openDraft && lastNonPinned?.workItemId !== openDraft.workItemId) {
         outgoing = [...contexts.filter(c => c.pinned), { id: crypto.randomUUID(), target: openDraft.target, workItemId: openDraft.workItemId, text: (openDraft.title + '\n' + openDraft.nodes.filter(n => n.text).map(n => n.text).join('\n')).slice(0, 30000), prefix: '', suffix: '', source: 'work-item' as const, capturedAt: Date.now(), pinned: false }];
         setContexts(outgoing);
       }
-      if (!stillCurrent()) return;
-      await rpc({ method: 'workflows.run', defId: def.id, sessionId: current.id, target, contexts: structuredClone(outgoing), permissionMode, note: note.slice(0, 2000) });
-      if (stillCurrent()) setInput(current => current.trim().startsWith('/wf:') ? '' : current);
+      const params = { sessionId: current.id, target, contexts: structuredClone(outgoing), permissionMode };
+      if ('def' in request) await rpc({ method: 'workflows.run', ...params, defId: request.def.id, note: request.note.slice(0, 2000) });
+      else await rpc({ method: 'workflows.plan', ...params, goal: request.goal.slice(0, 2000) });
+      workflowTarget(epoch);
+      setInput(value => value === input && value.trim().startsWith('def' in request ? '/wf:' : '/wf::') ? '' : value);
       window.dispatchEvent(new Event('polarion-sidebar-run-started'));
-    } catch (e) { if (stillCurrent()) setError(errorText(e)); } finally { setSending(false); }
-  }, [target, sending, session, contexts, permissionMode]);
-  const runWorkflowByName = useCallback(async (name: string, note: string) => {
-    const def = workflowDefs.find(d => d.name === name);
-    if (!def) { setError('找不到工作流「' + name + '」，可能已被删除或改名，请重新选择。'); return; }
-    await startWorkflow(def, note);
-  }, [workflowDefs, startWorkflow]);
-  /** 目标驱动：说出要完成什么，当前会话把目标拆成结构化步骤并立即执行；满意后在面板保存复用。 */
-  const planWorkflow = useCallback(async (goal: string) => {
-    if (!target || sending || uploadCount.current) return;
-    const epoch = routeEpoch.current; const stillCurrent = () => epoch === routeEpoch.current && !!targetRef.current && sameTarget(target, targetRef.current);
-    followOutput.current = true; setAwayFromLatest(false); setSending(true); setError('');
+      return current;
+    } finally { setSending(false); }
+  }
+  async function sendWorkflowCommand(name: string | null, text: string) {
+    const epoch = routeEpoch.current;
     try {
-      await prepareAI.current?.(); if (!stillCurrent()) return;
-      const current = session ?? await newSession(); if (!current || !stillCurrent()) return;
-      if (current.target.projectId !== target.projectId) throw Error('当前会话属于另一项目，请切换到当前项目的会话。');
-      if (current.title === '新工程会话') { const renamed = await rpc<Session>({ method: 'sessions.rename', sessionId: current.id, title: ('动态工作流：' + goal).slice(0, 100) }); if (!stillCurrent()) return; setSession(renamed); }
-      const openDraft = draftRef.current; let outgoing = contexts;
-      const lastNonPinned = [...contexts].reverse().find(c => !c.pinned);
-      if (openDraft && (!lastNonPinned || lastNonPinned.workItemId !== openDraft.workItemId)) {
-        outgoing = [...contexts.filter(c => c.pinned), { id: crypto.randomUUID(), target: openDraft.target, workItemId: openDraft.workItemId, text: (openDraft.title + '\n' + openDraft.nodes.filter(n => n.text).map(n => n.text).join('\n')).slice(0, 30000), prefix: '', suffix: '', source: 'work-item' as const, capturedAt: Date.now(), pinned: false }];
-        setContexts(outgoing);
-      }
-      if (!stillCurrent()) return;
-      await rpc({ method: 'workflows.plan', sessionId: current.id, target, contexts: structuredClone(outgoing), permissionMode, goal: goal.slice(0, 2000) });
-      if (stillCurrent()) setInput(current => current.trim().startsWith('/wf::') ? '' : current);
-      window.dispatchEvent(new Event('polarion-sidebar-run-started'));
-    } catch (e) { if (stillCurrent()) setError(errorText(e)); } finally { setSending(false); }
-  }, [target, sending, session, contexts, permissionMode]);
+      if (name === null) { await startWorkflow({ goal: text }); return; }
+      const def = workflowDefs.find(candidate => candidate.name === name);
+      if (!def) throw Error('找不到工作流「' + name + '」，可能已被删除或改名，请重新选择。');
+      await startWorkflow({ def, note: text });
+    } catch (e) { if (epoch === routeEpoch.current) setError(errorText(e)); }
+  }
   /** 模型初关联：Agent 逐条读未标注需求正文，自动写第一版实现模块备注；跑完回模型工作台同步并人工修正。 */
   const autolinkModel = useCallback(async () => {
     if (!target || sending || uploadCount.current) return;
@@ -437,50 +504,52 @@ export function App() {
     if (!target || reviewStarting) return;
     setReviewStarting(true); setError('');
     try {
-      await prepareAI.current?.();
-      const current = session ?? await newSession();
-      if (!current || current.target.projectId !== target.projectId) throw Error('当前会话属于另一项目，请切换到当前项目的会话。');
+      const current = await prepareWorkflowSession(routeEpoch.current);
       const openDraft = draftRef.current; let outgoing = contexts;
-      const lastNonPinned = [...contexts].reverse().find(c => !c.pinned);
-      if (openDraft && (!lastNonPinned || lastNonPinned.workItemId !== openDraft.workItemId)) {
+      const lastNonPinned = contexts.findLast(c => !c.pinned);
+      if (openDraft && lastNonPinned?.workItemId !== openDraft.workItemId) {
         outgoing = [...contexts.filter(c => c.pinned), { id: crypto.randomUUID(), target: openDraft.target, workItemId: openDraft.workItemId, text: (openDraft.title + '\n' + openDraft.nodes.filter(n => n.text).map(n => n.text).join('\n')).slice(0, 30000), prefix: '', suffix: '', source: 'work-item' as const, capturedAt: Date.now(), pinned: false }];
-        setContexts(outgoing);
       }
       await rpc({ method: 'review.start', sessionId: current.id, target, contexts: structuredClone(outgoing), permissionMode });
-      setShowReview(true);
       window.dispatchEvent(new Event('polarion-sidebar-run-started'));
-    } catch (e) { setError(errorText(e)); } finally { setReviewStarting(false); }
+    } finally { setReviewStarting(false); }
   }, [target, reviewStarting, session, contexts, permissionMode]);
-  /** 把一段指令直接发给当前会话（会议动作卡执行、动态页问 AI 共用）。 */
-  const dispatchCommand = useCallback(async (prompt: string) => {
+  const dispatchCommand = useCallback(async (prompt: string, action?: { workItemId?: string }) => {
     if (!target || !prompt.trim()) return;
+    const epoch = routeEpoch.current;
     try {
-      await prepareAI.current?.();
-      const current = session ?? await newSession();
-      if (!current || current.target.projectId !== target.projectId) throw Error('当前会话属于另一项目，请切换到当前项目的会话。');
-      const openDraft = draftRef.current; let outgoing = contexts;
-      const lastNonPinned = [...contexts].reverse().find(c => !c.pinned);
-      if (openDraft && (!lastNonPinned || lastNonPinned.workItemId !== openDraft.workItemId)) {
-        outgoing = [...contexts.filter(c => c.pinned), { id: crypto.randomUUID(), target: openDraft.target, workItemId: openDraft.workItemId, text: (openDraft.title + '\n' + openDraft.nodes.filter(n => n.text).map(n => n.text).join('\n')).slice(0, 30000), prefix: '', suffix: '', source: 'work-item' as const, capturedAt: Date.now(), pinned: false }];
+      const current = await prepareWorkflowSession(epoch);
+      const openDraft = action ? null : draftRef.current;
+      let outgoing = action ? [] : contexts;
+      const workItemId = action?.workItemId;
+      if (workItemId) {
+        const item = await rpc<WorkItemView>({ method: 'workitems.read', target, workItemId });
+        if (item.readOnlyReference || item.workItemId !== workItemId || !sameTarget(target, item.target)) throw Error(`请在 ${workItemId} 所属文档中发起改写。`);
+        outgoing = [{ id: crypto.randomUUID(), target, workItemId, text: (item.title + '\n' + item.nodes.map(node => node.text).filter(Boolean).join('\n')).slice(0, 30000), prefix: '', suffix: '', source: 'work-item', capturedAt: Date.now(), pinned: false }];
+      } else if (openDraft && contexts.findLast(c => !c.pinned)?.workItemId !== openDraft.workItemId) {
+        outgoing = [...contexts.filter(c => c.pinned), { id: crypto.randomUUID(), target: openDraft.target, workItemId: openDraft.workItemId, text: (openDraft.title + '\n' + openDraft.nodes.filter(n => n.text).map(n => n.text).join('\n')).slice(0, 30000), prefix: '', suffix: '', source: 'work-item', capturedAt: Date.now(), pinned: false }];
         setContexts(outgoing);
       }
-      await rpc({ method: 'runs.start', permissionMode, delivery: 'queue', sessionId: current.id, requestId: crypto.randomUUID(), target, prompt, contexts: structuredClone(outgoing), attachments: [] });
-      setTab('ai');
+      workflowTarget(epoch);
+      await rpc({ method: 'runs.start', permissionMode, delivery: 'queue', ...(action && { autoSave: false as const }), sessionId: current.id, requestId: crypto.randomUUID(), target, prompt, contexts: structuredClone(outgoing), attachments: [] });
+      if (epoch === routeEpoch.current) { if (draftRef.current) setEditorAI(true); else setOpen(true); setTab('ai'); }
       window.dispatchEvent(new Event('polarion-sidebar-run-started'));
-    } catch (e) { setError(errorText(e)); }
+    } catch (e) {
+      if (action) throw e;
+      if (epoch === routeEpoch.current) setError(errorText(e));
+    }
   }, [target, session, contexts, permissionMode]);
   // 全局命令面板：Ctrl/Cmd+Shift+P 主快捷键（Ctrl+K 被 Chrome 占用为地址栏搜索，真实按键到不了页面），Ctrl+K 作兼容。
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing) return;
+      if (event.isComposing || event.keyCode === 229 || event.altKey) return;
       const mod = event.ctrlKey || event.metaKey;
       const combo = mod && ((event.shiftKey && event.key.toLowerCase() === 'p') || (!event.shiftKey && event.key.toLowerCase() === 'k'));
       if (!combo) return;
       event.preventDefault(); event.stopPropagation();
-      setPaletteOpen(value => !value);
+      if (!event.repeat) setPaletteOpen(value => !value);
     };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
+    return listenWorkbenchKeydown(window, onKey, 'capture');
   }, []);
   const resumeWorkflow = useCallback(async () => {
     if (!activeWorkflow) return;
@@ -492,7 +561,64 @@ export function App() {
     try { setActiveWorkflow(await rpc<WorkflowRunView>({ method: 'workflows.cancel', id: activeWorkflow.id })); }
     catch (e) { setError(errorText(e)); }
   }, [activeWorkflow]);
-  const closeWorkflows = useCallback(() => setShowWorkflows(false), []);
+  const workflowNavigation = useRef(0);
+  const dismissWorkflows = useCallback(() => { workflowNavigation.current++; setShowWorkflows(false); setWorkflowDefinitionsRequest(0); }, []);
+  const closeWorkflows = useCallback(() => { dismissWorkflows(); returnFrom('workflows'); }, [dismissWorkflows, returnFrom]);
+  useEffect(() => () => { workflowNavigation.current++; }, [showWorkflows, tab]);
+  useEffect(() => {
+    if (!showWorkflows) {
+      setWorkflowDefinitionsRequest(0);
+      if (dashboardReturn === 'workflows') setDashboardReturn(null);
+    }
+  }, [showWorkflows, dashboardReturn]);
+  async function showWorkflowConversation(load: (target: Target) => Promise<Session>) {
+    const epoch = routeEpoch.current;
+    const target = workflowTarget(epoch);
+    const ticket = ++workflowNavigation.current;
+    const selected = await load(target);
+    workflowTarget(epoch);
+    if (ticket !== workflowNavigation.current) throw Error('已切换工作流操作。');
+    if (selected.target.projectId !== target.projectId || selected.target.origin !== target.origin) throw Error('当前会话不属于此项目。');
+    setSessions(rows => rows.some(row => row.id === selected.id && row.target.projectId === target.projectId) ? rows : [selected, ...rows.filter(row => row.id !== selected.id)]);
+    setSession(selected);
+    setTab('ai');
+    setDashboardReturn(null);
+    dismissWorkflows();
+  }
+  function openWorkflowSession(sessionId: string) {
+    return showWorkflowConversation(async target => {
+      const matches = (row: Session) => row.id === sessionId && row.target?.projectId === target.projectId && row.target.origin === target.origin;
+      const found = sessions.find(matches) ?? (await rpc<Session[]>({ method: 'sessions.list', projectId: target.projectId })).find(matches);
+      if (!found) throw Error('当前项目找不到此会话，可能已删除。');
+      return found;
+    });
+  }
+  async function captureWorkflowMacro(name: string, count: number) {
+    const epoch = routeEpoch.current;
+    const current = await prepareWorkflowSession(epoch);
+    workflowTarget(epoch);
+    const macro = await rpc<Macro>({ method: 'macros.capture', sessionId: current.id, name, count });
+    workflowTarget(epoch);
+    return macro;
+  }
+  async function runWorkflowMacro(id: string) {
+    const epoch = routeEpoch.current;
+    const current = await prepareWorkflowSession(epoch);
+    const target = workflowTarget(epoch);
+    const openDraft = draftRef.current;
+    const outgoing = openDraft ? [{ id: crypto.randomUUID(), target: openDraft.target, workItemId: openDraft.workItemId, text: (openDraft.title + '\n' + openDraft.nodes.filter(n => n.text).map(n => n.text).join('\n')).slice(0, 30000), prefix: '', suffix: '', source: 'work-item' as const, capturedAt: Date.now(), pinned: false }] : [];
+    await rpc({ method: 'macros.run', sessionId: current.id, id, target, contexts: outgoing, permissionMode });
+    workflowTarget(epoch);
+    window.dispatchEvent(new Event('polarion-sidebar-run-started'));
+    return current;
+  }
+  async function runWorkflowBatch(def: WorkflowDef, ids: string[], note: string) {
+    const epoch = routeEpoch.current;
+    const target = workflowTarget(epoch);
+    const results = await rpc<{ workItemId: string; sessionId: string }[]>({ method: 'workflows.runBatch', target, defId: def.id, workItemIds: ids, permissionMode, note });
+    workflowTarget(epoch);
+    return results;
+  }
   // 经验沉淀：会话级提炼 + 本地落盘；会话栏入口随时查看/编辑已沉淀经验。
   const [distilling, setDistilling] = useState(false);
   const [experience, setExperience] = useState<{ view: ExperienceView; projectId: string } | null>(null);
@@ -523,6 +649,7 @@ export function App() {
   type PickerHit = { workItemId: string; title: string; source: 'document' | 'draft' | 'remote'; state?: Draft['state'] };
   const [documentItems, setDocumentItems] = useState<ReturnType<typeof documentWorkItems>>([]);
   const [remoteItems, setRemoteItems] = useState<PickerHit[]>([]);
+  const pickerList = useRef<HTMLDivElement>(null);
   const pickerSearch = useRef(0);
   useEffect(() => {
     if (workItemQuery === null) { setRemoteItems([]); return; }
@@ -532,8 +659,8 @@ export function App() {
     const timer = setTimeout(() => {
       void rpc<PickerHit[]>({ method: 'workitems.search', target, query: workItemQuery, limit: 8 }).then(rows => { if (ticket === pickerSearch.current && targetRef.current?.projectId === target.projectId) setRemoteItems(rows); }).catch(() => { if (ticket === pickerSearch.current) setRemoteItems([]); });
     }, 250);
-    return () => clearTimeout(timer);
-  }, [workItemQuery, target?.projectId]);
+    return () => { clearTimeout(timer); pickerSearch.current++; };
+  }, [workItemQuery, target?.origin, target?.projectId, target?.document]);
   const workItemCandidates = useMemo<PickerHit[]>(() => {
     if (workItemQuery === null) return [];
     const query = workItemQuery.toLowerCase();
@@ -543,10 +670,25 @@ export function App() {
       .map(draft => ({ workItemId: draft.workItemId, title: draft.title, source: 'draft' as const, state: draft.state }));
     const fromDocument = filterWorkItems(documentItems, workItemQuery).map(item => ({ ...item, source: 'document' as const }));
     const seen = new Set<string>(); const merged: PickerHit[] = [];
-    for (const hit of [...fromDocument, ...localDrafts, ...remoteItems]) { if (seen.has(hit.workItemId)) continue; seen.add(hit.workItemId); merged.push(hit); if (merged.length >= 60) break; }
+    for (const hit of [...fromDocument, ...localDrafts, ...remoteItems]) { if (seen.has(hit.workItemId)) continue; seen.add(hit.workItemId); merged.push(hit); if (merged.length >= 300) break; }
     return merged;
   }, [drafts, workItemQuery, documentItems, remoteItems]);
   const workItemPickerOpen = workItemQuery !== null && !pickerHidden && !input.startsWith('/') && workItemCandidates.length > 0;
+  const selectedWorkItemIndex = Math.min(pickerIndex, workItemCandidates.length - 1);
+  useEffect(() => {
+    if (workItemPickerOpen) pickerList.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [workItemPickerOpen, selectedWorkItemIndex]);
+  useEffect(() => {
+    if (!workItemPickerOpen) return;
+    const conversation = scrolling.current;
+    const dismiss = () => setPickerHidden(true);
+    conversation?.addEventListener('scroll', dismiss, { passive: true });
+    window.addEventListener('scroll', dismiss, { passive: true });
+    return () => {
+      conversation?.removeEventListener('scroll', dismiss);
+      window.removeEventListener('scroll', dismiss);
+    };
+  }, [workItemPickerOpen]);
   const chooseWorkItem = (id: string) => { setInput(value => applyWorkItemPick(value, id)); setPickerHidden(true); composerInput.current?.focus(); };
 
   const displayedPermissionMode=active?.permissionMode??permissionMode;
@@ -584,19 +726,33 @@ export function App() {
     catch(e){if(ticket===settingsRequest.current)setSettingsError('读取设置失败：'+errorText(e));}
     finally{if(ticket===settingsRequest.current)setSettingsLoading(false);}
   };
-  // 总览、变更管理和模型关联都是覆盖文档区的大工作台，同时只保留一个；打开任一个都收起设置。
-  const toggleOverview=()=>{
-    if(overview){setOverview(false);return;}
-    setChanges(false);setChangeSeed('');setModel(false);if(settings)closeSettings();setOverview(true);
-  };
-  const toggleChanges=()=>{
-    if(changes){setChanges(false);setChangeSeed('');return;}
-    setOverview(false);setModel(false);if(settings)closeSettings();setChangeSeed('');setChanges(true);
-  };
-  const toggleModel=()=>{
-    if(model){setModel(false);return;}
-    setOverview(false);setChanges(false);setChangeSeed('');if(settings)closeSettings();setModel(true);
-  };
+  function openDestination(destination: WorkspaceDestination, backToDashboard: DashboardReturn | null = null) {
+    closeReader(); clearTimeout(previewTimer.current); setNativePreview(null); setPreviewAsset(null); setExperience(null);
+    if (settings) closeSettings();
+    setPanelsBehindEditor(false); setDashboardReturn(backToDashboard);
+    setNavigation(previous => ({ destination, request: previous.request + 1 }));
+    setShowDashboard(destination === 'dashboard'); setInboxOpen(!!inboxDestination[destination]);
+    setOverview(destination === 'overview' || destination === 'quality' || destination === 'lastQuality');
+    setShowReview(destination === 'review' || destination === 'openReviews');
+    setModel(destination === 'model' || destination === 'orphans');
+    setChanges(destination === 'changes'); setChangeSeed('');
+    setHistory(false); setShowCapabilities(false);
+    if (destination === 'workflows') {
+      workflowNavigation.current++; setShowWorkflows(true); setWorkflowDefinitionsRequest(request => request + 1);
+    } else dismissWorkflows();
+    if (destination === 'workflows' || destination === 'composer') {
+      if (draftRef.current) setEditorAI(true); else setOpen(true);
+      setTab('ai');
+    }
+    if (destination === 'composer') {
+      setInput('/wf::'); requestAnimationFrame(() => composerInput.current?.focus());
+    }
+  }
+  const toggleOverview = () => overview && !showReview ? closeOverviewLayer() : openDestination('overview');
+  const toggleChanges = () => changes ? closeChangesLayer() : openDestination('changes');
+  const toggleModel = () => model ? closeModel() : openDestination('model');
+  const toggleDashboard = () => showDashboard ? closeDashboard() : openDestination('dashboard');
+  const toggleInbox = () => inboxOpen ? closeInbox() : openDestination('inbox');
   const saveSettings=async()=>{
     if(!config||settingsSaveBusy.current)return;
     const drafts=guidelineDrafts??[];
@@ -643,6 +799,12 @@ export function App() {
   // ---- 会话管理：重命名 / 归档 / 分组 / 删除。错误统一走 setError，操作后本地更新列表。 ----
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [groupingId, setGroupingId] = useState<string | null>(null);
+  const groupingTrigger = useRef<HTMLButtonElement | null>(null);
+  const groupingMenu = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const menu = groupingMenu.current;
+    if (groupingId && menu) (menu.querySelector<HTMLButtonElement>('button.current') ?? menu.querySelector('button') ?? menu).focus();
+  }, [groupingId]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   async function renameSession(s: Session, title: string) {
     const name = title.trim(); if (!name) { setRenamingId(null); return; }
@@ -694,9 +856,9 @@ export function App() {
     if ((!input.trim() && !attachments.length) || !target || sending || uploadCount.current) return;
     // /wf::目标 —— 动态拆解并执行；/wf:名称 [附注] —— 触发已保存的工作流，走 workflows.run 而非普通 runs.start。
     const planMatch = /^\/wf::\s*([\s\S]+)$/.exec(input.trim());
-    if (planMatch) { await planWorkflow(planMatch[1]!.trim()); return; }
+    if (planMatch) { await sendWorkflowCommand(null, planMatch[1]!.trim()); return; }
     const workflowMatch = /^\/wf:([^\s:][^\s]*)(?:\s+([\s\S]*))?$/.exec(input.trim());
-    if (workflowMatch) { await runWorkflowByName(workflowMatch[1]!, workflowMatch[2]?.trim() ?? ''); return; }
+    if (workflowMatch) { await sendWorkflowCommand(workflowMatch[1]!, workflowMatch[2]?.trim() ?? ''); return; }
     const epoch=routeEpoch.current;const stillCurrent=()=>epoch===routeEpoch.current&&!!targetRef.current&&sameTarget(target,targetRef.current);
     followOutput.current=true; setAwayFromLatest(false); setSending(true); setError('');
     try { await prepareAI.current?.();if(!stillCurrent())return;const current = session ?? await newSession(); if (!current||!stillCurrent()) return; if (current.target.projectId !== target.projectId) throw Error('当前会话属于另一项目，请切换到当前项目的会话。');
@@ -715,10 +877,46 @@ export function App() {
       await rpc({ method: 'runs.start', permissionMode, delivery: 'queue', ...(attached?{guidelineId:attached.id}:{}), sessionId: current.id, requestId: crypto.randomUUID(), target, prompt, contexts: structuredClone(outgoing), attachments:[...sentAttachments] });if(stillCurrent()){setInput(current=>current===input?'':current);setAttachments(current=>current.filter(a=>!sentAttachments.has(a.id)));setGuidelineId('');}window.dispatchEvent(new Event('polarion-sidebar-run-started'));
     } catch (e) { if(stillCurrent())setError(errorText(e)); } finally { setSending(false); }
   }
-  const openDraft = useCallback(async (workItemId: string) => { if (!target) return;const ticket=++draftOpenRequest.current;try {await prepareAI.current?.();if(ticket!==draftOpenRequest.current)return;const next=await rpc<DraftView>({ method: 'drafts.open', target, workItemId });if(ticket!==draftOpenRequest.current||!targetRef.current||!sameTarget(target,targetRef.current))return;if(!draft)priorTab.current=tab;overlaysBehindEditor.current={overview,changes:changesRef.current};setOverview(false);setChanges(false);setModel(false);setDraft(next);setEditorAI(true);setTab('ai');setContexts(list=>list.some(c=>c.workItemId===workItemId&&!c.pinned)?list:[...list.filter(c=>c.pinned),{id:crypto.randomUUID(),target:next.target,workItemId,text:next.title+'\n'+next.nodes.filter(n=>n.text).map(n=>n.text).join('\n').slice(0,30000),prefix:'',suffix:'',source:'work-item',capturedAt:Date.now(),pinned:false}]); } catch (e) { if(ticket===draftOpenRequest.current)setError(errorText(e)); } }, [target, draft, tab, overview]); editDraftRef.current = openDraft;
-  const openDiagram=useCallback(async(draftId:string,requestId:string)=>{const ticket=++draftOpenRequest.current;try{await prepareAI.current?.();if(ticket!==draftOpenRequest.current)return;const value=await rpc<{draft:DraftView;request:BoardGenerationRequest}>({method:'boards.generation.open',draftId,requestId});if(ticket!==draftOpenRequest.current)return;if(!targetRef.current||!sameTarget(value.draft.target,targetRef.current))throw Error('此草案属于另一个文档，请先回到来源文档。');if(!draft)priorTab.current=tab;overlaysBehindEditor.current={overview,changes:changesRef.current};setOverview(false);setChanges(false);setModel(false);setDraft(value.draft);setRequestedBoard(value.request);setEditorAI(true);setTab('ai');}catch(e){if(ticket===draftOpenRequest.current)setError(errorText(e));}},[draft,tab,overview]);
+  const openDraft = useCallback(async (workItemId: string, readerTicket?: number) => {
+    if (!target) return;
+    const ticket = ++draftOpenRequest.current;
+    const current = () => ticket === draftOpenRequest.current && !!targetRef.current && sameTarget(target, targetRef.current)
+      && (readerTicket === undefined || readerTicket === readerRequest.current);
+    let stage = '同步当前草稿';
+    try {
+      await prepareAI.current?.();
+      if (!current()) return;
+      stage = '打开编辑工作台';
+      const next = await rpc<DraftView>({ method: 'drafts.open', target, workItemId });
+      if (!current()) return;
+      const rich = readerTicket !== undefined && next.id !== draftRef.current?.id
+        ? await rpc<RichReply>({ method: 'drafts.rich.read', draftId: next.id }) : undefined;
+      if (!current()) return;
+      const opened = rich?.draft ?? next;
+      initialRich.current = rich;
+      if (!draft) priorTab.current = tab;
+      closeReader(); setPanelsBehindEditor(true); setError('');
+      setDraft(opened); setEditorAI(true); setTab('ai');
+      setContexts(list => list.some(c => c.workItemId === workItemId && !c.pinned) ? list : [...list.filter(c => c.pinned), {
+        id: crypto.randomUUID(), target: opened.target, workItemId,
+        text: opened.title + '\n' + opened.nodes.filter(n => n.text).map(n => n.text).join('\n').slice(0, 30000),
+        prefix: '', suffix: '', source: 'work-item', capturedAt: Date.now(), pinned: false,
+      }]);
+    } catch (e) {
+      if (!current()) return;
+      const message = `${stage}失败。${errorText(e)}`;
+      if (readerTicket !== undefined) setReaderAction({ kind: 'edit', workItemId, error: message });
+      else setError(message);
+    }
+  }, [target, draft, tab, overview, closeReader]);
+  editDraftRef.current = openDraft;
+  const readInEditor = (workItemId: string) => {
+    setReaderAction({ kind: 'edit', workItemId });
+    void openDraft(workItemId, ++readerRequest.current);
+  };
+  const openDiagram=useCallback(async(draftId:string,requestId:string)=>{const ticket=++draftOpenRequest.current;try{await prepareAI.current?.();if(ticket!==draftOpenRequest.current)return;const value=await rpc<{draft:DraftView;request:BoardGenerationRequest}>({method:'boards.generation.open',draftId,requestId});if(ticket!==draftOpenRequest.current)return;if(!targetRef.current||!sameTarget(value.draft.target,targetRef.current))throw Error('此草案属于另一个文档，请先回到来源文档。');if(!draft)priorTab.current=tab;setPanelsBehindEditor(true);setDraft(value.draft);setRequestedBoard(value.request);setEditorAI(true);setTab('ai');}catch(e){if(ticket===draftOpenRequest.current)setError(errorText(e));}},[draft,tab,overview]);
   const answerPermission = useCallback(async (runId: string, id: string, allow: boolean, scope: 'once' | 'run' = 'once') => { try { await rpc({ method: 'permissions.answer', runId, permissionId: id, allow, scope }); } catch (e) { setError(errorText(e)); } }, []);
-  const retryTurn = useCallback(async (run: Run) => { try { await rpc({ method: 'runs.retry', runId: run.id, requestId: crypto.randomUUID() }); window.dispatchEvent(new Event('polarion-sidebar-run-started')); } catch (e) { setError(errorText(e)); } }, []);
+  const retryTurn = useCallback(async (run: Run) => { try { await rpc({ method: run.qualityInspection ? 'runs.retryQualityInspection' : 'runs.retry', runId: run.id, requestId: crypto.randomUUID() }); window.dispatchEvent(new Event('polarion-sidebar-run-started')); } catch (e) { setError(errorText(e)); } }, []);
   const quoteAnswer = useCallback((text: string) => { const excerpt = text.trim().slice(0, 800); if (!excerpt) return; const quoted = excerpt.split('\n').map(line => '> ' + line).join('\n'); setInput(previous => (previous.trim() ? previous.trimEnd() + '\n\n' : '') + quoted + '\n\n'); composerInput.current?.focus(); }, []);
   // 排队尚未开始执行的指令只显示在队列条；会话正文只收录已实际开始的轮次，避免“未发出去就已经出现”。
   const visibleRuns = useMemo(() => runs.filter(run => run.status !== 'queued' && byRun.has(run.id)), [runs, byRun]);
@@ -750,11 +948,15 @@ export function App() {
       {deletingId === s.id ? <span className="history-confirm"><span>删除会话及其全部记录？</span><button className="confirm-yes" onClick={() => void removeSession(s)}>删除</button><button className="confirm-no" onClick={() => setDeletingId(null)}>取消</button></span>
         : <span className="history-actions">
           <button className="icon" title="重命名会话" onClick={() => { setGroupingId(null); setDeletingId(null); setRenamingId(s.id); }}><PenLine size={12}/></button>
-          <button className="icon" title="移动到分组" onClick={() => { setRenamingId(null); setDeletingId(null); setGroupingId(v => v === s.id ? null : s.id); }}><FolderPlus size={12}/></button>
+          <button className="icon" title="移动到分组" aria-expanded={groupingId === s.id} onClick={event => { groupingTrigger.current = event.currentTarget; setRenamingId(null); setDeletingId(null); setGroupingId(v => v === s.id ? null : s.id); }}><FolderPlus size={12}/></button>
           <button className="icon" title={s.archived ? '恢复到列表' : '归档会话'} onClick={() => void archiveSession(s, !s.archived)}>{s.archived ? <ArchiveRestore size={12}/> : <Archive size={12}/>}</button>
           <button className="icon danger" title="删除会话" onClick={() => setDeletingId(s.id)}><Trash2 size={12}/></button>
         </span>}
-      {groupingId === s.id && <div className="group-menu" onKeyDown={e => e.stopPropagation()}>
+      {groupingId === s.id && <div ref={groupingMenu} className="group-menu" tabIndex={-1} aria-label="选择会话分组" onKeyDown={event => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault(); event.stopPropagation();
+        setGroupingId(null); groupingTrigger.current?.focus();
+      }}>
         {groupNames.length > 0 ? <div className="group-menu-list">{groupNames.map(name => <button key={name} className={s.group === name ? 'current' : ''} title={s.group === name ? '当前分组' : '归入 ' + name} onClick={() => void setSessionGroup(s, name)}><FolderPlus size={11}/>{name}</button>)}</div>
           : <p className="group-menu-empty">还没有分组，先在历史面板上方新建。</p>}
         {s.group && <button className="group-ungroup" onClick={() => void setSessionGroup(s, '')}>移出分组</button>}
@@ -767,18 +969,36 @@ export function App() {
   const floatingBand = !!draft && editorAI;
   const layerRight = floatingBand ? width + 18 : draft ? 0 : open ? width : 0;
   const layerTop = floatingBand ? 18 : geometry.top;
+  const readerNotice = readerAction && <ReaderNotice action={readerAction}
+    onRetry={() => readerAction.kind === 'edit' ? readInEditor(readerAction.workItemId) : void openReader(readerAction.workItemId)}
+    onDismiss={() => { readerRequest.current++; setReaderAction(null); }}/>;
   return <div className={'workspace-root'+(floatingBand?' floating-band':'')+(overview?' overview-open':'')+(changes?' changes-open':'')} style={{'--assistant-width':width+'px','--assistant-font-size':(settings&&config?config.assistantFontSize:assistantFontSize)+'px'} as React.CSSProperties}>
     {!open && <button className="reopen" onClick={() => setOpen(true)} title="展开 Polarion 助手"><PanelRightOpen size={18}/><span>助手</span>{active && <i className="running-dot"/>}</button>}
     {(draft?editorAI:open) && <aside className={'workspace '+(draft&&editorAI?'floating-assistant':'')} style={{ width, top: geometry.top }} aria-label={draft&&editorAI?'编辑工作台 AI 协作':'Polarion 超级侧边栏'}>
-      {draft&&editorAI&&<div className="collaboration-bar"><MessageSquare size={15}/><span>{draft.workItemId} · AI 协作</span><i className={'connection '+(health?'online':'')} title={health?'本地 Host 已连接':'本地 Host 未连接'}/><button className="icon" title={overview?'收起需求总览':'软件需求分析总览'} aria-pressed={overview} onClick={toggleOverview}><LayoutGrid size={15}/></button><button className="icon" title={changes?'收起变更管理':'变更记录与变更管理'} aria-pressed={changes} onClick={toggleChanges}><FileDiff size={15}/></button><button className="icon" title={model?'收起模型关联':'Simulink 模型关联与需求追溯'} aria-pressed={model} onClick={toggleModel}><Boxes size={15}/></button><button className="icon" title={inboxOpen?'收起提案收件箱':'提案收件箱：所有写入先提案、批准后应用'} aria-pressed={inboxOpen} onClick={()=>setInboxOpen(v=>!v)}><Inbox size={15}/></button><button className="icon" title="命令面板（Ctrl+Shift+P）" aria-pressed={paletteOpen} onClick={()=>setPaletteOpen(v=>!v)}><Search size={15}/></button><button className="icon" title={showDashboard?'收起驾驶舱':'驾驶舱：指标一页 + 智能工作集'} aria-pressed={showDashboard} onClick={()=>setShowDashboard(v=>!v)}><Gauge size={15}/></button><button className="icon" title="设置" aria-expanded={settings} disabled={settingsSaving} onClick={e=>void toggleSettings(e.currentTarget)}><Settings size={15}/></button><button className="icon" title="收起编辑区 AI" onClick={()=>setEditorAI(false)}><PanelRightClose size={16}/></button></div>}
-      <div className="resize-grip" onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) setWidth(Math.max(340, Math.min(560, innerWidth * .45, innerWidth - event.clientX))); }} onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)}><GripVertical size={12}/></div>
-      {!(draft&&editorAI)&&<header className="brand"><div className="brand-mark">P<span>＋</span></div><div><strong>工程助手</strong><small>Polarion 工作区</small></div><span className={'connection ' + (health ? 'online' : '')} title={health ? '本地 Host 已连接' : '本地 Host 未连接'}/><button className="icon" title={overview?'收起需求总览':'软件需求分析总览'} aria-pressed={overview} onClick={toggleOverview}><LayoutGrid size={16}/></button><button className="icon" title={changes?'收起变更管理':'变更记录与变更管理'} aria-pressed={changes} onClick={toggleChanges}><FileDiff size={16}/></button><button className="icon" title={model?'收起模型关联':'Simulink 模型关联与需求追溯'} aria-pressed={model} onClick={toggleModel}><Boxes size={16}/></button><button className="icon" title={inboxOpen?'收起提案收件箱':'提案收件箱：所有写入先提案、批准后应用'} aria-pressed={inboxOpen} onClick={()=>setInboxOpen(v=>!v)}><Inbox size={16}/></button><button className="icon" title="命令面板（Ctrl+Shift+P）" aria-pressed={paletteOpen} onClick={()=>setPaletteOpen(v=>!v)}><Search size={16}/></button><button className="icon" title={showDashboard?'收起驾驶舱':'驾驶舱：指标一页 + 智能工作集'} aria-pressed={showDashboard} onClick={()=>setShowDashboard(v=>!v)}><Gauge size={16}/></button><button className="icon" title="设置" aria-expanded={settings} disabled={settingsSaving} onClick={e=>void toggleSettings(e.currentTarget)}><Settings size={16}/></button><button className="icon" title="收起助手，任务继续运行" onClick={() => { setOpen(false); setChanges(false); }}><PanelRightClose size={18}/></button></header>}
+      <div className="resize-grip" onPointerDown={event => event.currentTarget.setPointerCapture(event.pointerId)} onPointerMove={event => {
+        if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+        const right = event.currentTarget.parentElement!.getBoundingClientRect().right;
+        setWidth(Math.max(340, Math.min(560, innerWidth * .45, right - event.clientX)));
+      }} onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)}><GripVertical size={12}/></div>
+      <WorkspaceHeader workItemId={draft?.workItemId} connected={health}
+        primaryTools={[
+          { label: '需求总览', title: overview ? '收起需求总览' : '软件需求分析总览', icon: LayoutGrid, active: overview, onSelect: toggleOverview },
+          { label: '驾驶舱', title: showDashboard ? '收起驾驶舱' : '驾驶舱：指标一页 + 智能工作集', icon: Gauge, active: showDashboard, onSelect: toggleDashboard },
+        ]}
+        moreTools={[
+          { label: '变更管理', title: changes ? '收起变更管理' : '变更记录与变更管理', icon: FileDiff, active: changes, onSelect: toggleChanges },
+          { label: '模型关联', title: model ? '收起模型关联' : 'Simulink 模型关联与需求追溯', icon: Boxes, active: model, onSelect: toggleModel },
+          { label: '提案收件箱', title: inboxOpen ? '收起提案收件箱' : '提案收件箱：所有写入先提案、批准后应用', icon: Inbox, active: inboxOpen, onSelect: toggleInbox },
+        ]}
+        paletteOpen={paletteOpen} onPalette={() => setPaletteOpen(v => !v)}
+        settingsOpen={settings} settingsSaving={settingsSaving} onSettings={button => void toggleSettings(button)}
+        onClose={() => { if (draft) setEditorAI(false); else { setOpen(false); setChanges(false); } }}/>
       <div className="document-path"><span>{target.projectId}</span><ChevronRight size={12}/><strong title={target.document}>{target.document.split('/').at(-1)}</strong></div>
       <nav className="tabs" aria-label="工作区模式">{[['outline','大纲',ListTree],['ai','AI 助手',MessageSquare],['properties','属性',SlidersHorizontal]].map(([key,label,Icon]: any) => <button key={key} className={tab === key ? 'selected' : ''} onClick={() => setTab(key)}><Icon size={15}/>{label}</button>)}</nav>
       {geometry.overlay && <div className="compact-note">窄屏浮层模式 · 收起助手可查看完整正文</div>}
       {error && <div className="error" role="alert"><span>{error}{error.includes('凭据')&&!settings&&<button className="secondary" onClick={e=>void toggleSettings(e.currentTarget)}>配置 Polarion 账号</button>}</span><button className="icon" title="关闭提示" onClick={() => setError('')}><X size={14}/></button></div>}
       {saveNotice&&<div className="save-notice" role="status"><Check size={15}/><span>{saveNotice}</span><button className="icon" title="关闭保存结果" onClick={()=>setSaveNotice('')}><X size={14}/></button></div>}
-      {settings && <SettingsPanel config={config} defaultFontSize={DEFAULT_ASSISTANT_FONT_SIZE} paperWidth={paperWidth} guidelines={guidelineDrafts} target={target} onQualityReview={() => { closeSettings(); setShowReview(true); }} loading={settingsLoading} saving={settingsSaving} error={settingsError} initialTab={settingsTab}
+      {settings && <SettingsPanel config={config} defaultFontSize={DEFAULT_ASSISTANT_FONT_SIZE} paperWidth={paperWidth} guidelines={guidelineDrafts} target={target} onQualityReview={() => openDestination('review')} loading={settingsLoading} saving={settingsSaving} error={settingsError} initialTab={settingsTab}
         onConfig={next=>setConfig(next)} onPaperWidth={next=>setPaperWidth(next)} onGuidelines={next=>{const alive=new Set(next.map(g=>g.id));for(const id of persistedGuidelineIds.current)if(!alive.has(id)&&!deletedGuidelines.current.includes(id))deletedGuidelines.current.push(id);setGuidelineDrafts(next);}}
         onSave={()=>void saveSettings()} onClose={closeSettings}
         onPickFolder={async current=>{try{const value=await rpc<{path:string|null}>({method:'dialog.pickFolder',title:'选择共享草稿存储文件夹',defaultPath:current});return value.path;}catch(e){setSettingsError('打开文件夹选择器失败：'+errorText(e));return null;}}}
@@ -790,7 +1010,11 @@ export function App() {
         {pinnedOutline && <section className="pinned-outline"><div className="section-title"><span>固定大纲</span><button className="icon" title="取消固定大纲" onClick={() => setPinnedOutline(false)}><X size={13}/></button></div>{outlineView}</section>}
         <div className="session-bar"><button ref={historyTrigger} title="会话历史" aria-expanded={history} aria-controls="sidebar-session-history" onClick={() => {if(history)closeHistory();else{setShowCapabilities(false);setShowWorkflows(false);setHistory(true);}}}><History size={14}/><span>{session?.title ?? '新工程会话'}</span><ChevronDown size={12} className="chevron"/></button><button className={'icon'+(experienceMeta?.text.trim()?' experience-on':'')} title={experienceMeta?.text.trim()?'查看/编辑已沉淀的本地经验（后续会话自动遵循）':'经验沉淀：查看本地经验'} onClick={() => void openExperience()}><Lightbulb size={16}/>{experienceMeta?.text.trim()&&<i className="experience-dot"/>}</button><button className="icon" title="工作流：保存的多步骤流程，一键运行与管理" aria-expanded={showWorkflows} onClick={() => { if (showWorkflows) closeWorkflows(); else { setHistory(false); setShowCapabilities(false); setShowWorkflows(true); } }}><Workflow size={16}/></button><button ref={capabilitiesTrigger} className="icon" title="Claude Code 命令、Skills 与 MCP" aria-expanded={showCapabilities} onClick={() => {if(showCapabilities)closeCapabilities();else{setHistory(false);setShowWorkflows(false);setShowCapabilities(true);void loadCapabilities();}}}><TerminalSquare size={16}/></button><button className="icon" title="新建会话" onClick={() => void newSession().catch(e => setError(errorText(e)))}><Plus size={17}/></button></div>
         {showCapabilities && <CapabilitiesPanel value={capabilities} loading={loadingCapabilities} error={capabilityError} connected={health&&capabilities?.connected===true} onManage={(action,server)=>void manageCapabilities(action,server)} onRefresh={() => void loadCapabilities(true)} onCommand={chooseCommand} onClose={closeCapabilities}/>}
-        {showWorkflows && <WorkflowPanel target={target} defs={workflowDefs} guidelines={guidelines} active={activeWorkflow} onDefsChange={setWorkflowDefs} onRun={(def, note) => { closeWorkflows(); void startWorkflow(def, note); }} onPlan={goal => { closeWorkflows(); void planWorkflow(goal); }} onCaptureMacro={(name, count) => { void (async () => { try { await prepareAI.current?.(); const current = session ?? await newSession(); if (!current || current.target.projectId !== target?.projectId) throw Error('当前会话属于另一项目。'); await rpc({ method: 'macros.capture', sessionId: current.id, name, count }); } catch (e) { setError(errorText(e)); } })(); }} onRunMacro={id => { void (async () => { try { if (!target) return; await prepareAI.current?.(); const current = session ?? await newSession(); if (!current || current.target.projectId !== target.projectId) throw Error('当前会话属于另一项目。'); const openDraft = draftRef.current; const outgoing = openDraft ? [{ id: crypto.randomUUID(), target: openDraft.target, workItemId: openDraft.workItemId, text: (openDraft.title + '\n' + openDraft.nodes.filter(n => n.text).map(n => n.text).join('\n')).slice(0, 30000), prefix: '', suffix: '', source: 'work-item' as const, capturedAt: Date.now(), pinned: false }] : []; await rpc({ method: 'macros.run', sessionId: current.id, id, target, contexts: outgoing, permissionMode }); closeWorkflows(); setTab('ai'); window.dispatchEvent(new Event('polarion-sidebar-run-started')); } catch (e) { setError(errorText(e)); } })(); }} onRunBatch={(def, ids) => { void (async () => { try { if (!target) return; const result = await rpc<{ workItemId: string; sessionId: string }[]>({ method: 'workflows.runBatch', target, defId: def.id, workItemIds: ids, permissionMode, note: '' }); setError(`已为 ${result.length} 个工作项各建会话并启动「${def.name}」；在运行轨迹或左侧会话列表逐条查看。`); closeWorkflows(); } catch (e) { setError(errorText(e)); } })(); }} onClose={closeWorkflows}/>}
+        {showWorkflows && <WorkflowPanel target={target} defs={workflowDefs} guidelines={guidelines} active={activeWorkflow} definitionsRequest={workflowDefinitionsRequest} onDefsChange={setWorkflowDefs}
+          onRun={(def, note) => showWorkflowConversation(() => startWorkflow({ def, note }))}
+          onPlan={goal => showWorkflowConversation(() => startWorkflow({ goal }))}
+          onRunMacro={id => showWorkflowConversation(() => runWorkflowMacro(id))}
+          onCaptureMacro={captureWorkflowMacro} onRunBatch={runWorkflowBatch} onOpenSession={openWorkflowSession} onClose={closeWorkflows}/>}
         {history && <div ref={historyPanel} id="sidebar-session-history" className="history" aria-label="会话历史" tabIndex={-1} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeHistory();}}}>
           <div className="group-bar">
             <input className="group-bar-new" value={newGroupName} placeholder="新建分组" maxLength={40} aria-label="新建分组" onKeyDown={e => { if (e.key === 'Enter') void createSessionGroup(); if (e.key === 'Escape') setNewGroupName(''); }} onChange={e => setNewGroupName(e.target.value)} />
@@ -821,9 +1045,9 @@ export function App() {
           {!loadingHistory&&runs.filter(run=>run.status!=='queued').length>visibleRuns.length&&<p className="history-loading">部分任务没有保存会话事件，无法还原正文。</p>}</div>
         {awayFromLatest&&<button className="jump-latest" onClick={()=>{followOutput.current=true;setAwayFromLatest(false);scrolling.current?.scrollTo({top:scrolling.current.scrollHeight,behavior:'smooth'});}}>回到最新消息 ↓</button>}
         <div className={"composer-wrap " + (dragOver ? "drag-over" : "")} onDragOver={e => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragOver(true); } }} onDragLeave={e => { const next = e.relatedTarget as Node | null; if (!next || !e.currentTarget.contains(next)) setDragOver(false); }} onDrop={e => { if (e.dataTransfer.files.length) { e.preventDefault(); setDragOver(false); void addAttachments(Array.from(e.dataTransfer.files)); } }}>{dragOver && <div className="drop-hint" aria-hidden="true"><Paperclip size={15}/><span>松开以添加附件</span></div>}<input hidden type="file" multiple ref={attachmentFiles} aria-label="添加对话附件" onChange={e => { if (e.target.files) void addAttachments(Array.from(e.target.files)); e.target.value=""; }}/><AttachmentCards assets={attachments} onRemove={id=>setAttachments(list=>list.filter(a=>a.id!==id))} onPreview={setPreviewAsset}/>{uploadProgress&&<p className="upload-progress">{uploadProgress}</p>}<ContextCards contexts={contexts} target={target} onPin={id=>setContexts(list=>list.map(c=>c.id===id?{...c,pinned:!c.pinned}:c))} onRemove={id=>setContexts(list=>list.filter(c=>c.id!==id))}/>
-          {workItemPickerOpen && <div className="workitem-picker" role="listbox" aria-label="工作项引用候选">
+          {workItemPickerOpen && <div ref={pickerList} id="composer-workitem-list" className="workitem-picker" role="listbox" aria-label="工作项引用候选">
             <div className="workitem-picker-head"><span>引用工作项</span><small>本文档 · 本地草稿 · Polarion</small></div>
-            {workItemCandidates.map((hit, index) => <button key={hit.workItemId} role="option" aria-selected={index === pickerIndex} className={index === pickerIndex ? 'selected' : ''} onMouseDown={event => event.preventDefault()} onClick={() => chooseWorkItem(hit.workItemId)}><strong>{hit.workItemId}</strong><span>{hit.title || '未命名工作项'}</span><i>{hit.source === 'document' ? '本文档' : hit.source === 'remote' ? 'Polarion' : hit.state === 'clean' ? '已同步' : hit.state === 'dirty' ? '待处理' : hit.state === 'conflict' ? '有冲突' : '待核对'}</i></button>)}
+            {workItemCandidates.map((hit, index) => <button key={hit.workItemId} id={'composer-workitem-' + index} role="option" tabIndex={-1} aria-selected={index === selectedWorkItemIndex} className={index === selectedWorkItemIndex ? 'selected' : ''} onMouseDown={event => event.preventDefault()} onClick={() => chooseWorkItem(hit.workItemId)}><strong>{hit.workItemId}</strong><span>{hit.title || '未命名工作项'}</span><i>{hit.source === 'document' ? '本文档' : hit.source === 'remote' ? 'Polarion' : hit.state === 'clean' ? '已同步' : hit.state === 'dirty' ? '待处理' : hit.state === 'conflict' ? '有冲突' : '待核对'}</i></button>)}
           </div>}
           {slashOpen && <div className="slash-menu" ref={slashMenu}>
             <div className="slash-menu-header"><span>{loadingCapabilities?'正在读取本机命令…':`${workflowMatches.length} 工作流 · ${slashMatches.length} / ${capabilities?.commands.length??0} 个命令与 Skills`}</span><button title="重新读取本机命令" disabled={loadingCapabilities} onClick={()=>void loadCapabilities(true)}>刷新</button></div>
@@ -863,67 +1087,112 @@ export function App() {
               </div>)}
             </> : <button type="button" className="queue-summary" title="展开排队指令" onClick={() => setQueueExpanded(true)}><ChevronRight size={11}/><strong>{queuedRuns.length} 条排队</strong><span>当前任务结束后按顺序发送 · 点击展开</span></button>)}
           </div>}
-          <div className="composer"><textarea ref={composerInput} rows={1} role="combobox" aria-autocomplete="list" aria-expanded={slashOpen} aria-controls="native-command-list" aria-activedescendant={slashOpen&&slashOptions.length?'native-command-'+slashIndex:undefined} title="Enter 发送 · Shift+Enter 换行 · 支持拖入附件和粘贴截图" onPaste={e=>{const files=Array.from(e.clipboardData.files);if(files.length){e.preventDefault();void addAttachments(files);}}} aria-label="向工程助手发送消息" placeholder={active?'新需求发送后进入队列 · 队列条目可「引导」优先处理':'描述任务，或输入 / 调用命令、Skill 与工作流'} value={input} onChange={e => { setInput(e.target.value); setSlashHidden(false); setPickerHidden(false); setSlashIndex(0);setSlashNavigated(false); }} onKeyDown={e => { if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (workItemPickerOpen) { if (e.key === 'Escape') { e.preventDefault(); setPickerHidden(true); return; } if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setPickerIndex(value => (value + (e.key === 'ArrowDown' ? 1 : workItemCandidates.length - 1)) % workItemCandidates.length); return; } if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chooseWorkItem(workItemCandidates[Math.min(pickerIndex, workItemCandidates.length - 1)]!.workItemId); return; } } if (slashOpen) { if (e.key === 'Escape') {e.preventDefault();setSlashHidden(true);return;} } if (slashOpen && slashOptions.length) { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault();setSlashNavigated(true); setSlashIndex(v => (v + (e.key === 'ArrowDown' ? 1 : slashOptions.length - 1)) % slashOptions.length); return; } if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey && (slashNavigated||commandNameMatches(slashOptions[Math.min(slashIndex,slashOptions.length-1)]!,commandQuery??''))) { e.preventDefault(); slashOptions[Math.min(slashIndex, slashOptions.length - 1)]!.apply(); return; } } if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}/><div className="composer-footer"><button className="icon" title="添加文档、图片或其他附件" onClick={()=>attachmentFiles.current?.click()}><Paperclip size={16}/></button><span title={session?.engine === 'codex' ? 'Codex' : 'Claude Code'}><i className={'connection ' + (health ? 'online' : '')}/>{width >= 380 && <>{session?.engine === 'codex' ? 'Codex' : 'Claude Code'}</>}</span><ContextMeter key={session?.id+":"+(transcript.boundary?.seq??0)} sessionId={session?.id} engine={session?.engine} busy={!!active} online={health}/><div className="footer-selects">{sendGuidelines.length?<select className="permission-select guideline-select" aria-label="附加指令" title="附加指令随本条消息一起发送，每次发送单独选择；不选择则不附加。" value={guidelineId} disabled={sending} onChange={e=>{if(e.target.value==='__manage'){setGuidelineId('');void toggleSettings(e.currentTarget,'guidelines');return;}setGuidelineId(e.target.value);}}><option value="">不附加指令</option>{sendGuidelines.map(g=><option key={g.id} value={g.id} title={g.description||g.name}>{g.name}</option>)}<option value="__manage">管理指令…</option></select>:<button type="button" className="permission-select guideline-add" title="在设置中添加随发送指令（例如：写标准需求 / 排版美化 / 绘图规范）" onClick={e=>void toggleSettings(e.currentTarget,'guidelines')}>＋ 附加指令</button>}<select className="permission-select" aria-label="智能体权限" title={(displayedPermissionMode==='full'?'完全访问：本地命令与工具自动执行；Polarion 仍需明确保存。':displayedPermissionMode==='auto'?'自动批准：命令与工具自动执行，文件编辑仅限项目工作区；Polarion 写操作仍通过草稿明确保存。':'请求批准：读取与本地文档草稿操作自动进行，其他操作逐次确认。')+' 本轮权限在发送时固定，切换后对下一轮生效。'} data-mode={displayedPermissionMode} disabled={!!active} value={displayedPermissionMode} onChange={e=>setPermissionMode(e.target.value as PermissionMode)}><option value="ask">请求批准</option><option value="auto">自动批准</option><option value="full">完全访问</option></select></div><div className="send-group"><button className="send" title={active?'排队发送：当前任务结束后自动作为下一轮；上方队列可逐条「引导」插队':'发送消息'} disabled={(!input.trim() && !attachments.length) || !health || sending || !!uploadProgress} onClick={() => void send()}><ArrowUp size={18}/></button></div></div></div></div>
+          <div className="composer"><textarea ref={composerInput} rows={1} role="combobox" aria-autocomplete="list" aria-expanded={workItemPickerOpen || slashOpen}
+            aria-controls={workItemPickerOpen ? 'composer-workitem-list' : slashOpen ? 'native-command-list' : undefined}
+            aria-activedescendant={workItemPickerOpen ? 'composer-workitem-' + selectedWorkItemIndex : slashOpen && slashOptions.length ? 'native-command-' + slashIndex : undefined}
+            onBlur={event => {
+              setPickerHidden(true);
+              if (!slashMenu.current?.contains(event.relatedTarget as Node | null)) setSlashHidden(true);
+            }} title="Enter 发送 · Shift+Enter 换行 · 支持拖入附件和粘贴截图" onPaste={e=>{const files=Array.from(e.clipboardData.files);if(files.length){e.preventDefault();void addAttachments(files);}}} aria-label="向工程助手发送消息" placeholder={active?'新需求发送后进入队列 · 队列条目可「引导」优先处理':'描述任务，或输入 / 调用命令、Skill 与工作流'} value={input} onChange={e => { setInput(e.target.value); setSlashHidden(false); setPickerHidden(false); setSlashIndex(0);setSlashNavigated(false); }} onKeyDown={e => { if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (workItemPickerOpen) { if (e.key === 'Escape') { e.preventDefault(); setPickerHidden(true); return; } if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setPickerIndex(value => (value + (e.key === 'ArrowDown' ? 1 : workItemCandidates.length - 1)) % workItemCandidates.length); return; } if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chooseWorkItem(workItemCandidates[Math.min(pickerIndex, workItemCandidates.length - 1)]!.workItemId); return; } } if (slashOpen) { if (e.key === 'Escape') {e.preventDefault();setSlashHidden(true);return;} } if (slashOpen && slashOptions.length) { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault();setSlashNavigated(true); setSlashIndex(v => (v + (e.key === 'ArrowDown' ? 1 : slashOptions.length - 1)) % slashOptions.length); return; } if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey && (slashNavigated||commandNameMatches(slashOptions[Math.min(slashIndex,slashOptions.length-1)]!,commandQuery??''))) { e.preventDefault(); slashOptions[Math.min(slashIndex, slashOptions.length - 1)]!.apply(); return; } } if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}/><div className="composer-footer"><button className="icon" title="添加文档、图片或其他附件" onClick={()=>attachmentFiles.current?.click()}><Paperclip size={16}/></button><span title={session?.engine === 'codex' ? 'Codex' : 'Claude Code'}><i className={'connection ' + (health ? 'online' : '')}/>{width >= 380 && <>{session?.engine === 'codex' ? 'Codex' : 'Claude Code'}</>}</span><ContextMeter key={session?.id+":"+(transcript.boundary?.seq??0)} sessionId={session?.id} engine={session?.engine} busy={!!active} online={health}/><div className="footer-selects">{sendGuidelines.length?<select className="permission-select guideline-select" aria-label="附加指令" title="附加指令随本条消息一起发送，每次发送单独选择；不选择则不附加。" value={guidelineId} disabled={sending} onChange={e=>{if(e.target.value==='__manage'){setGuidelineId('');void toggleSettings(e.currentTarget,'guidelines');return;}setGuidelineId(e.target.value);}}><option value="">不附加指令</option>{sendGuidelines.map(g=><option key={g.id} value={g.id} title={g.description||g.name}>{g.name}</option>)}<option value="__manage">管理指令…</option></select>:<button type="button" className="permission-select guideline-add" title="在设置中添加随发送指令（例如：写标准需求 / 排版美化 / 绘图规范）" onClick={e=>void toggleSettings(e.currentTarget,'guidelines')}>＋ 附加指令</button>}<select className="permission-select" aria-label="智能体权限" title={(displayedPermissionMode==='full'?'完全访问：本地命令与工具自动执行；Polarion 仍需明确保存。':displayedPermissionMode==='auto'?'自动批准：命令与工具自动执行，文件编辑仅限项目工作区；Polarion 写操作仍通过草稿明确保存。':'请求批准：读取与本地文档草稿操作自动进行，其他操作逐次确认。')+' 本轮权限在发送时固定，切换后对下一轮生效。'} data-mode={displayedPermissionMode} disabled={!!active} value={displayedPermissionMode} onChange={e=>setPermissionMode(e.target.value as PermissionMode)}><option value="ask">请求批准</option><option value="auto">自动批准</option><option value="full">完全访问</option></select></div><div className="send-group"><button className="send" title={active?'排队发送：当前任务结束后自动作为下一轮；上方队列可逐条「引导」插队':'发送消息'} disabled={(!input.trim() && !attachments.length) || !health || sending || !!uploadProgress} onClick={() => void send()}><ArrowUp size={18}/></button></div></div></div></div>
       </>}
     </aside>}
-    {nativePreview && <WorkItemPreviewCard preview={nativePreview} style={{ right: open ? width + 16 : 60, bottom: 28 }} onClose={() => setNativePreview(null)} onOpen={() => { setNativePreview(null); void openDraft(nativePreview.id); }} onEnter={() => keepPreview()} onLeave={() => {}} />}
+    {nativePreview && <WorkItemPreviewCard preview={nativePreview} style={{ right: open ? width + 16 : 60, bottom: 28 }} onClose={() => setNativePreview(null)} onOpen={() => { setNativePreview(null); if (nativePreview.readOnlyReference || nativePreview.loading || nativePreview.failed) void openReader(nativePreview.id); else void openDraft(nativePreview.id); }} onEnter={() => keepPreview()} onLeave={() => {}} />}
     {previewAsset && <AttachmentPreview asset={previewAsset} onClose={()=>setPreviewAsset(null)}/>}
-    {reader && <WorkItemReader view={reader} onClose={() => setReader(null)} onWorkItem={id => { setReader(null); void openReader(id); }} onOpenEditor={() => { const id = reader.workItemId; setReader(null); void openDraft(id); }}/>}
+    {reader && <WorkItemReader view={reader} notice={readerNotice} opening={!!readerAction && !readerAction.error} onClose={closeReader} onWorkItem={openItemReader} onOpenEditor={() => readInEditor(reader.workItemId)}/>}
+    {!reader && readerNotice}
     {experience && <ExperienceDialog view={experience.view} projectId={experience.projectId} model={session?.model ?? ''} onClose={() => setExperience(null)} onView={view => { setExperience(current => current ? { ...current, view } : current); setExperienceMeta(view); }}/>}
-    {overview && target && <MemoizedOverview key={target.projectId + ':' + target.document} target={target} right={layerRight} top={layerTop} onClose={closeOverviewLayer} onOpenItem={openItemReader} onReview={() => setShowReview(true)} onRewrite={(workItemId, title, issues) => dispatchCommand(`请按质量体检规则改写 ${workItemId}「${title}」：${issues.map(issue => issue.matchedText ? `「${issue.matchedText}」${issue.message}` : issue.message).join('；')}。先用 read_draft 读正文，逐处改写：模糊词改可度量表述、补量化判据与触发条件、拆分多义务、展开指代；只改命中处，保留其余原文，改完列出每处的改前/改后。`)}/>}
-    {changes && target && <MemoizedChangeWorkbench key={target.projectId + ':' + target.document} target={target} initialRecordId={changeSeed} right={layerRight} top={layerTop} onClose={closeChangesLayer} onOpenItem={openItemReader}/>}
-    {model && target && <MemoizedModelWorkbench key={target.projectId} target={target} right={layerRight} top={layerTop} onClose={closeModel} onOpenItem={openItemReader} onAutolink={() => { closeModel(); void autolinkModel(); }}/>}
-    {inboxOpen && target && <ProposalInbox key={'inbox:' + inboxTab} target={target} initialTab={inboxTab} timelineItemId={draft?.workItemId} right={layerRight} top={layerTop} onClose={() => setInboxOpen(false)} onOpenItem={openItemReader} onAskAi={prompt => void dispatchCommand(prompt)}/>}
-    {showReview && target && <ReviewPanel target={target} right={layerRight} top={layerTop} onClose={() => setShowReview(false)} onOpenItem={openItemReader} onStart={() => void startReview()} onApply={(workItemId, summary, suggestion) => dispatchCommand(`请按 AI 预审建议改写${workItemId ? ' ' + workItemId : '当前条目'}：问题「${summary}」，建议「${suggestion}」。用 read_draft 读正文后直接修改草稿，只改该问题相关内容，保留其余原文；改完列出修改对照。`)} starting={reviewStarting}/>}
-    {showDashboard && target && <DashboardPanel target={target} right={layerRight} top={layerTop} onClose={() => setShowDashboard(false)} onOpenItem={openItemReader}
-      onOpenInbox={() => { setShowDashboard(false); setInboxTab('pending'); setInboxOpen(true); }}
-      onOpenModel={() => { setShowDashboard(false); toggleModel(); }}
-      onOpenQuality={() => { setShowDashboard(false); if (!overview) toggleOverview(); }}
-      onOpenWorkflows={() => { setShowDashboard(false); setShowWorkflows(true); }}/>}
+    <div hidden={panelsHidden} onFocusCapture={event => { panelFocus.current = event.target; }}>
+      {overviewMounted && <MemoizedOverview key={navigation.request} target={target} right={layerRight} top={layerTop} initialMode={navigation.destination === 'lastQuality' ? 'lastQuality' : navigation.destination === 'quality' ? 'quality' : 'outline'} onClose={closeOverviewLayer} onOpenItem={openItemReader} onReview={() => setShowReview(true)}
+        onRewrite={(workItemId, title, issues) => dispatchCommand(`请按质量体检规则改写 ${workItemId}「${title}」：${issues.map(issue => issue.matchedText ? `「${issue.matchedText}」${issue.message}` : issue.message).join('；')}。先用 read_draft 读正文，逐处改写，保留其余原文。缺少量化判据时标明待确认，不编造指标；改完列出每处的改前/改后。`, { workItemId })}/>}
+      {changesMounted && <MemoizedChangeWorkbench key={target.projectId + ':' + target.document} target={target} initialRecordId={changeSeed} right={layerRight} top={layerTop} onClose={closeChangesLayer} onOpenItem={openItemReader}/>}
+      {modelMounted && <MemoizedModelWorkbench key={navigation.request} target={target} right={layerRight} top={layerTop} initialOrphans={navigation.destination === 'orphans'} onClose={closeModel} onOpenItem={openItemReader} onAutolink={() => { setDashboardReturn(null); setModel(false); void autolinkModel(); }}/>}
+      {inboxMounted && <ProposalInbox key={navigation.request} target={target} initialTab={inboxDestination[navigation.destination]} timelineItemId={draft?.workItemId} right={layerRight} top={layerTop} onClose={closeInbox} onOpenItem={openItemReader} onAskAi={dispatchCommand}/>}
+      {showReview && <ReviewPanel key={'review:' + navigation.request} target={target} right={layerRight} top={layerTop} initialOpenOnly={navigation.destination === 'openReviews'} onClose={closeReview} onOpenItem={openItemReader} onStart={startReview}
+        onApply={(workItemId, summary, suggestion) => dispatchCommand(`请按 AI 预审建议改写 ${workItemId}：问题「${summary}」，建议「${suggestion}」。用 read_draft 读正文后直接修改草稿，只改该问题相关内容，保留其余原文；改完列出修改对照。`, { workItemId })} starting={reviewStarting}/>}
+      {(dashboardMounted || dashboardReturn) && <div hidden={!dashboardMounted}><DashboardPanel target={target} active={dashboardMounted} right={layerRight} top={layerTop} onClose={closeDashboard} onOpenItem={openItemReader}
+        onNavigate={destination => openDestination(destination, dashboardPanel[destination])}/></div>}
+    </div>
     {paletteOpen && <CommandPalette target={target} onClose={() => setPaletteOpen(false)} onOpenItem={openItemReader} commands={[
-      { id: 'overview', label: '需求总览', hint: '结构 + 整册体检 + 门禁', run: () => toggleOverview() },
-      { id: 'quality', label: '整册体检报告', hint: '逐条扫描 + 分数 + 章分组', run: () => { if (!overview) toggleOverview(); } },
-      { id: 'review', label: 'AI 预审评审', hint: '问题卡逐条处置', run: () => setShowReview(true) },
-      { id: 'model', label: '模型关联与追溯', hint: '基准/巡检/覆盖视图', run: () => toggleModel() },
-      { id: 'inbox', label: '提案收件箱', hint: '审批 + 动态警报', run: () => { setInboxTab('pending'); setInboxOpen(true); } },
-      { id: 'feed', label: '动态与警报', hint: '守望者 + 事件流 + 晨报', run: () => { setInboxTab('feed'); setInboxOpen(true); } },
-      { id: 'meeting', label: '会议纪要分诊', hint: '纪要 → 动作卡 → 派发', run: () => { setInboxTab('feed'); setInboxOpen(true); } },
-      { id: 'timeline', label: '变更时间线', hint: '事件流按时间', run: () => { setInboxTab('timeline'); setInboxOpen(true); } },
-      { id: 'dashboard', label: '驾驶舱', hint: '指标一页 + 工作集', run: () => setShowDashboard(true) },
-      { id: 'workflows', label: '工作流与宏', hint: '动态拆解 / 保存复用 / 宏', run: () => setShowWorkflows(true) },
-      { id: 'changes', label: '变更管理', hint: '记录与对比', run: () => toggleChanges() },
-      { id: 'dynflow', label: '动态工作流', hint: '/wf::目标 拆解执行', run: () => { setTab('ai'); setInput('/wf::'); } },
+      { id: 'overview', label: '需求总览', hint: '结构 + 整册体检 + 门禁', run: () => openDestination('overview') },
+      { id: 'quality', label: '整册体检报告', hint: '体检当前文档并按章查看发现', run: () => openDestination('quality') },
+      { id: 'review', label: 'AI 预审评审', hint: '问题卡逐条处置', run: () => openDestination('review') },
+      { id: 'model', label: '模型关联与追溯', hint: '基准/巡检/覆盖视图', run: () => openDestination('model') },
+      { id: 'inbox', label: '提案收件箱', hint: '审批 + 动态警报', run: () => openDestination('inbox') },
+      { id: 'feed', label: '动态与警报', hint: '守望者 + 事件流 + 晨报', run: () => openDestination('feed') },
+      { id: 'meeting', label: '会议纪要分诊', hint: '纪要 → 动作卡 → 派发', run: () => openDestination('meeting') },
+      { id: 'timeline', label: '变更时间线', hint: '事件流按时间', run: () => openDestination('timeline') },
+      { id: 'dashboard', label: '驾驶舱', hint: '指标一页 + 工作集', run: () => openDestination('dashboard') },
+      { id: 'workflows', label: '工作流与宏', hint: '动态拆解 / 保存复用 / 宏', run: () => openDestination('workflows') },
+      { id: 'changes', label: '变更管理', hint: '记录与对比', run: () => openDestination('changes') },
+      { id: 'dynflow', label: '动态工作流', hint: '/wf::目标 拆解执行', run: () => openDestination('composer') },
     ] as PaletteCommand[]}/>}
-    {draft && <DraftEditor key={draft.id} draft={draft} onLintRewrite={async (issue,text) => {
+    {draft && <DraftEditor key={draft.id} draft={draft} initialRich={initialRich.current} onQualityInspect={async (text, sourceLabel) => {
       if (!editorStillCurrent()) throw Error('当前工作项已改变。');
+      const snapshot = {id: crypto.randomUUID(), target: draft.target, workItemId: draft.workItemId, source: 'editor' as const,
+        capturedAt: Date.now(), pinned: false as const, prefix: '', suffix: '', text};
+      try {
+        const current = session ?? await newSession();
+        if (!current || !editorStillCurrent() || current.target.projectId !== draft.target.projectId || current.target.origin !== draft.target.origin) throw Error('会话或工作项已改变。');
+        const run = await rpc<Run>({method: 'runs.inspectQuality', sessionId: current.id, requestId: crypto.randomUUID(), title: draft.title, sourceLabel, snapshot});
+        if (editorStillCurrent() && (!sessionRef.current || sessionRef.current.id === current.id)) { setEditorAI(true); setTab('ai'); }
+        window.dispatchEvent(new Event('polarion-sidebar-run-started'));
+        return run;
+      } catch (error) {
+        const reason = errorText(error);
+        if (/No matching discriminator|Invalid discriminator value/.test(reason)) throw Error('当前 Host 尚未提供只读深检，请更新 Host 后重试。');
+        throw Error(`只读深检提交未确认（${sourceLabel}）。${reason}`);
+      }
+    }} onQualityRun={async (text, issue, qualityRewrite) => {
+      if (!editorStillCurrent()) throw Error('当前工作项已改变。');
+      if ((issue.from !== undefined || issue.to !== undefined) && !qualityRewrite) throw Error('体检发现缺少定位，请重新体检。');
+      if (qualityRewrite) {
+        if (qualityRewrite.draftId !== draft.id || qualityRewrite.workItemId !== draft.workItemId) throw Error('体检发现所属草稿已改变，请重新体检。');
+        // Older Hosts silently strip unknown runs.start fields and would expose their ordinary editing tools.
+        const host = await rpc<{scopedQualityRewrite?: boolean}>({method:'health'});
+        if (!host.scopedQualityRewrite) throw Error('单句改写需要支持范围校验的 Host，请更新后重试。');
+      }
       const current = session ?? await newSession();
-      if (!current || !editorStillCurrent() || current.target.projectId !== draft.target.projectId) throw Error('会话或工作项已改变。');
-      const context: Context = {id:crypto.randomUUID(),target:draft.target,workItemId:draft.workItemId,source:'work-item',capturedAt:Date.now(),pinned:false,prefix:'',suffix:'',text:(draft.title+'\n'+text).slice(0,60000)};
-      await rpc({method:'runs.start',sessionId:current.id,requestId:crypto.randomUUID(),target:draft.target,permissionMode,delivery:'queue',attachments:[],contexts:[context],prompt:`请在当前条目 ${draft.workItemId} 的草稿中改写本次体检命中的句子，保留原意，不编造验收指标。规则：${issue.ruleId}。提示：${issue.message}。命中：${issue.matchedText || '条目级'}。`});
+      if (!current || !editorStillCurrent() || current.target.projectId !== draft.target.projectId || current.target.origin !== draft.target.origin) throw Error('会话或工作项已改变。');
+      const context: Context = {id:crypto.randomUUID(),target:draft.target,workItemId:draft.workItemId,source:qualityRewrite ? 'selection' : 'work-item',capturedAt:Date.now(),pinned:false,prefix:'',suffix:'',text:qualityRewrite?.sentence ?? (draft.title+'\n'+text).slice(0,60000)};
+      const prompt = qualityRewrite ? `请改写 ${draft.workItemId} 中选定的这一处「${qualityRewrite.matchedText}」。${qualityRewrite.message}`
+        : `请根据本次条目级体检发现改写 ${draft.workItemId} 的草稿，保留原意，不编造验收指标。规则：${issue.ruleId}。提示：${issue.message}。命中：${issue.matchedText || '条目级'}。`;
+      const run = await rpc<Run>({method:'runs.start',sessionId:current.id,requestId:crypto.randomUUID(),target:draft.target,permissionMode,delivery:'queue',autoSave:false,qualityRewrite,attachments:[],contexts:[context],prompt});
       if (editorStillCurrent()) { setEditorAI(true); setTab('ai'); }
       window.dispatchEvent(new Event('polarion-sidebar-run-started'));
-    }} requestedBoard={requestedBoard} onBoardOpened={()=>setRequestedBoard(null)} initialScrollTop={restoredEditorScroll} onUpdate={updateCurrentDraft} onClose={() => {draftOpenRequest.current++;setContexts(list=>list.filter(c=>!c.text.startsWith('BOARD_GENERATION_CONTEXT\n')&&!c.text.startsWith('画板对象协作上下文')));setDraft(null);setRestoredEditorScroll(undefined);prepareAI.current=null;setTab(priorTab.current);// 编辑前被收起的总览/变更管理原样恢复，编辑器关闭后用户回到原来的工作台。
-      const restore=overlaysBehindEditor.current;overlaysBehindEditor.current={overview:false,changes:false};setOverview(restore.overview);setChanges(restore.changes);}} aiOpen={editorAI} onToggleAI={()=>{setEditorAI(v=>!v);setTab('ai');}} onShowAI={()=>{setEditorAI(true);setTab('ai');}} onClearBoardContext={()=>setContexts(list=>list.filter(c=>!(c.workItemId===draft.workItemId&&(c.text.startsWith('BOARD_GENERATION_CONTEXT\n')||c.text.startsWith('画板对象协作上下文')))))} onPrepareAI={handler=>{prepareAI.current=handler;}} remoteRevision={drafts.find(d=>d.id===draft.id)?.revision} onError={e => setError(errorText(e))} prepareNativeSave={async()=>{if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');const snapshot=native.current.captureVerification();const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:draft.workItemId,phase:'check'});if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');if(!result?.ok)throw Error(result?.error??'NATIVE_REFRESH_UNSUPPORTED');native.current.acceptVerifiedClean(snapshot);return native.current.state();}} onSaved={async saved => {
+      return run;
+    }} requestedBoard={requestedBoard} onBoardOpened={()=>setRequestedBoard(null)} initialScrollTop={restoredEditorScroll} onUpdate={updateCurrentDraft} onClose={() => {draftOpenRequest.current++;setContexts(list=>list.filter(c=>!c.text.startsWith('BOARD_GENERATION_CONTEXT\n')&&!c.text.startsWith('画板对象协作上下文')));setDraft(null);setRestoredEditorScroll(undefined);prepareAI.current=null;setTab(priorTab.current);}} aiOpen={editorAI} onToggleAI={()=>{setEditorAI(v=>!v);setTab('ai');}} onShowAI={()=>{setEditorAI(true);setTab('ai');}} onClearBoardContext={()=>setContexts(list=>list.filter(c=>!(c.workItemId===draft.workItemId&&(c.text.startsWith('BOARD_GENERATION_CONTEXT\n')||c.text.startsWith('画板对象协作上下文')))))} onPrepareAI={handler=>{prepareAI.current=handler;}} remoteRevision={latestDraftRevision.current} onError={e => setError(errorText(e))} prepareNativeSave={async()=>{if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');const snapshot=native.current.captureVerification();const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:draft.workItemId,phase:'check'});if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');if(!result?.ok){
+          const code=result?.error??'NATIVE_REFRESH_UNSUPPORTED';
+          // Only an actual unsaved native input can lose work. A page that does
+          // not show this item, or an unsupported adapter, must not block save.
+          if(code==='NATIVE_EDITOR_DIRTY'||code==='NATIVE_EDITOR_UNKNOWN')throw Error(code);
+          return 'clean';
+        }
+        native.current.acceptVerifiedClean(snapshot);return native.current.state();}} onSaved={async saved => {
       // The remote save has already been verified. A stale view must not refresh
       // another document or turn that verified success into a write failure.
-      if(!editorStillCurrent()||saved.id!==draft.id||!sameTarget(saved.target,draft.target))return;
-      if(saved.variantOf){setSaveNotice(saved.workItemId+' 已保存到变体，主工作项 '+saved.variantOf+' 未改动。');return;}
-      if(native.current.state()!=='clean')throw Error('原生页面在保存期间发生变化，请先处理原生输入。');
-      const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:draft.workItemId,phase:'refresh',expectedHtml:saved.html});
-      if(!editorStillCurrent())return;
-      if(!result?.ok)throw Error(result?.error??'NATIVE_REFRESH_FAILED');
-      native.current.acceptDocumentRefresh();
-      setSaveNotice(draft.workItemId+' 已保存并同步到原生正文。');
-    }} onContext={text => setContexts(list => [...list.filter(c => c.pinned), { id: crypto.randomUUID(), target: draft.target, workItemId: draft.workItemId, text, prefix: '', suffix: '', source: 'editor', capturedAt: Date.now(), pinned: false }])} onOpenVariant={workItemId=>void openDraft(workItemId)} onOpenWorkItem={workItemId=>void openReader(workItemId)} onDeepLint={(workItemId,title)=>dispatchCommand(`请以最严格的工程标准深检 ${workItemId}「${title}」：先 read_draft 读当前草稿正文，逐段指出（1）判据缺失或不可量化（2）一条多职责不原子（3）指代不明（4）缺触发条件（5）与上游/接口矛盾（可用工具核实）。每个问题给出具体改写文本，只报有依据的问题，按严重程度排序。`)} onVariantChanged={variantChanged} onClearError={()=>setError('')}/>}</div>;
+      const current = () => editorStillCurrent() && saved.id === draft.id && saved.workItemId === draft.workItemId &&
+        sameTarget(saved.target, draft.target) && latestDraftRevision.current <= saved.revision;
+      if (!current()) return 'stale';
+      if (saved.variantOf) return 'variant';
+      const state = native.current.state();
+      if (state !== 'clean') throw Error(state === 'dirty' ? 'NATIVE_EDITOR_DIRTY' : 'NATIVE_EDITOR_UNKNOWN');
+      try {
+        const result = await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:saved.workItemId,phase:'refresh',expectedHtml:saved.html,expectedTitle:saved.title});
+        if (!current()) return 'stale';
+        if (!result?.ok) throw Error(result?.error ?? 'NATIVE_REFRESH_FAILED');
+        native.current.acceptDocumentRefresh();
+        if (result.degraded) return 'degraded';
+        return result.projection === 'heading' ? 'heading' : 'body';
+      } catch (error) {
+        if (!current()) return 'stale';
+        throw error;
+      }
+    }} onContext={text => setContexts(list => [...list.filter(c => c.pinned), { id: crypto.randomUUID(), target: draft.target, workItemId: draft.workItemId, text, prefix: '', suffix: '', source: 'editor', capturedAt: Date.now(), pinned: false }])} onOpenVariant={workItemId=>void openDraft(workItemId)} onOpenWorkItem={workItemId=>void openReader(workItemId)} onVariantChanged={variantChanged} onClearError={()=>setError('')}/>}</div>;
 }
 /** 优先取回答内当前选中的文字；没有选区时回退到整条回答。 */
 function selectedAnswer(root: HTMLElement | null) {
-  if (!root) return null;
-  const selection = window.getSelection();
-  if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
-  const range = selection.getRangeAt(0);
-  if (!root.contains(range.commonAncestorContainer)) return null;
-  const text = selection.toString().trim();
+  if (!root || !selectedRangeWithin(root)) return null;
+  const text = root.ownerDocument.getSelection()?.toString().trim();
   return text ? text.slice(0, 800) : null;
 }
 
@@ -934,7 +1203,7 @@ function WorkItemPreviewCard({ preview, style, anchored, onClose, onOpen, onEnte
     <strong>{preview.id}</strong>
     {preview.source&&<small className="preview-draft">{preview.source==='draft'?`当前 ${preview.id} · 草稿 revision ${preview.revision??'—'}，${preview.state??''}`:`当前 ${preview.id} · 服务端内容（无本地草稿）`}</small>}
     <p>{preview.text ? preview.text.slice(0, 240) : preview.failed ? '无法读取内容，可打开完整预览查看。' : preview.loading ? '正在读取…' : '（这条工作项没有可预览的正文）'}</p>
-    <button className="secondary" onClick={onOpen}>打开编辑工作台<ChevronRight size={14} /></button>
+    <button className="secondary" onClick={onOpen}>{preview.readOnlyReference || preview.loading || preview.failed ? '打开完整预览' : '打开编辑工作台'}<ChevronRight size={14} /></button>
   </div>;
 }
 
@@ -943,6 +1212,7 @@ const Turn = React.memo(function Turn({ run, events, recovering, busy, distillin
   const user = events.find(e => e.kind === 'user')?.data as any;
   const result = events.find(e => e.kind === 'result')?.data as any;
   const text = turnResponseText(events);
+  const retryButton = ['completed','failed','cancelled','interrupted'].includes(run.status) && <button type="button" className="ghost-action" title={busy ? '当前任务运行中，结束后可重试' : run.qualityInspection ? '重新分析本次深检的原始快照' : '用同样的请求再执行一次'} disabled={busy} onClick={() => onRetry(run)}><RotateCcw size={12}/>重试</button>;
   const answered = new Set(events.filter(e => e.kind === 'permission-result').map(e => (e.data as any).id));
   const settled = new Set(events.filter(e => e.kind === 'interaction-result').map(e => (e.data as any).id));
   return <article className="turn">{(user?.text||user?.attachments?.length>0)&&<div className="user-message">{user?.text && splitWorkItems(user.text).map((part, index) => 'workItemId' in part ? <button key={index} type="button" className="workitem-ref" onClick={() => onWorkItem?.(part.workItemId)}>{part.workItemId}</button> : <span key={index}>{part.text}</span>)}{user?.guideline&&<div className="sent-attachments"><span title="本条消息附加的执行规范">指令 · {user.guideline.name}</span></div>}{user?.attachments?.length>0&&<div className="sent-attachments">{user.attachments.map((a:any)=><span key={a.id}><Paperclip size={11}/>{a.name}</span>)}</div>}</div>}<div className="assistant-label"><span className="mini-mark">P＋</span><strong>工程助手</strong><small>{recovering&&!result?'正在读取记录':run.status==='interrupted'&&run.error==='HOST_RESTARTED'?'Host 重启，任务已中断':statusText[run.status]}</small></div>
@@ -950,8 +1220,8 @@ const Turn = React.memo(function Turn({ run, events, recovering, busy, distillin
     {events.filter(e=>e.kind==='board-generation-proposal'||e.kind==='board-proposal').map(e=><div className="tool-event" key={e.seq}><FileText size={13}/>{(e.data as any).title} · 已提交画板草案，请在画板中预览、应用或拒绝；尚未保存到 Polarion。{(e.data as any).entry==='requirements'&&<button className="secondary" onClick={()=>onDiagram((e.data as any).draftId,(e.data as any).requestId)}>预览需求配图</button>}</div>)}
     {events.filter(e=>e.kind==='conversation-reset').map(e=><p className="muted" key={e.seq}>此处开始新的原生对话；更早的消息作为历史保留。</p>)}
     {run.status==='queued'&&<div className="tool-event"><Square size={13}/>已排队，将在当前任务结束后自动开始<button className="secondary" onClick={()=>void rpc({method:'runs.cancel',runId:run.id}).catch(()=>{})}>取消排队</button></div>}
-    {!text&&!['running','waiting'].includes(run.status)&&<p className="muted">{recovering?'正在读取本轮回答…':events.some(e=>e.kind==='conversation-reset')?'原生对话已重置，本次操作没有文本输出。':events.some(e=>e.kind==='command-completed')?'此原生命令没有文本输出。':'此任务未保存回答正文，可展开执行记录查看操作。'}</p>}
-    {text && <><div ref={answer} className={['running','waiting'].includes(run.status)?'streaming':''}><AssistantMarkdown text={text} onWorkItem={onWorkItem}/></div>{!['running','waiting'].includes(run.status)&&<div className="answer-actions"><CopyButton text={text} label="复制 Markdown"/><button type="button" className="ghost-action" title="引用选中片段或整条回答到输入框" onClick={()=>onQuote(selectedAnswer(answer.current) ?? text)}><Quote size={12}/>引用</button>{['completed','failed','cancelled','interrupted'].includes(run.status)&&<button type="button" className="ghost-action" title={busy?'当前任务运行中，结束后可重试':'用同样的请求再执行一次'} disabled={busy} onClick={()=>onRetry(run)}><RotateCcw size={12}/>重试</button>}<button type="button" className="ghost-action" title="从本次会话与你的纠正中提炼经验，保存到本地，后续会话每轮自动遵循" disabled={distilling} onClick={()=>onDistill()}><Lightbulb size={12}/>{distilling?'沉淀中…':'经验沉淀'}</button></div>}</>}
+    {!text&&!['running','waiting'].includes(run.status)&&<p className="muted">{recovering?'正在读取本轮回答…':run.qualityInspection?'本次深检尚无报告。':events.some(e=>e.kind==='conversation-reset')?'原生对话已重置，本次操作没有文本输出。':events.some(e=>e.kind==='command-completed')?'此原生命令没有文本输出。':'此任务未保存回答正文，可展开执行记录查看操作。'}</p>}
+    {text && <><div ref={answer} className={['running','waiting'].includes(run.status)?'streaming':''}><AssistantMarkdown text={text} onWorkItem={onWorkItem}/></div>{!['running','waiting'].includes(run.status)&&<div className="answer-actions"><CopyButton text={text} label="复制 Markdown"/><button type="button" className="ghost-action" title="引用选中片段或整条回答到输入框" onMouseDown={event => { if (event.button === 0) event.preventDefault(); }} onClick={()=>onQuote(selectedAnswer(answer.current) ?? text)}><Quote size={12}/>引用</button>{retryButton}<button type="button" className="ghost-action" title="从本次会话与你的纠正中提炼经验，保存到本地，后续会话每轮自动遵循" disabled={distilling} onClick={()=>onDistill()}><Lightbulb size={12}/>{distilling?'沉淀中…':'经验沉淀'}</button></div>}</>}
     {events.filter(e=>e.kind==='interaction'&&!settled.has((e.data as any).id)).map(e=><NativeInteraction key={e.seq} value={e.data as any} disabled={!['running','waiting'].includes(run.status)} onAnswer={async(action,values)=>{await rpc({method:'interactions.answer',runId:run.id,interactionId:(e.data as any).id,action,values});}}/>)}
     {events.filter(e=>e.kind==='interaction-unavailable').map(e=><p key={e.seq} className="inline-error">{(e.data as any).source}：此原生交互尚未接入。{(e.data as any).error}</p>)}
     {events.filter(e => e.kind === 'permission' && ['running','waiting'].includes(run.status) && !answered.has((e.data as any).id)).map(e => { const p = e.data as any; let command = ''; try { const parsed = JSON.parse(p.preview); if (parsed && typeof parsed.command === 'string') command = parsed.command; } catch {} return <div className="permission" key={e.seq}>
@@ -961,6 +1231,7 @@ const Turn = React.memo(function Turn({ run, events, recovering, busy, distillin
       <details className="permission-more"><summary>查看完整参数</summary><pre>{p.preview}</pre></details>
     </div>; })}
     {Array.from(new Map(events.filter(e => e.kind === 'draft').map(e => [(e.data as any).workItemId,e])).values()).map(e => <button className="draft-link" key={e.seq} onClick={() => onDraft((e.data as any).workItemId)}><FileText size={14}/>{(e.data as any).workItemId} · 审阅草稿<ChevronRight size={14}/></button>)}
+    {!text && run.qualityInspection && !recovering && retryButton}
     {run.error && <div className="inline-error">{({SELECTION_NOT_FOUND:"选区已变化或包含尚不支持的对象，请在编辑器中重新选中目标文字后再试。",AMBIGUOUS_SELECTION:"正文中有多处相同文字，请扩大选区以明确修改位置。"} as Record<string,string>)[run.error]??run.error}</div>}
   </article>;
 });

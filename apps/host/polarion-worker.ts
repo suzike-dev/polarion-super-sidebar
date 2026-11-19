@@ -5,12 +5,17 @@ import { TargetSchema, ModelNoteSchema } from '../../packages/protocol/index.ts'
 import { createHash } from 'node:crypto';
 import readline from 'node:readline';
 import {BoardManifestSchema,boardFileNames} from '../../packages/core/board-contract.ts';
-import {authorizeWorkItemScope,workItemIdFromUri} from './variant-access.ts';
+import {authorizeWorkItemScope,requireResolvedWorkItem,workItemIdFromUri} from './variant-access.ts';
 const digest = (s: string) => createHash('sha256').update(s).digest('hex');
 process.env.POLARION_BASE_URL = 'https://polarion.pufafen.com/polarion';
 // 变更记录附件可能较大；SOAP HTTP 超时默认 30s 容易在写入时被截断。
 process.env.POLARION_TIMEOUT_MS ??= '120000';
 const client = new PolarionSoapClient(loadConfig());
+async function readWorkItem(projectId: string, workItemId: string) {
+  const item = await client.getWorkItem(projectId, workItemId);
+  requireResolvedWorkItem(projectId, workItemId, item);
+  return item;
+}
 const reply = (id: unknown, value: unknown) => console.log(JSON.stringify({id,ok:true,value}));
 for await (const line of readline.createInterface({ input: process.stdin })) {
   let request: any;
@@ -295,8 +300,8 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
       continue;
     }
     if (request.method === 'peek') {
-      const item = await client.getWorkItem(target.projectId, String(request.workItemId));
-      reply(request.id, { workItemId: item.id ?? String(request.workItemId), title: item.title ?? '', description: item.description ?? '', updated: item.updated });
+      const item = await readWorkItem(target.projectId, request.workItemId);
+      reply(request.id, { workItemId: item.id, uri: item.uri, unresolvable: item.unresolvable, title: item.title ?? '', description: item.description ?? '', updated: item.updated });
       continue;
     }
     // 模型备注：项目内任意工作项（不要求属于当前文档）；附件文件名固定白名单。
@@ -361,16 +366,17 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
       } catch (error) { throw Error(`MODEL_NOTES_SYNC_FAILED: ${(error instanceof Error ? error.message : String(error)).slice(0, 400)}`); }
       continue;
     }
-    const item = await client.getWorkItem(target.projectId, request.workItemId);
+    const item = await readWorkItem(target.projectId, request.workItemId);
     const document = await client.getDocument(target.projectId, target.document);
+    if (!document.id || !document.uri) throw Error('DOCUMENT_NOT_FOUND_OR_INACCESSIBLE');
     const scope = request.variant && typeof request.variant === 'object'
       ? { mainWorkItemId: String(request.variant.mainWorkItemId), role: String(request.variant.role) }
       : undefined;
     if (scope) {
-      const main = await client.getWorkItem(target.projectId, scope.mainWorkItemId);
+      const main = await readWorkItem(target.projectId, scope.mainWorkItemId);
       const links = main.uri ? await client.getBackLinkedWorkItems(main.uri) : [];
       authorizeWorkItemScope({itemUri:item.uri,itemModuleUri:item.module_uri,documentUri:document.uri,mainModuleUri:main.module_uri,links,scope});
-    } else if (!document.uri || item.module_uri !== document.uri) {
+    } else if (item.module_uri !== document.uri) {
       throw Error('WORK_ITEM_DOCUMENT_MISMATCH');
     }
     if (request.method === 'read') {
@@ -419,7 +425,7 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     } else if (request.method === 'save') {
       // Explicit saves use the verified document membership and optimistic revision
       // checks below for every project. AI tools can only modify the shared draft.
-      if (!item.updated || item.updated !== request.expectedUpdated || digest(item.description ?? '') !== request.baseHash) throw Error('REMOTE_CONFLICT');
+      if (!request.overwrite && (!item.updated || item.updated !== request.expectedUpdated || digest(item.description ?? '') !== request.baseHash)) throw Error('REMOTE_CONFLICT');
       let html=String(request.html);let current=item;const uploadedAssets=[];
       for(const asset of request.assets??[]){
         if(!/^[0-9a-f-]{36}$/i.test(asset.id))throw Error('INVALID_ASSET');
@@ -432,16 +438,17 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
         if(asset.mime.startsWith('image/'))html=html.replaceAll('polarion-asset:'+asset.id,'workitemimg:'+attachment.id);const receipt={localId:asset.id,attachmentId:attachment.id,sha256:asset.sha256};uploadedAssets.push(receipt);console.log(JSON.stringify({id:request.id,progress:receipt}));
       }
       current=await client.getWorkItem(target.projectId,request.workItemId);
-      if(digest(current.description??'')!==request.baseHash)throw Error('REMOTE_CONFLICT');
+      if(!request.overwrite&&digest(current.description??'')!==request.baseHash)throw Error('REMOTE_CONFLICT');
       const result = await client.updateWorkItem({ projectId: target.projectId, workItemId: request.workItemId, description: html, expectedUpdated: current.updated });
       reply(request.id,{...result.item,submittedHtml:html,uploadedAssets});
     } else throw Error('UNKNOWN_OPERATION');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const codeName = message.split(':', 1)[0];
-    const known = /^(WORK_ITEM_DOCUMENT_MISMATCH|VARIANT_LINK_REQUIRED|VARIANT_LINK_FAILED|WORK_ITEM_CREATE_FAILED|WORK_ITEM_CREATE_UNVERIFIED|REMOTE_CONFLICT|UNKNOWN_OPERATION|INVALID_ASSET|INVALID_METADATA_NAME|ATTACHMENT_READBACK_MISMATCH|BOARD_SOURCE_MISSING|BOARD_MANIFEST_MISMATCH|CHANGE_SNAPSHOT_FAILED|CHANGE_HISTORY_FAILED|CHANGE_RECORD_LIST_FAILED|CHANGE_RECORD_READ_FAILED|CHANGE_RECORD_NOT_FOUND|CHANGE_RECORD_CONFLICT|CHANGE_RECORD_CREATE_FAILED|CHANGE_RECORD_ATTACHMENT_FAILED|CHANGE_RECORD_READBACK_MISMATCH|CHANGE_RECORD_WRITE_FAILED|CHANGE_RECORD_DELETE_FAILED|INVALID_CHANGE_ATTACHMENT)$/.test(codeName);
+    const known = /^(WORK_ITEM_NOT_FOUND_OR_INACCESSIBLE|WORK_ITEM_ID_MISMATCH|DOCUMENT_NOT_FOUND_OR_INACCESSIBLE|WORK_ITEM_DOCUMENT_MISMATCH|VARIANT_LINK_REQUIRED|VARIANT_LINK_FAILED|WORK_ITEM_CREATE_FAILED|WORK_ITEM_CREATE_UNVERIFIED|REMOTE_CONFLICT|UNKNOWN_OPERATION|INVALID_ASSET|INVALID_METADATA_NAME|ATTACHMENT_READBACK_MISMATCH|BOARD_SOURCE_MISSING|BOARD_MANIFEST_MISMATCH|CHANGE_SNAPSHOT_FAILED|CHANGE_HISTORY_FAILED|CHANGE_RECORD_LIST_FAILED|CHANGE_RECORD_READ_FAILED|CHANGE_RECORD_NOT_FOUND|CHANGE_RECORD_CONFLICT|CHANGE_RECORD_CREATE_FAILED|CHANGE_RECORD_ATTACHMENT_FAILED|CHANGE_RECORD_READBACK_MISMATCH|CHANGE_RECORD_WRITE_FAILED|CHANGE_RECORD_DELETE_FAILED|INVALID_CHANGE_ATTACHMENT)$/.test(codeName);
     // 未识别错误保留原始信息（截断）供 Host 诊断；已知错误只回稳定错误码或“码: 细节”。
-    const code = known ? message : `POLARION_OPERATION_FAILED: ${message.slice(0, 600)}`;
+    const denied = (request?.method === 'read' || request?.method === 'peek') && /\bHTTP (401|403)\b|access[\s_-]*denied|permission[\s_-]*denied|not authorized|unauthorized|forbidden|AuthenticationFailed/i.test(message);
+    const code = denied ? 'PERMISSION_DENIED' : known ? message : `POLARION_OPERATION_FAILED: ${message.slice(0, 600)}`;
     console.log(JSON.stringify({ id: request?.id, ok: false, error: code }));
   }
 }

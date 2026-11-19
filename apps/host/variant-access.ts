@@ -2,6 +2,22 @@ import type { VariantScope } from '../../packages/protocol/index.ts';
 
 type LinkLike = { work_item_uri?: string | undefined; role?: string | undefined };
 
+export function requireWorkItemId(requestedId: string, returnedId: string | undefined): string {
+  if (!returnedId) throw Error('WORK_ITEM_NOT_FOUND_OR_INACCESSIBLE');
+  if (returnedId !== requestedId) throw Error('WORK_ITEM_ID_MISMATCH');
+  return returnedId;
+}
+
+export type WorkItemIdentity = { id?: string; uri?: string; unresolvable?: boolean };
+
+/** getWorkItemById can return a URI even for a missing or unreadable object. */
+export function requireResolvedWorkItem(projectId: string, requestedId: string, item: WorkItemIdentity | undefined) {
+  if (typeof item?.uri !== 'string' || !item.uri || item.unresolvable) throw Error('WORK_ITEM_NOT_FOUND_OR_INACCESSIBLE');
+  const id = requireWorkItemId(requestedId, item.id);
+  if (!item.uri.startsWith('subterra:data-service:objects:/') || !item.uri.endsWith('/' + projectId + '${WorkItem}' + id)) throw Error('WORK_ITEM_ID_MISMATCH');
+  return id;
+}
+
 /**
  * 工作项访问边界：
  * - 普通工作项必须属于当前文档；

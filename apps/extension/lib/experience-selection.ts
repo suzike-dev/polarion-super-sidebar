@@ -4,7 +4,7 @@ export type ExperienceSource = 'saved' | 'proposal' | 'diff';
 export type ExperienceQuote = { text: string; before: string; after: string; location: string };
 
 /** Document.getRangeAt can expose only the shadow host. Use endpoints scoped to the panel's root. */
-function selectedRange(surface: HTMLElement): Range | null {
+export function selectedRangeWithin(surface: HTMLElement | ShadowRoot): Range | null {
   const doc = surface.ownerDocument;
   const root = surface.getRootNode();
   const shadow = 'host' in root ? root as ShadowRoot & { getSelection?: () => Selection | null } : null;
@@ -43,7 +43,7 @@ const controls = 'button:not(.workitem-ref),summary,details:not([open]),.katex-m
 
 /** Map actual DOM boundaries into one projection of the displayed text. Never re-find the selected words by value. */
 export function captureExperienceSelection(surface: HTMLElement, source: ExperienceSource): ExperienceQuote | null {
-  const selection = selectedRange(surface);
+  const selection = selectedRangeWithin(surface);
   if (!selection) return null;
   const range: Range = selection;
   let body = '', start = -1, end = -1, breakBeforeText = false;

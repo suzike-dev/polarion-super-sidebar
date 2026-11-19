@@ -2,7 +2,19 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {EditorState,TextSelection} from '@tiptap/pm/state';
 import {richSchema} from './rich-schema.ts';
-import {findTextMatches,parseTsv,replaceSelectedMatch,replaceAllMatches} from './editor-text.ts';
+import {findTextMatches,parseTsv,replaceSelectedMatch,replaceAllMatches,qualitySentence} from './editor-text.ts';
+test('quality sentence stops at native inline block wrappers, semicolons, hard breaks and macros', () => {
+  const wrapper = richSchema.mark('sourceSpan', {sid:'native-div', sourceBlock:true});
+  const doc = richSchema.node('doc', null, richSchema.node('paragraph', null, [
+    richSchema.text('外层文字'), richSchema.text('另段；应及', [wrapper]), richSchema.text('时响应', [wrapper, richSchema.mark('bold')]),
+    richSchema.text('相邻段'), richSchema.node('hardBreak'), richSchema.text('及时登记'), richSchema.node('protectedInline', {sid:'macro'}), richSchema.text('及时记录'),
+  ]));
+  const hits = findTextMatches(doc, '及时');
+  assert.deepEqual(hits.map(hit => qualitySentence(doc, hit.from, hit.to, '及时').sentence), ['应及时响应', '及时登记', '及时记录']);
+  for (const spelling of ['字另', '段；应']) {
+    const [hit] = findTextMatches(doc, spelling); assert.throws(() => qualitySentence(doc, hit!.from, hit!.to, spelling), /重新体检/);
+  }
+});
 test('quoted TSV preserves multiline cells, tabs, escaped quotes and engineering values',()=>{
   assert.deepEqual(parseTsv('001\t"第一行\r\n第二行"\t25 °C\r\n002\t"a\tb ""quoted"""\t1.0E-3\r\n'),[['001','第一行\n第二行','25 °C'],['002','a\tb "quoted"','1.0E-3']]);
   assert.deepEqual(parseTsv('A\t\nB\tC\t'),[['A','',''],['B','C','']]);

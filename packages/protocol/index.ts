@@ -37,13 +37,31 @@ export const TargetSchema = z.object({
   document: z.string().min(1).max(512),
 });
 export type Target = z.infer<typeof TargetSchema>;
+export const PROJECT_EVENT_LIMIT = 500;
+export function projectWorkItemUrl(target: Target, workItemId: string) {
+  return `${target.origin}/polarion/#/project/${encodeURIComponent(target.projectId)}/workitem?id=${encodeURIComponent(workItemId)}`;
+}
+export function projectDocumentUrl(target: Target, document: string) {
+  return `${target.origin}/polarion/#/project/${encodeURIComponent(target.projectId)}/wiki/${document.split('/').map(encodeURIComponent).join('/')}`;
+}
+export const MAX_CONTEXT_TEXT = 60000;
 export const ContextSchema = z.object({
   id: z.string().uuid(), target: TargetSchema, workItemId: z.string().max(100).optional(),
-  text: z.string().max(60000), prefix: z.string().max(300).default(''), suffix: z.string().max(300).default(''),
+  text: z.string().max(MAX_CONTEXT_TEXT), prefix: z.string().max(300).default(''), suffix: z.string().max(300).default(''),
   source: z.enum(['selection', 'context-menu', 'editor', 'work-item']), capturedAt: z.number(),
   pinned: z.boolean().default(false),
 });
 export type Context = z.infer<typeof ContextSchema>;
+/** Absolute ProseMirror positions in this revision, with both the finding and its enclosing sentence. */
+const QualityRewriteSchema = z.object({
+  draftId: z.string().uuid(), workItemId: z.string().min(1).max(100), expectedRevision: z.number().int().nonnegative(),
+  ruleId: z.string().min(1).max(160), message: z.string().max(500),
+  from: z.number().int().nonnegative(), to: z.number().int().positive(), sentence: z.string().min(1).max(60000),
+  matchFrom: z.number().int().nonnegative(), matchTo: z.number().int().positive(), matchedText: z.string().min(1).max(160),
+}).refine(s => s.to - s.from === s.sentence.length && s.from <= s.matchFrom && s.matchTo <= s.to &&
+  s.matchTo - s.matchFrom === s.matchedText.length && s.sentence.slice(s.matchFrom - s.from, s.matchTo - s.from) === s.matchedText,
+  { message: '体检发现的句子与命中位置不一致，请重新体检。' });
+export type QualityRewrite = z.infer<typeof QualityRewriteSchema>;
 /** 飞书群自定义机器人：配置存在 Polarion 项目（一人配置、全项目共用）；webhook 是凭证，请勿外传。 */
 export const FeishuGroupSchema = z.object({
   id: z.string().uuid(),
@@ -114,6 +132,8 @@ export type WorkflowRunView = {
 export type WorkflowHistoryStep = { stepId: string; title: string; status: WorkflowStepRunStatus; retries?: number; resultPreview?: string; checkRule?: boolean };
 export type WorkflowHistoryItem = {
   id: string; defName: string; status: WorkflowRunStatus; startedAt: number; endedAt?: number;
+  /** 旧版轨迹可能没有会话编号，工作项编号取自运行时的上下文。 */
+  sessionId?: string; workItemId?: string;
   note?: string; error?: string; steps: WorkflowHistoryStep[];
 };
 export const SettingsSchema = z.object({
@@ -249,6 +269,8 @@ export const ProposalOpSchema = z.discriminatedUnion('kind', [
     from: z.string().min(1).max(4000),
     to: z.string().max(4000),
     caseSensitive: z.boolean().default(true),
+    /** 术语提案在 expectedRevision 上预览并确认的 PM 文本范围。 */
+    lintMatches: z.array(z.object({ from: z.number().int().nonnegative(), to: z.number().int().positive() })).optional(),
   }),
 ]);
 export type ProposalOp = z.infer<typeof ProposalOpSchema>;
@@ -303,7 +325,11 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('sessionGroups.create'), name: z.string().min(1).max(40) }),
   z.object({ method: z.literal('sessionGroups.delete'), name: z.string().min(1).max(40) }),
   z.object({ method: z.literal('sessions.read'), sessionId: id, after: z.number().int().nonnegative().default(0) }),
-  z.object({ method: z.literal('runs.start'), permissionMode:PermissionModeSchema.default(DEFAULT_PERMISSION_MODE), delivery:TurnDeliverySchema.default(DEFAULT_TURN_DELIVERY), guidelineId:z.string().uuid().optional(), sessionId: id, requestId: id, target: TargetSchema, prompt: z.string().min(1).max(40000), contexts: z.array(ContextSchema).max(12), attachments: z.array(id).max(12).default([]) }),
+  z.object({ method: z.literal('runs.start'), qualityRewrite: QualityRewriteSchema.optional(), autoSave: z.literal(false).optional(), permissionMode:PermissionModeSchema.default(DEFAULT_PERMISSION_MODE), delivery:TurnDeliverySchema.default(DEFAULT_TURN_DELIVERY), guidelineId:z.string().uuid().optional(), sessionId: id, requestId: id, target: TargetSchema, prompt: z.string().min(1).max(40000), contexts: z.array(ContextSchema).max(12), attachments: z.array(id).max(12).default([]) }),
+  // A distinct method makes older Hosts reject inspection instead of starting an unrestricted run.
+  z.object({ method: z.literal('runs.inspectQuality'), sessionId: id, requestId: id, title: z.string().max(4000), sourceLabel: z.string().trim().min(1).max(300),
+    snapshot: ContextSchema.extend({ workItemId: z.string().min(1).max(100), source: z.literal('editor'), pinned: z.literal(false) }) }),
+  z.object({ method: z.literal('runs.retryQualityInspection'), runId: id, requestId: id }),
   z.object({ method: z.literal('assets.begin'), target: TargetSchema, name: z.string().min(1).max(240), mime: z.string().max(160), size: z.number().int().positive().max(25*1024*1024) }),
   z.object({ method: z.literal('assets.chunk'), assetId: id, offset: z.number().int().nonnegative(), data: z.string().max(700000).regex(/^[A-Za-z0-9+/]*={0,2}$/) }),
   z.object({ method: z.literal('assets.finish'), assetId: id }),
@@ -367,7 +393,7 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({method:z.literal('boards.generation.open'),draftId:id,requestId:id}),
   z.object({method:z.literal('boards.generation.decide'),draftId:id,proposalId:id,action:z.enum(['apply','reject']),baselineSignature:z.string().regex(/^[a-f0-9]{64}$/)}),
   z.object({ method: z.literal('drafts.rich.apply'), draftId: id, editorId: id, expectedRevision: z.number().int().nonnegative(), document: z.record(z.string(), z.unknown()) }),
-  z.object({ method: z.literal('drafts.reconcile'), draftId: id }),
+  z.object({ method: z.literal('drafts.reconcile'), draftId: id, expectedRevision: z.number().int().nonnegative().optional() }),
   z.object({method:z.literal('drafts.conflict.read'),draftId:id}),
   z.object({method:z.literal('drafts.conflict.resolve'),draftId:id,expectedRevision:z.number().int().nonnegative(),remoteHash:z.string().regex(/^[a-f0-9]{64}$/),remoteUpdated:z.string(),strategy:z.enum(['keep-local','use-remote'])}),
   z.object({ method: z.literal('drafts.replaceText'), draftId: id, expectedRevision: z.number().int().nonnegative(), nodeId: z.string(), expectedText: z.string(), text: z.string().max(100000) }),
@@ -430,7 +456,7 @@ export const CommandSchema = z.discriminatedUnion('method', [
   /** 影响前置卡：一条需求的模块（含疑似过期）、上下游与验证链接。 */
   z.object({ method: z.literal('impact.view'), target: TargetSchema, workItemId: z.string().min(1).max(100) }),
   /* v0.15 事件与主动化：事件总线、守望警报、晨报。 */
-  z.object({ method: z.literal('events.list'), projectId: z.string().min(1).max(160), limit: z.number().int().min(1).max(200).default(60) }),
+  z.object({ method: z.literal('events.list'), projectId: z.string().min(1).max(160), limit: z.number().int().min(1).max(PROJECT_EVENT_LIMIT).default(60) }),
   z.object({ method: z.literal('watch.view'), target: TargetSchema }),
   /** 晨报：预览卡片 / 立即发送到项目飞书群（发送是显式外发动作）。 */
   z.object({ method: z.literal('brief.preview'), target: TargetSchema }),
@@ -478,6 +504,8 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('proposals.create'), source: ProposalSourceSchema, target: TargetSchema, workItemId: z.string().min(1).max(100).optional(), summary: z.string().trim().min(1).max(300), op: ProposalOpSchema }),
   z.object({ method: z.literal('proposals.approve'), id: z.string().uuid(), nativeState: z.enum(['clean','dirty','unknown']).optional() }),
   z.object({ method: z.literal('proposals.reject'), id: z.string().uuid() }),
+  /** 驾驶舱统计的最近一份项目报告。读取缓存，不触发扫描。 */
+  z.object({ method: z.literal('quality.document.last'), target: TargetSchema }),
   /** 整册体检：按文档 outline 逐条 peek + lint，聚合每条发现问题与规则分布。 */
   z.object({ method: z.literal('quality.document.check'), target: TargetSchema, limit: z.number().int().min(1).max(500).default(200) }),
 ]);
@@ -485,10 +513,14 @@ export type Command = z.infer<typeof CommandSchema>;
 /** 总览用的轻量条目：只要编号、标题、状态与 outline 序号。 */
 export type DocumentOutlineItem = { id: string; title: string; status: string; type: string; outline: string };
 export type DocumentOutline = { documentId: string; title: string; items: DocumentOutlineItem[] };
+export function isHeadingType(type?: string): boolean {
+  return type?.trim().toLowerCase() === 'heading';
+}
 /** 整册体检：逐条 lint 的聚合结果（LintIssue 的协议投影）。 */
 export type QualityIssue = { ruleId: string; severity: 'warn' | 'info'; message: string; matchedText: string; suggestion?: string };
-export type DocumentQualityItem = { workItemId: string; title: string; outline: string; issues: QualityIssue[]; unreadable?: boolean };
-export type DocumentQualityReport = { at: number; total: number; checked: number; clean: number; items: DocumentQualityItem[]; byRule: { ruleId: string; count: number }[]; ruleSource: 'polarion' | 'cache' | 'default' };
+export type DocumentQualityItem = { workItemId: string; title: string; outline: string; issues: QualityIssue[]; unreadable?: boolean; readOnlyReference?: boolean };
+/** 旧版本的项目级缓存没有记录来源文档。 */
+export type DocumentQualityReport = { document?: string; at: number; total: number; checked: number; clean: number; items: DocumentQualityItem[]; byRule: { ruleId: string; count: number }[]; ruleSource: 'polarion' | 'cache' | 'default' };
 
 /* ------------------------------------------------------------------ */
 /* 变更管理：基准会话、变更记录、分享。                                */
@@ -664,7 +696,13 @@ export type Session = { id: string; target: Target; title: string; engine: 'clau
 export type SessionGroup = { name: string; createdAt: number };
 export type ContextUsage = { usedTokens: number; windowTokens: number; percentage: number; model: string; updatedAt: number; categories: { name: string; tokens: number; kind: string }[] };
 export type EngineContext = { usage: ContextUsage | null; connected: boolean; compacting: boolean };
-export type Run = { permissionMode?:PermissionMode; delivery?:TurnDelivery; guidelineId?:string; id: string; sessionId: string; requestId: string; target: Target; prompt: string; contexts: Context[]; attachments?: string[]; status: 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'interrupted'; startedAt: number; endedAt?: number; error?: string; /** 工作流步骤轮的标识：徽标与队列展示用；planGoal 表示这轮是动态工作流的目标拆解。 */ workflow?: { workflowRunId: string; defName: string; stepIndex: number; stepTotal: number; stepTitle: string; planGoal?: string; reviewId?: string; meetingId?: string } };
+export type Run = {
+  /** Only the isolated, tool-free inspection runtime may execute this snapshot. */
+  qualityInspection?: true;
+  qualityRewrite?: QualityRewrite;
+  /** false 表示本轮草稿留待审阅，省略时遵循全局设置。 */
+  autoSave?: false;
+  permissionMode?:PermissionMode; delivery?:TurnDelivery; guidelineId?:string; id: string; sessionId: string; requestId: string; target: Target; prompt: string; contexts: Context[]; attachments?: string[]; status: 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'interrupted'; startedAt: number; endedAt?: number; error?: string; /** 工作流步骤轮的标识：徽标与队列展示用；planGoal 表示这轮是动态工作流的目标拆解。 */ workflow?: { workflowRunId: string; defName: string; stepIndex: number; stepTotal: number; stepTitle: string; planGoal?: string; reviewId?: string; meetingId?: string } };
 /** 本地经验沉淀文件视图：text 为空表示尚未沉淀。 */
 export type ExperienceView = { text: string; path: string; updatedAt: number };
 /** 经验共编消息：用户修改意图 / AI 一句话说明；完整对话由扩展端持有，Host 不落状态。 */
@@ -689,7 +727,7 @@ export type ModelIndexView = { items: ModelIndexedItem[]; total: number; annotat
 /** 扫描预览：modules 已按目录去重、标注 kind，excluded=false 由用户再筛选。 */
 export type ModelScanView = Omit<ModelRoot, 'id' | 'note'> & { rootName: string; fileCount: number };
 /** 追溯矩阵：按模块分组 + 覆盖缺口。 */
-export type ModelTraceGroup = { rootId: string; rootLabel: string; moduleKey: string; moduleName: string; kind: ModelModule['kind']; items: ModelIndexedItem[]; missing: boolean };
+export type ModelTraceGroup = { rootId: string; rootLabel: string; moduleKey: string; moduleName: string; kind: ModelModule['kind']; items: ModelIndexedItem[]; markedHeadings?: ModelIndexedItem[]; missing: boolean };
 export type ModelTraceView = {
   roots: ModelRoot[]; groups: ModelTraceGroup[]; unannotated: ModelIndexedItem[];
   total: number; annotated: number; syncedAt: number; stale: boolean;
@@ -744,7 +782,7 @@ export type WorkEvent = { id: string; projectId: string; at: number; kind: WorkE
 export type WatchAlert = { level: 'warn' | 'info'; title: string; detail: string; at?: number; action: 'baseline' | 'model-check' | 'coverage-sync' };
 export type WatchView = { alerts: WatchAlert[]; generatedAt: number; brief: BriefConfig };
 export type BriefConfig = { enabled: boolean; at: string };
-export type BriefView = { card: unknown; digest: string; sent: boolean; results?: { label: string; ok: boolean; error?: string }[]; reason?: string };
+export type BriefView = { card: unknown; digest: string; sent?: boolean; results?: FeishuSendResult[]; reason?: string };
 /* ------------------------------------------------------------------ */
 /* v0.16 生命周期门禁与 AI 预审评审。                                   */
 /* ------------------------------------------------------------------ */
@@ -755,7 +793,17 @@ export type GatesView = { items: GatesItemView[]; summary: { total: number; pass
 export type SnapshotDiff = { latest: SnapshotView; previous: SnapshotView | null; delta: { coverageOrphans: number | null; qualityScore: number | null; gatesPassed: number | null; openIssues: number | null } };
 export type ReviewSeverity = 'blocker' | 'major' | 'minor';
 export type ReviewIssueCard = { id: string; workItemId?: string; location?: string; severity: ReviewSeverity; summary: string; suggestion?: string; status: 'open' | 'resolved' | 'ignored' };
-export type ReviewRecordView = { id: string; at: number; status: 'running' | 'open' | 'done' | 'failed'; error?: string; issues: ReviewIssueCard[] };
+export type ReviewRecordView = { id: string; document?: string; at: number; status: 'running' | 'open' | 'done' | 'failed'; error?: string; issues: ReviewIssueCard[] };
+export function openReviewIssues(record: ReviewRecordView) {
+  return record.status === 'open' ? record.issues.filter(issue => issue.status === 'open') : [];
+}
+export function isInboxPendingProposal(proposal: Proposal) {
+  return proposal.status === 'pending' && proposal.op.kind !== 'tool' && proposal.op.kind !== 'gate';
+}
+export const VERIFICATION_ROLE = /test|verif|valid|检验|验证/i;
+export function isCoverageOrphan(item: Pick<CoverageItem, 'upstream' | 'moduleCount' | 'verification'>) {
+  return !item.upstream && !item.moduleCount && !item.verification;
+}
 /* ------------------------------------------------------------------ */
 /* v0.17 智能工作集、仪表盘、宏。                                       */
 /* ------------------------------------------------------------------ */
@@ -773,9 +821,9 @@ export type Macro = { id: string; projectId: string; name: string; steps: string
 /* v0.18 时间线、证据链、会议分诊。                                     */
 /* ------------------------------------------------------------------ */
 export type TimelineEntry = { at: number; kind: string; subject: string; workItemId?: string; detail?: string };
-export type TimelineView = { scope: 'document' | 'item'; workItemId?: string; entries: TimelineEntry[] };
+export type TimelineView = { scope: 'project' | 'item'; workItemId?: string; entries: TimelineEntry[] };
 export type MeetingAction = { id: string; title: string; owner?: string; priority: 'high' | 'normal' | 'low'; workItemId?: string; status: 'open' | 'done' };
-export type MeetingRecordView = { id: string; at: number; status: 'running' | 'open' | 'done' | 'failed'; error?: string; digest?: string; actions: MeetingAction[] };
+export type MeetingRecordView = { id: string; document?: string; at: number; status: 'running' | 'open' | 'done' | 'failed'; error?: string; digest?: string; actions: MeetingAction[] };
 
 export function routeFromUrl(url: string): Target | null {
   try {

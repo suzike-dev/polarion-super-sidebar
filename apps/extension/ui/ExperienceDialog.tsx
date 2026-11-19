@@ -26,6 +26,17 @@ export function ExperienceDialog({ view, projectId, model, onClose, onView }: { 
   const [preview, setPreview] = useState<'diff' | 'render'>('diff');
   const railInput = useRef<HTMLTextAreaElement>(null);
   const railMessages = useRef<HTMLDivElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const panel = dialog.current;
+    if (!panel) return;
+    const root = panel.getRootNode() as ShadowRoot | Document;
+    const previous = root.activeElement;
+    panel.querySelector<HTMLButtonElement>('header button')?.focus({ preventScroll: true });
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected && (!root.activeElement || panel.contains(root.activeElement))) previous.focus({ preventScroll: true });
+    };
+  }, []);
   // view 变化（保存/清空/应用修改稿）只同步手改文本与瞬时状态；共编对话保留，应用后可继续追问。
   useEffect(() => { setText(view.text); setClearArmed(false); setError(''); }, [view]);
   const proposal = useMemo(() => [...chat].reverse().find(message => message.state === 'pending')?.proposal ?? null, [chat]);
@@ -108,7 +119,7 @@ export function ExperienceDialog({ view, projectId, model, onClose, onView }: { 
   };
   const discardProposal = () => setChat(messages => messages.map(message => message.state === 'pending' ? { ...message, state: 'discarded' as const } : message));
 
-  return <div className="experience-layer" role="dialog" aria-label="经验沉淀" onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } }}>
+  return <div ref={dialog} className="experience-layer" role="dialog" aria-label="经验沉淀" onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } }}>
     <div className={'experience-panel' + (mode === 'assist' ? ' assist' : '')}>
       <header><span className="experience-icon"><Lightbulb size={15}/></span><div className="experience-title"><span className="eyebrow">本地经验 · 后续会话每轮自动注入</span><h2>经验沉淀</h2><small title={view.path}>{view.path}</small></div><button className="icon" title="关闭" onClick={onClose}><X size={15}/></button></header>
       {mode === 'assist' ? <div className="experience-split">

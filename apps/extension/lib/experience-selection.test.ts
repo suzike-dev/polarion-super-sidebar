@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { captureExperienceSelection, formatExperienceIntent, experienceLimitError, experienceHistory } from './experience-selection.ts';
+import { captureExperienceSelection, formatExperienceIntent, experienceLimitError, experienceHistory, selectedRangeWithin } from './experience-selection.ts';
 
 function fixture(html: string) {
   const dom = new JSDOM('<main></main>');
@@ -24,6 +24,20 @@ test('ShadowRoot 内从第二处重复句起选，保留跨行文字及所选位
   assert.equal(quote.before, '甲\n重复句。\n乙\n');
   assert.equal(quote.after, '，完成。');
   assert.match(quote.location, /已保存.*4 行.*5 行/);
+  dom.window.close();
+});
+
+test('区分回答、侧栏其他区和原生正文的选区', () => {
+  const { dom, doc, shadow, article, range } = fixture('<p>只引用这个片段</p>');
+  Object.defineProperty(doc, 'getSelection', { value: () => ({ getComposedRanges: () => [range] }) });
+  range.selectNodeContents(article.querySelector('p')!);
+  assert.equal(selectedRangeWithin(article)?.toString(), '只引用这个片段');
+  assert.equal(selectedRangeWithin(shadow)?.toString(), '只引用这个片段');
+  range.selectNodeContents(shadow.querySelector('aside')!);
+  assert.equal(selectedRangeWithin(article), null);
+  const native = doc.body.appendChild(doc.createTextNode('原生正文'));
+  range.selectNodeContents(native);
+  assert.equal(selectedRangeWithin(shadow), null);
   dom.window.close();
 });
 
