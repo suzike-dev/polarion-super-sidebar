@@ -5,9 +5,9 @@ const files=['package.json','package-lock.json','apps/extension/wxt.config.ts','
 const sources=await Promise.all(files.map(f=>fs.readFile(path.join(root,f),'utf8')));
 const pkg=JSON.parse(sources[0]),lock=JSON.parse(sources[1]);
 const versions=[pkg.version,lock.version,lock.packages[''].version,sources[2].match(/version: '([^']+)'/)?.[1],sources[3].match(/version: '([^']+)'/)?.[1]];
-if(versions.some(v=>v!==pkg.version))throw Error('VERSION_MISMATCH: '+JSON.stringify(versions));
 const [action='check',next]=process.argv.slice(2);
 if(action==='check'){
+ if(versions.some(v=>v!==pkg.version))throw Error('VERSION_MISMATCH: '+JSON.stringify(versions));
  const tag=process.env.GITHUB_REF_TYPE==='tag'?process.env.GITHUB_REF_NAME:undefined;
  if(tag&&tag!=='v'+pkg.version)throw Error('TAG_VERSION_MISMATCH');
  const changelog=await fs.readFile(path.join(root,'CHANGELOG.md'),'utf8');

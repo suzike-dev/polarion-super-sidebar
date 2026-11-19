@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-label="从发现到复验：质量体检与门禁">
+<defs>
+<style>
+.t{font-family:Microsoft YaHei, Noto Sans CJK SC, sans-serif;fill:#1b272e}
+.sub{font-family:Microsoft YaHei, Noto Sans CJK SC, sans-serif;fill:#7d8579;font-size:12px}
+.h{font-size:17px;font-weight:700}
+.card{fill:#ffffff;stroke:#dbe4d8;stroke-width:1}
+.mono{font-family:Consolas,'Microsoft YaHei UI',monospace}
+</style>
+<marker id="arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L9 3.5 L0 7" fill="#4f7d52"/></marker>
+<marker id="arrow-warn" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L9 3.5 L0 7" fill="#c98a2b"/></marker>
+</defs>
+<rect width="1200" height="700" fill="#f5f7f2"/>
+<text x="44" y="48" class="t h">从发现到复验：质量体检与门禁</text>
+<text x="44" y="70" class="sub">一套覆盖索引供所有检查；写入先提案、人工批准、服务端回读。示意图使用虚构数据。</text>
+
+<rect x="44" y="96" width="1112" height="132" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="66" y="124" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="13" fill="#2f4a34" font-weight="700" text-anchor="start">① 发现</text>
+<text x="66" y="146" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#4c5a4d" font-weight="400" text-anchor="start">编辑器行内体检 / 总览整册体检 / AI 预审</text>
+<rect x="66" y="160" width="104" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="74" y="174" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#1b272e" font-weight="600" text-anchor="start">模糊词 21 词</text><rect x="178" y="160" width="71" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="186" y="174" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#1b272e" font-weight="600" text-anchor="start">无量化判据</text><rect x="296" y="160" width="49" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="304" y="174" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#1b272e" font-weight="600" text-anchor="start">多义务</text><rect x="392" y="160" width="60" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="400" y="174" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#1b272e" font-weight="600" text-anchor="start">单条过长</text><rect x="488" y="160" width="60" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="496" y="174" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#1b272e" font-weight="600" text-anchor="start">指代不明</text><rect x="584" y="160" width="71" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="592" y="174" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#1b272e" font-weight="600" text-anchor="start">缺触发条件</text>
+<text x="760" y="146" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#4c5a4d" font-weight="400" text-anchor="start">AI 预审问题卡</text>
+<rect x="760" y="156" width="232" height="54" rx="8" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="772" y="174" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#1b272e" font-weight="600" text-anchor="start">blocker · 温度阈值三处不一致</text>
+<text x="772" y="190" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9" fill="#7d8579" font-weight="400" text-anchor="start">建议：统一为 25℃ 并回填表格与代码</text>
+<path d="M1010 162 L1090 162" stroke="#4f7d52" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+<rect x="1092" y="118" width="48" height="92" rx="8" fill="#eef2e7" stroke="#dbe4d8" />
+<text x="1116" y="150" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4c5a4d" font-weight="600" text-anchor="middle">覆盖</text>
+<text x="1116" y="166" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4c5a4d" font-weight="600" text-anchor="middle">索引</text>
+<text x="1116" y="182" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9" fill="#7d8579" font-weight="400" text-anchor="middle">S1</text>
+
+<path d="M600 232 L600 262" stroke="#4f7d52" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+<rect x="44" y="264" width="536" height="188" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="66" y="292" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="13" fill="#2f4a34" font-weight="700" text-anchor="start">② 判定：四道生命周期门禁</text>
+<text x="66" y="314" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#4c5a4d" font-weight="400" text-anchor="start">质量体检 / 验证准则 / 上游链接 / 实现模块</text>
+<rect x="66" y="330" width="228" height="34" rx="8" fill="#fdf6ee" stroke="#dbe4d8" /><text x="78" y="352" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#c98a2b" font-weight="600" text-anchor="start">质量体检  ✗ 1 条</text><rect x="310" y="330" width="228" height="34" rx="8" fill="#eef2e7" stroke="#dbe4d8" /><text x="322" y="352" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#4c5a4d" font-weight="600" text-anchor="start">验证准则  ✓ 4/4</text><rect x="66" y="374" width="228" height="34" rx="8" fill="#eef2e7" stroke="#dbe4d8" /><text x="78" y="396" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#4c5a4d" font-weight="600" text-anchor="start">上游链接  ✗ 4 条</text><rect x="310" y="374" width="228" height="34" rx="8" fill="#eef2e7" stroke="#dbe4d8" /><text x="322" y="396" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#4c5a4d" font-weight="600" text-anchor="start">实现模块  ✗ 4 条</text>
+<text x="66" y="432" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#7d8579" font-weight="400" text-anchor="start">门禁策略：逐门启停 + 质量分阈值（发版提醒）</text>
+
+<rect x="620" y="264" width="536" height="188" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="642" y="292" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="13" fill="#2f4a34" font-weight="700" text-anchor="start">③ 处置：提案与改写</text>
+<rect x="642" y="306" width="492" height="40" rx="8" fill="#fbfcf8" stroke="#dbe4d8" /><text x="654" y="322" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#1b272e" font-weight="600" text-anchor="start">提案 · 术语替换「尽快 → 300ms 内」</text><text x="654" y="338" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">差异预览 → 批准 → 写回 → 回读一致</text>
+<rect x="642" y="352" width="492" height="40" rx="8" fill="#fbfcf8" stroke="#dbe4d8" /><text x="654" y="368" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#1b272e" font-weight="600" text-anchor="start">AI 按建议改 · 逐条给出改前/改后</text><text x="654" y="384" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">改完人工审阅保存，草稿可撤销</text>
+<rect x="642" y="398" width="492" height="36" rx="8" fill="#eef2e7" stroke="#dbe4d8" /><text x="654" y="421" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4c5a4d" font-weight="400" text-anchor="start">AI 深度审阅：判据充分性 / 场景完整性 / 上下游矛盾</text>
+
+<path d="M600 452 L600 482" stroke="#c98a2b" stroke-width="1.6" fill="none" marker-end="url(#arrow-warn)"/>
+<rect x="44" y="484" width="1112" height="88" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="66" y="512" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="13" fill="#2f4a34" font-weight="700" text-anchor="start">④ 复验与留痕</text>
+<text x="66" y="534" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#4c5a4d" font-weight="400" text-anchor="start">重跑体检 → 剩余问题减少；门禁分数进基线快照，与上次对比；审批、写回、回读各留一条审计事件。</text>
+<rect x="880" y="500" width="254" height="56" rx="8" fill="#fbfcf8" stroke="#dbe4d8" /><text x="892" y="518" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#7d8579" font-weight="600" text-anchor="start">基线快照</text><text x="892" y="536" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4f7d52" font-weight="600" text-anchor="start">体检分 75→88 · 门禁 0/4→2/4</text>
+
+<rect x="44" y="592" width="1112" height="74" rx="10" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="66" y="618" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#2f4a34" font-weight="700" text-anchor="start">数据来源与边界</text>
+<text x="66" y="640" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#7d8579" font-weight="400" text-anchor="start">行内体检 = 内置严格基线 + 项目词表/术语；判据充分性与场景完整性交给 AI 预审。0 命中只是下限筛查，不代表质量达标。</text>
+
+</svg>

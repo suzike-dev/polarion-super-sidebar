@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-label="需求 ↔ 模型：双向追溯与一致性巡检">
+<defs>
+<style>
+.t{font-family:Microsoft YaHei, Noto Sans CJK SC, sans-serif;fill:#1b272e}
+.sub{font-family:Microsoft YaHei, Noto Sans CJK SC, sans-serif;fill:#7d8579;font-size:12px}
+.h{font-size:17px;font-weight:700}
+.card{fill:#ffffff;stroke:#dbe4d8;stroke-width:1}
+.mono{font-family:Consolas,'Microsoft YaHei UI',monospace}
+</style>
+<marker id="arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L9 3.5 L0 7" fill="#4f7d52"/></marker>
+<marker id="arrow-warn" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L9 3.5 L0 7" fill="#c98a2b"/></marker>
+</defs>
+<rect width="1200" height="700" fill="#f5f7f2"/>
+<text x="44" y="48" class="t h">需求 ↔ 模型：双向追溯与一致性巡检</text>
+<text x="44" y="70" class="sub">绑定一次本地模型目录，按内容指纹发现哪一侧变了。示意图使用虚构数据。</text>
+
+<rect x="44" y="96" width="500" height="250" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="66" y="124" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="13" fill="#2f4a34" font-weight="700" text-anchor="start">需求侧</text>
+<text x="66" y="146" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#7d8579" font-weight="400" text-anchor="start">当前文档 · 4 条（虚构）</text>
+<rect x="66" y="158" width="456" height="34" rx="7" fill="#fbfcf8" stroke="#dbe4d8" /><text x="78" y="180" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#1b272e" font-weight="400" text-anchor="start">SPE-示例 101 高压上电判定</text><rect x="66" y="200" width="456" height="34" rx="7" fill="#fdf6ee" stroke="#dbe4d8" /><text x="78" y="222" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#1b272e" font-weight="600" text-anchor="start">SPE-示例 102 热管理退出</text><text x="460" y="222" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#c98a2b" font-weight="700" text-anchor="start">疑似过期</text><rect x="66" y="242" width="456" height="34" rx="7" fill="#fbfcf8" stroke="#dbe4d8" /><text x="78" y="264" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#1b272e" font-weight="400" text-anchor="start">SPE-示例 103 故障降级</text><rect x="66" y="284" width="456" height="34" rx="7" fill="#fbfcf8" stroke="#dbe4d8" /><text x="78" y="306" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#1b272e" font-weight="400" text-anchor="start">SPE-示例 104 CAN 唤醒</text>
+
+<rect x="576" y="96" width="580" height="250" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="598" y="124" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="13" fill="#2f4a34" font-weight="700" text-anchor="start">模型侧 · 本地 SVN 目录（示例）</text>
+<text x="598" y="146" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#7d8579" font-weight="400" text-anchor="start">19 个模块 · 51 个文件指纹 · 基准 11-19 11:59</text>
+<rect x="598" y="158" width="536" height="34" rx="7" fill="#fdf6ee" stroke="#dbe4d8" /><text x="610" y="180" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#c98a2b" font-weight="600" text-anchor="start">HPMode.slx  △ 内容变化</text><rect x="598" y="200" width="536" height="34" rx="7" fill="#fbfcf8" stroke="#dbe4d8" /><text x="610" y="222" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">Power.slx   一致</text><rect x="598" y="242" width="536" height="34" rx="7" fill="#fbfcf8" stroke="#dbe4d8" /><text x="610" y="264" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">Com_Lib.slx 一致</text><rect x="598" y="284" width="536" height="34" rx="7" fill="#fbfcf8" stroke="#dbe4d8" /><text x="610" y="306" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">接口表 _DD.xlsx 一致</text>
+
+<path d="M548 220 L572 220" stroke="#4f7d52" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/><path d="M572 260 L548 260" stroke="#4f7d52" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+<text x="560" y="204" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9" fill="#7d8579" font-weight="400" text-anchor="middle">反查需求</text>
+<text x="560" y="278" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9" fill="#7d8579" font-weight="400" text-anchor="middle">实现模块</text>
+
+<rect x="44" y="368" width="360" height="210" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="66" y="396" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="12.5" fill="#2f4a34" font-weight="700" text-anchor="start">① 基准</text>
+<text x="66" y="418" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">把当前模型文件内容指纹，</text>
+<text x="66" y="436" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">和已关联需求的修订时间，</text>
+<text x="66" y="454" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">一起拍成快照。</text>
+<text x="66" y="484" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#7d8579" font-weight="400" text-anchor="start">SHA-256 · 51 文件 · 只读</text>
+<rect x="66" y="498" width="316" height="34" rx="7" fill="#eef2e7" stroke="#dbe4d8" /><text x="78" y="520" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4f7d52" font-weight="600" text-anchor="start">不会修改 SVN 或模型文件</text>
+
+<rect x="420" y="368" width="360" height="210" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="442" y="396" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="12.5" fill="#2f4a34" font-weight="700" text-anchor="start">② 巡检</text>
+<text x="442" y="418" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">模型变了 → 关联需求标疑似过期</text>
+<text x="442" y="436" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">需求变了 → 提示模型需同步</text>
+<text x="442" y="454" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">两侧都变 → 需人工裁决以哪侧为准</text>
+<text x="442" y="484" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#7d8579" font-weight="400" text-anchor="start">可手动触发，也可按日定时</text>
+<rect x="442" y="498" width="316" height="34" rx="7" fill="#eef2e7" stroke="#dbe4d8" /><text x="454" y="520" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4f7d52" font-weight="600" text-anchor="start">AI 里说「巡检一致性」即同源结果</text>
+
+<rect x="796" y="368" width="360" height="210" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="818" y="396" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="12.5" fill="#2f4a34" font-weight="700" text-anchor="start">③ 修复与复验</text>
+<text x="818" y="418" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">AI 读模型与需求正文，列出差异</text>
+<text x="818" y="436" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">位置：模块 / 信号 / 参数 / 条目章节</text>
+<text x="818" y="454" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">给出两种方向：以需求为准 / 以模型为准</text>
+<text x="818" y="484" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#7d8579" font-weight="400" text-anchor="start">改完回读，再跑一次巡检</text>
+<rect x="818" y="498" width="316" height="34" rx="7" fill="#eef2e7" stroke="#dbe4d8" /><text x="830" y="520" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4f7d52" font-weight="600" text-anchor="start">影响面：模块 · 上下游 · 验证链接</text>
+
+<rect x="44" y="604" width="1112" height="62" rx="10" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="66" y="628" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#2f4a34" font-weight="700" text-anchor="start">覆盖矩阵与初关联</text>
+<text x="66" y="648" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#7d8579" font-weight="400" text-anchor="start">每条需求可展开上游 / 下游 / 验证的具体条目；未标注需求可让 AI 先关联一版，人工再修正（低置信列待人工确认）。</text>
+
+</svg>
