@@ -235,3 +235,6 @@
 .impact-gates span{font-size:10.5px;border-radius:9px;padding:2px 8px}
 .impact-gates span.pass{background:#e7f3ec;color:#0f766e}
 .impact-gates span.fail{background:#fbe4df;color:#8c3b26}
+/* 整篇操作提示条：独立于状态栏 sync 文案，4s 自动消失。 */
+.rich-toast{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);z-index:40;max-width:min(560px,calc(100% - 32px));padding:8px 14px;border-radius:8px;background:#1f3a2b;color:#eef6e6;font-size:11.5px;line-height:1.6;box-shadow:0 10px 28px #16241c40;pointer-events:none;animation:rich-toast-in .16s ease}
+@keyframes rich-toast-in{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}

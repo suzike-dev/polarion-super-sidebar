@@ -69,7 +69,7 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
         reply(request.id, {
           documentId: result.document.id ?? '',
           title: result.document.title ?? '',
-          items: result.items.map(item => ({ id: item.id, title: item.title, status: item.status, type: item.type, outline: item.outline_number })).filter(item => item.id),
+          items: result.items.map(item => ({ id: item.id, title: item.title, status: item.status, type: item.type, outline: item.outline_number ?? (item as unknown as { outlineNumber?: string }).outlineNumber ?? '' })).filter(item => item.id),
         });
       } catch { throw Error('DOCUMENT_OUTLINE_FAILED'); }
       continue;

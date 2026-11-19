@@ -19,8 +19,9 @@ export function CommandPalette({ commands, target, onClose, onOpenItem }: { comm
     if (!target || needle.length < 2 || /^[/]/.test(needle)) { setSearchHits([]); return; }
     let cancelled = false;
     const timer = setTimeout(() => {
-      void rpc<{ items: { workItemId: string; title: string }[] }>({ method: 'workitems.search', target, query: needle, limit: 5 })
-        .then(result => { if (!cancelled) setSearchHits(result.items ?? []); })
+      // Host 的 searchItems 返回数组本身（不是 {items}），两种形态都兼容。
+      void rpc<{ workItemId: string; title: string }[] | { items: { workItemId: string; title: string }[] }>({ method: 'workitems.search', target, query: needle, limit: 5 })
+        .then(result => { if (!cancelled) setSearchHits(Array.isArray(result) ? result : (result?.items ?? [])); })
         .catch(() => { if (!cancelled) setSearchHits([]); });
     }, 250);
     return () => { cancelled = true; clearTimeout(timer); };
@@ -61,7 +62,7 @@ export function CommandPalette({ commands, target, onClose, onOpenItem }: { comm
             </button>)}
         {!rows.length && <p className="palette-empty">没有匹配的命令{target ? '或工作项' : ''}。</p>}
       </div>
-      <div className="palette-foot">↑↓ 选择 · Enter 执行 · 输入 ≥2 字搜工作项</div>
+      <div className="palette-foot">↑↓ 选择 · Enter 执行 · 输入 ≥2 字搜工作项 · Ctrl+Shift+P 开关</div>
     </div>
   </div>;
 }

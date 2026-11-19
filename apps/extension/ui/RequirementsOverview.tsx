@@ -148,7 +148,7 @@ export function RequirementsOverview({target, right, top, onClose, onOpenItem, o
           const rows = report.items.filter(item => item.issues.length || item.unreadable).filter(match);
           const cleanGates = gates?.items.filter(item => item.passed && match(item)) ?? [];
           const score = report.checked ? Math.round((report.clean / report.checked) * 100) : 0;
-          const chapterOf = (outlineNumber: string) => (outlineNumber.match(/^\d+/)?.[0] ?? '0');
+          const chapterOf = (outlineNumber?: string) => (String(outlineNumber ?? '').match(/^\d+/)?.[0] ?? '0');
           const chapters = new Map<string, typeof rows>();
           for (const item of rows) {
             const key = chapterOf(item.outline);
