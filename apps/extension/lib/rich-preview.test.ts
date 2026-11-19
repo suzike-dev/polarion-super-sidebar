@@ -28,6 +28,15 @@ test('display sanitization blocks executable content and external resource reque
   assert.equal(preview.querySelector('img')!.hasAttribute('src'), false); assert.equal(preview.querySelector('p')!.style.position, '');
   assert.equal(preview.querySelector('[data-protected]')!.textContent?.includes('原始片段保留'), true); assert.equal(original.source, source); dom.window.close();
 });
+test('preview offers only diagram blocks to the board and preserves code text and language',()=>{
+  const source='<pre><code class="language-mermaid junk">flowchart LR\nA--&gt;B</code></pre><pre><code class="language-matlab">if x\nend</code></pre>';
+  const model=new LosslessHtml(source),dom=new JSDOM();
+  const doc=new JSDOM(richPreview(source,model.nodes,target,dom.window.DOMParser)).window.document;
+  assert.equal(doc.querySelectorAll('button[data-open-board]').length,1);
+  assert.equal(doc.querySelector('button[data-open-board]')?.previousElementSibling?.textContent,'flowchart LR\nA-->B');
+  assert.equal(doc.querySelector('pre code')?.className,'language-mermaid');
+  assert.ok(doc.querySelector('.hljs-keyword'));dom.window.close();
+});
 test('parameterless table macro renders as a table, not the protected placeholder', () => {
   // LiveDoc 导出的表格宏 id 以宏名结尾、无 `;params`（SPE-908 实测形态）。
   const source = '<table id="polarion_wiki macro name=table" class="polarion-Document-table" style="width:80%"><tbody><tr><th>出风模式</th><th>出风温度阈值</th></tr><tr><td>吹面</td><td>＜[21,24]</td></tr></tbody></table>';

@@ -47,4 +47,4 @@ const server = net.createServer(socket => {
   });
 });
 server.once('error', error => { store.close(); if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') process.exit(0); throw error; });
-server.listen(PIPE, () => { store.recoverInterruptedRuns(); });
+server.listen(PIPE, () => { store.recoverInterruptedRuns(); service.workflows.recover(); service.startBriefScheduler(); });

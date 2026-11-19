@@ -1,13 +1,14 @@
 import React, {useMemo, useState} from 'react';
-import {ArrowLeft, BookOpen, Bot, ChevronRight, FileText, FolderOpen, KeyRound, MessageSquare, PanelTopOpen, Pencil, Plus, SlidersHorizontal, Sparkles, Trash2, Type, X} from 'lucide-react';
-import type {Guideline, GuidelineFile, GuidelineKind} from '../../../packages/protocol/index';
+import {ArrowLeft, BookOpen, Bot, ChevronRight, FileText, FolderOpen, KeyRound, MessageSquare, PanelTopOpen, Pencil, Plus, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, Type, X} from 'lucide-react';
+import type {Guideline, GuidelineFile, GuidelineKind, Target} from '../../../packages/protocol/index';
 import {MAX_GUIDELINE_FILES, SettingsSchema} from '../../../packages/protocol/index';
 import {PolarionAccount} from './PolarionAccount';
 import {AssistantMarkdown} from './AssistantMarkdown';
+import {QualityRulesCard} from './QualityRulesCard';
 import './settings-panel.css';
 
 type AssistantSettings = ReturnType<typeof SettingsSchema.parse>;
-type PanelTab = 'general' | 'appearance' | 'storage' | 'guidelines';
+type PanelTab = 'general' | 'appearance' | 'storage' | 'guidelines' | 'quality';
 
 function Segmented<T extends string>({label,value,options,onChange,disabled}:{label:string;value:T;options:{value:T;label:string;hint:string}[];onChange:(value:T)=>void;disabled?:boolean}){
   return <div className="sp-field"><span className="sp-label">{label}</span>
@@ -46,12 +47,12 @@ function ManualPath({placeholder,disabled,onAdd}:{placeholder:string;disabled:bo
   return <div className="sp-manual"><input aria-label={placeholder} placeholder={placeholder} maxLength={1000} disabled={disabled} value={value} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();commit();}}}/><button type="button" className="sp-btn" disabled={disabled||!value.trim()} onClick={commit}>添加</button></div>;
 }
 
-export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,loading,saving,error,initialTab='general',onConfig,onPaperWidth,onGuidelines,onSave,onClose,onPickFolder,onPickFiles}:{
-  config:AssistantSettings|null;defaultFontSize:number;paperWidth:'default'|'fill'|number;guidelines:Guideline[]|null;initialTab?:PanelTab;
+export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,target,loading,saving,error,initialTab='general',onConfig,onPaperWidth,onGuidelines,onSave,onClose,onPickFolder,onPickFiles,onQualityReview}:{
+  config:AssistantSettings|null;defaultFontSize:number;paperWidth:'default'|'fill'|number;guidelines:Guideline[]|null;target?:Target|null;initialTab?:PanelTab;
   loading:boolean;saving:boolean;error:string;
   onConfig:(next:AssistantSettings)=>void;onPaperWidth:(next:'default'|'fill'|number)=>void;onGuidelines:(next:Guideline[])=>void;
   onSave:()=>void;onClose:()=>void;
-  onPickFolder:(current:string)=>Promise<string|null>;onPickFiles:(id:string)=>Promise<GuidelineFile[]>;
+  onPickFolder:(current:string)=>Promise<string|null>;onPickFiles:(id:string)=>Promise<GuidelineFile[]>;onQualityReview?:()=>void;
 }){
   const [panelTab,setPanelTab]=useState<PanelTab>(initialTab);
   const [kind,setKind]=useState<GuidelineKind>('send');
@@ -67,7 +68,7 @@ export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,load
   const remove=(id:string)=>{if(!window.confirm('删除这条指令？点击「保存全部设置」后生效。'))return;onGuidelines(list.filter(g=>g.id!==id));setOpenId(null);};
   const pickFiles=async(id:string)=>{setPicking(true);try{const files=await onPickFiles(id);if(files.length)patch(id,{files:[...(list.find(g=>g.id===id)?.files??[]),...files].slice(0,MAX_GUIDELINE_FILES)});}finally{setPicking(false);}};
   const pickFolder=async()=>{if(!config)return;setFolderPicking(true);try{const path=await onPickFolder(config.draftsFolder);if(path)onConfig({...config,draftsFolder:path});}finally{setFolderPicking(false);}};
-  const tabs:[PanelTab,string,React.ElementType][]=[['general','常规',Bot],['appearance','外观',Type],['storage','存储',FolderOpen],['guidelines','指令',Sparkles]];
+  const tabs:[PanelTab,string,React.ElementType][]=[['general','常规',Bot],['appearance','外观',Type],['storage','存储',FolderOpen],['guidelines','指令',Sparkles],['quality','质量规则',ShieldCheck]];
   return <section className="settings sp-panel" aria-label="助手设置" aria-busy={loading||saving} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(openId)setOpenId(null);else onClose();}}}>
     <header className="settings-heading sp-header"><div className="sp-title"><span className="sp-title-mark"><SlidersHorizontal size={15}/></span><div><h3>助手设置</h3><small>账号 · 默认行为 · 预设指令 · 存储</small></div></div><button className="icon" title="关闭设置，放弃未保存的调整" aria-label="关闭设置" disabled={saving} autoFocus onClick={onClose}><X size={15}/></button></header>
     {loading&&<p className="muted sp-loading" role="status">正在读取设置…</p>}
@@ -138,6 +139,7 @@ export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,load
             <button type="button" className="sp-add-guide" disabled={saving} onClick={add}><Plus size={14}/>新增{kind==='send'?'随发送指令':'通用指令'}</button>
           </>}
         </div>}
+        {panelTab==='quality'&&target&&<QualityRulesCard target={target} onDeepCheck={onQualityReview}/>}
       </div>
     </>}
     {error&&<p className="inline-error sp-error" role="alert">{error}</p>}

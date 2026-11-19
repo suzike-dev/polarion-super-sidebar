@@ -1,0 +1,84 @@
+/* 质量规则中心 v3：设置页范式 —— 摘要头 / 分段列表 / 固定底栏。前缀 qc- 避免与旧样式冲突。 */
+.qc{gap:0;padding:0;overflow:hidden}
+/* 摘要头 */
+.qc-summary{display:flex;align-items:center;gap:10px;padding:12px 14px 10px}
+.qc-shield{flex:none;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:#3f6b46;background:#ecf3e6;border:1px solid #dde7d2}
+.qc-summary-title{display:flex;flex-direction:column;gap:1px;min-width:0}
+.qc-summary-title strong{font-size:13px;color:#394034;font-weight:650;letter-spacing:.01em}
+.qc-summary-title small{font-size:10px;color:#9a9d92}
+.qc-summary-stat{display:flex;align-items:baseline;gap:2px;margin-left:auto;white-space:nowrap}
+.qc-summary-stat b{font-size:20px;line-height:1;color:#2f4a34;font-weight:650;font-variant-numeric:tabular-nums}
+.qc-summary-stat span{font-size:10px;color:#9a9d92}
+.qc-summary-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.qc-badge{font-size:9.5px;padding:2px 7px;border-radius:9px;background:#eef2e7;color:#4d6b4f}
+.qc-badge.src-cache{background:#f6efe3;color:#8a6a3b}
+.qc-badge.src-default{background:#f0f1ec;color:#8b8f83}
+.qc-ver{font-size:9.5px;color:#a2a598;font-variant-numeric:tabular-nums}
+.qc-summary-meta a{font-size:9.5px;color:#5d7f5f;text-decoration:none;border-bottom:1px dotted #b9c9b4}
+.qc-lead{margin:0;padding:0 14px 10px;font-size:10.5px;line-height:1.6;color:#9a9d92;border-bottom:1px solid #f0f2ea}
+.qc-note{margin:8px 14px 0;font-size:10.5px;line-height:1.6;color:#6b7062}
+.qc-note.ok{color:#4d7a52}
+.qc-note.error{color:#a1503c}
+
+/* 分段 */
+.qc-section{padding:10px 14px 4px;border-bottom:1px solid #f0f2ea}
+.qc-section:last-of-type{border-bottom:0}
+.qc-section-head{display:flex;align-items:baseline;gap:7px;margin-bottom:4px}
+.qc-dot{flex:none;width:7px;height:7px;border-radius:50%;transform:translateY(-1px)}
+.qc-section-head b{font-size:11px;color:#4b5245;font-weight:650}
+.qc-section-head small{font-size:9.5px;color:#a6a99d;line-height:1.5}
+.qc-rows{display:flex;flex-direction:column}
+.qc-row{display:flex;align-items:flex-start;gap:9px;padding:7px 2px;border-top:1px solid #f5f6f1}
+.qc-row:first-child{border-top:0}
+.qc-row:hover{background:#fafbf6}
+.qc-row.off{opacity:.52}
+/* 开关 */
+.qc-switch{position:relative;flex:none;width:30px;height:17px;margin-top:2px;border-radius:9px;border:1px solid #d7dccb;background:#e8ebe0;padding:0;cursor:pointer;transition:background .15s,border-color .15s}
+.qc-switch i{position:absolute;top:1px;left:1px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #24302426;transition:transform .15s}
+.qc-switch.on{background:#4f7d52;border-color:#4f7d52}
+.qc-switch.on i{transform:translateX(13px)}
+.qc-switch:disabled{cursor:default;opacity:.6}
+.qc-switch:focus-visible{outline:2px solid #4f7d52;outline-offset:2px}
+/* 行内容 */
+.qc-row-body{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.qc-row-title{display:flex;align-items:center;gap:6px;min-width:0}
+.qc-sev{flex:none;width:6px;height:6px;border-radius:50%;background:#5b7fb3}
+.qc-sev.warn{background:#c98a2b}
+.qc-row-title strong{font-size:11.5px;color:#454641;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qc-words{display:inline-flex;align-items:center;gap:2px;margin-left:auto;flex:none;border:1px solid #e6e9dc;border-radius:9px;background:#fff;padding:1px 7px;font-size:9px;color:#7d8274;cursor:pointer}
+.qc-words:hover{border-color:#c9d4b9;color:#4f7d52}
+.qc-words svg{transition:transform .12s ease}
+.qc-words svg.open{transform:rotate(180deg)}
+.qc-row-desc{font-size:10px;line-height:1.55;color:#9a9d92;overflow-wrap:anywhere}
+.qc-edit{display:flex;flex-direction:column;gap:7px;margin:7px 0 3px;padding:9px;border:1px solid #eef0e6;border-radius:8px;background:#fbfcf8}
+.qc-edit label{display:flex;flex-direction:column;gap:4px;font-size:10px;color:#8b8f83}
+.qc-edit label span{color:#b0b3a7;font-size:9.5px}
+.qc-edit textarea,.qc-edit input{width:100%;box-sizing:border-box;border:1px solid #e1e5d9;border-radius:6px;padding:6px 8px;font:11px/1.6 'Microsoft YaHei UI',sans-serif;color:#4a4d44;background:#fff}
+.qc-edit textarea:focus,.qc-edit input:focus{border-color:#9bba9a;outline:none;box-shadow:0 0 0 3px #5e8c5e14}
+
+/* 术语表 */
+.qc-empty{margin:4px 0 8px;font-size:10.5px;color:#a2a598}
+.qc-terms{display:flex;flex-direction:column;gap:6px;margin:4px 0 8px}
+.qc-term{display:flex;align-items:center;gap:6px;min-width:0}
+.qc-term input[type=text],.qc-term .qc-term-name,.qc-term .qc-term-alias{border:1px solid #e1e5d9;border-radius:6px;padding:5px 8px;font-size:11px;color:#4a4d44;background:#fff;min-width:0}
+.qc-term-name{flex:0 1 150px;font-weight:600}
+.qc-term-alias{flex:1}
+.qc-arrow{flex:none;font-size:10px;color:#b6b9ad}
+.qc-forbidden{display:flex;align-items:center;gap:3px;flex:none;font-size:10px;color:#8b8f83;white-space:nowrap}
+.qc-forbidden input[type=checkbox]{width:12px;height:12px;margin:0;accent-color:#a1503c}
+.qc-icon{flex:none;width:24px;height:24px;display:grid;place-items:center;border:1px solid transparent;border-radius:6px;background:transparent;color:#9a9d92;cursor:pointer}
+.qc-icon.danger:hover{color:#a1503c;background:#fbf0ec;border-color:#efdcd5}
+.qc-add{display:inline-flex;align-items:center;gap:4px;margin:0 0 8px;border:1px dashed #d8dfc8;border-radius:7px;background:transparent;padding:5px 10px;font-size:10.5px;color:#7d8274;cursor:pointer}
+.qc-add:hover{color:#4f7d52;border-color:#b9c9b4;background:#f8faf3}
+
+/* 固定底栏 */
+.qc-footer{position:sticky;bottom:0;display:flex;align-items:center;gap:4px;padding:10px 12px;background:#fbfcf8;border-top:1px solid #edefe5}
+.qc-spacer{flex:1}
+.qc-text{display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;padding:5px 7px;border-radius:6px;font-size:10.5px;color:#8b8f83;cursor:pointer}
+.qc-text:hover:not(:disabled){background:#eef2e7;color:#4d6b4f}
+.qc-text:disabled{opacity:.45;cursor:default}
+.qc-secondary{display:inline-flex;align-items:center;gap:4px;border:1px solid #d8dfc8;background:#fff;border-radius:7px;padding:6px 10px;font-size:10.5px;color:#4d6b4f;cursor:pointer}
+.qc-secondary:hover{background:#f3f7ec}
+.qc-primary{display:inline-flex;align-items:center;gap:5px;border:1px solid #2f4a34;background:#2f4a34;border-radius:7px;padding:6px 13px;font-size:11px;font-weight:600;color:#f2f6ea;cursor:pointer}
+.qc-primary:hover:not(:disabled){background:#24402a}
+.qc-primary:disabled{background:#e4e8da;border-color:#e4e8da;color:#a2a598;cursor:default}

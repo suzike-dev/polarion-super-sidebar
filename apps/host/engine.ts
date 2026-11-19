@@ -15,7 +15,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Guideline, Run, Session } from '../../packages/protocol/index.ts';
 import { enginePrompt } from './prompt.ts';
+import { Proposals } from './proposals.ts';
+import type { Workflows } from './workflows.ts';
 import { readExperience } from './experience.ts';
+import { Model, modelContextDigest } from './model.ts';
+import { Coverage } from './coverage.ts';
+import type { Reviews } from './reviews.ts';
+import type { Meetings } from './meeting.ts';
 import { inspectRuntime } from './capabilities.ts';
 import { Assets } from './assets.ts';
 import { Interactions, questionForm, mcpForm } from './interactions.ts';
@@ -47,18 +53,20 @@ export class Engines {
     const notes: string[] = [];
     if (!this.store.settings().agentAutoSave) return notes;
     // 直接按 run_id 查，避免 events() 的 120 条窗口漏掉早先的草稿事件。
-    const touched = [...new Map((this.store.db.prepare("SELECT data FROM events WHERE run_id=? AND kind='draft' ORDER BY seq").all(run.id) as {data: string}[]).map(row => { const value = JSON.parse(row.data) as {id?: string; workItemId?: string}; return [value.id, value] as const; }).filter(([id]) => !!id)).values()];
-    for (const { id, workItemId } of touched) {
+    const touched = [...new Map((this.store.db.prepare("SELECT data FROM events WHERE run_id=? AND kind='draft' ORDER BY seq").all(run.id) as {data: string}[]).map(row => { const value = JSON.parse(row.data) as {id?: string; workItemId?: string; revision?: number}; return [value.id, value] as const; }).filter(([id]) => !!id)).values()];
+    for (const { id, workItemId, revision } of touched) {
       if (!id) continue;
       const toolId = crypto.randomUUID();
       try {
         const draft = this.drafts.read(id);
         if (draft.state !== 'dirty') continue;
         this.store.event(run, 'tool', { id: toolId, ...toolPresentation('mcp__polarion_drafts__save_draft', { workItemId: draft.workItemId }, draft.workItemId), detail: '设置已允许 · AI 修改后自动保存' });
-        const saved = await this.drafts.save(id, draft.revision, 'clean');
-        this.store.event(run, 'tool-result', { id: toolId, status: 'completed', summary: '已写入 Polarion · 服务端回读一致', durationMs: 0 });
+        if (draft.revision !== revision) throw Error('草稿已有新修改，请在编辑工作台审阅并保存');
+        const {saved, proposal} = await this.proposals.autoSave(run, draft, toolId);
+        const summary = proposal.recordError ? `回读一致，变更记录写入失败：${safeError(proposal.recordError)}` : '回读一致，已记录到变更时间线';
+        this.store.event(run, 'tool-result', { id: toolId, status: 'completed', summary, durationMs: 0 });
         this.store.event(run, 'draft', { id: saved.id, revision: saved.revision, workItemId: saved.workItemId });
-        notes.push(`**${saved.workItemId}** 回读一致`);
+        notes.push(`**${saved.workItemId}** ${summary}`);
       } catch (error) {
         this.store.event(run, 'tool-result', { id: toolId, status: 'failed', summary: redact(safeError(error)), durationMs: 0 });
         notes.push(`**${workItemId ?? id}** 保存失败：${safeError(error)}`);
@@ -70,6 +78,12 @@ export class Engines {
   store: Store; drafts: Drafts;
   assets: Assets;
   interactions: Interactions;
+  /** 动态工作流编排器：由 Service 注入，会话空闲时在 pump 里推进。 */
+  workflows?: Workflows;
+  /** AI 预审与会议分诊：run 完成后由引擎回填解析（与动态工作流同一挂接点）。 */
+  reviews?: Reviews;
+  meetings?: Meetings;
+  proposals: Proposals;
   runtimes=new Map<string,Query>();
   contextUsage = new ContextUsageCache(id => this.runtimes.get(id));
   private pooled=new Map<string,{stream:Query;input:TurnInput<SDKUserMessage>;bind:(run:Run,session:Session,controller:AbortController,attachments:any[])=>void;cancelTools:(runId:string)=>void;lifetime:AbortController;key:string;inUse:boolean;timer?:ReturnType<typeof setTimeout>}>();
@@ -82,7 +96,7 @@ export class Engines {
   private steering = new Set<string>();
   private runtimeQuery:typeof query;
   private experienceDir?: string;
-  constructor(store: Store, drafts: Drafts, assets = new Assets(store), runtimeQuery:typeof query=query, experienceDir?: string) { this.runtimeQuery=runtimeQuery;this.experienceDir=experienceDir;this.store = store; this.drafts = drafts; this.assets = assets; this.interactions=new Interactions(store); }
+  constructor(store: Store, drafts: Drafts, assets = new Assets(store), runtimeQuery:typeof query=query, experienceDir?: string) { this.runtimeQuery=runtimeQuery;this.experienceDir=experienceDir;this.store = store; this.drafts = drafts; this.assets = assets; this.interactions=new Interactions(store);this.proposals=new Proposals(store,drafts); }
   cancel(runId: string) {
     const controller = this.active.get(runId);
     if (controller) { controller.abort(); return; }
@@ -115,8 +129,11 @@ export class Engines {
     this.pump(run.sessionId);
     return run;
   }
-  /** 会话空闲时按先进先出启动下一条排队输入；用于任务收尾与孤儿队列兜底。 */
+  /** 会话空闲时按先进先出启动下一条排队输入；用于任务收尾与孤儿队列兜底。工作流推进同样挂在此处：空闲即自动续步。 */
+  /** 该 run 是否仍在本进程内执行（停滞自愈用）。 */
+  isActiveRun(runId: string) { return this.active.has(runId); }
   pump(sessionId: string) {
+    try { this.workflows?.advance(sessionId); } catch { /* 工作流推进异常不阻断队列推进 */ }
     for (const id of this.active.keys()) if (this.store.get<Run>('run', id)?.sessionId === sessionId) return;
     const next = this.store.claimQueued(sessionId);
     if (next) void this.execute(next);
@@ -170,7 +187,9 @@ export class Engines {
           const {draft,characters}=this.drafts.format(before.id,before.revision,format,context.source==='work-item'?undefined:context.text);
           this.store.event(run,'tool-result',{id,status:'completed',summary:`已处理 ${characters} 字`,durationMs:Date.now()-run.startedAt});
           this.store.event(run,'draft',{id:draft.id,revision:draft.revision,workItemId:draft.workItemId});
-          this.store.event(run,'result',{text:`已调整 **${draft.workItemId}** 的${context.source==='work-item'?'正文':'选中文字'}${format.color?'颜色':'粗体'}，共 **${characters} 字**。\n\n修改已进入本地草稿，可在编辑工作台中审阅；**尚未保存到 Polarion**。`,durationMs:Date.now()-run.startedAt,execution:'direct-format'});
+          const notes = await this.autoSaveTouchedDrafts(run);
+          const saved = notes.length ? notes.join('；') : '修改已进入本地草稿，可在编辑工作台中审阅；**尚未保存到 Polarion**。';
+          this.store.event(run,'result',{text:`已调整 **${draft.workItemId}** 的${context.source==='work-item'?'正文':'选中文字'}${format.color?'颜色':'粗体'}，共 **${characters} 字**。\n\n${saved}`,durationMs:Date.now()-run.startedAt,execution:'direct-format'});
           run.status='completed';return;
         }catch(error){this.store.event(run,'tool-result',{id,status:'failed',summary:redact(safeError(error)),durationMs:Date.now()-run.startedAt});throw error;}
       }
@@ -262,13 +281,46 @@ export class Engines {
         tool('peek_work_item', EDITOR_TOOL_DESCRIPTIONS.peek_work_item, { workItemId: z.string().min(1).max(100) }, async ({ workItemId }) => textResult(await this.drafts.peek(session.target, workItemId))),
                 tool('list_guidelines','列出当前可用的通用指令资料（标准需求模板、标准变量定义、绘图规范等）。每条含 id、名称与用途描述。根据用户需求判断是否相关，不相关不必读取。',{},async()=>textResult(this.store.guidelines().filter(g=>g.kind==='library').map(({id,kind,name,description})=>({id,kind,name,description})))),
         tool('read_guideline','读取一条通用指令的完整 Markdown 内容。先用 list_guidelines 找到相关指令的 id。',{id:z.string().uuid()},async({id})=>{const guideline=this.store.guidelines().find(g=>g.id===id);if(!guideline||guideline.kind!=='library')throw Error('GUIDELINE_NOT_FOUND');return textResult(guidelineContent(guideline));}),
+        tool('model_trace','查询/维护本项目的 Simulink 模型关联。action=overview 返回模型根目录与全部模块（含 .slx/字典/接口表路径）；action=requirements 按 rootId+module 返回该模块的实现需求清单；action=note_read 读取某工作项的实现模块备注；action=note_write 给工作项写入实现模块备注（marks 为 {rootId, modules[]} 数组，模块名用 overview 返回的 key）；action=check 一致性巡检：对比内容指纹基准，返回模型侧文件变化、需求侧更新及两侧都变的冲突模块和受影响需求（需先在模型关联工作台设过基准）。一致性审查、需求细化、模块定位都从这里取路径，不要向用户追问模型文件位置。',{action:z.enum(['overview','requirements','note_read','note_write','check']),rootId:z.string().uuid().optional(),module:z.string().max(200).optional(),workItemId:z.string().min(1).max(100).optional(),marks:z.array(z.object({rootId:z.string().uuid(),modules:z.array(z.string().min(1).max(200)).max(60)})).max(8).optional()},async args=>{
+          if(args.action==='overview'){const view=await new Model(this.store,this.drafts).traceView(session.target);return textResult({roots:view.roots.map(r=>({rootId:r.id,label:r.label,path:r.path,projectFile:r.projectFile,dictionaries:r.dictionaries,modules:r.modules.filter(m=>!m.excluded).map(m=>({key:m.key,name:m.name,model:m.model,dictionary:m.dictionary,interface:m.interface,kind:m.kind}))})),annotated:view.annotated,total:view.total,unannotatedSample:view.unannotated.slice(0,50).map(i=>({workItemId:i.workItemId,title:i.title}))});}
+          if(args.action==='check'){const model=new Model(this.store,this.drafts);const roots=await model.roots(session.target);const bound=roots.roots.filter(r=>r.path);if(!bound.length)throw Error('MODEL_ROOT_PATH_UNBOUND');if(args.rootId&&!bound.some(r=>r.id===args.rootId))throw Error('MODEL_ROOT_NOT_FOUND');const list=args.rootId?bound.filter(r=>r.id===args.rootId):bound;const views=await Promise.all(list.map(r=>model.check(session.target,r.id)));return textResult({roots:list.map(r=>r.label),results:views.map(v=>({baselineAt:v.baselineAt,ok:v.ok,message:v.message,changedFiles:v.changedFiles,findings:v.findings.map(f=>({module:f.moduleName,side:f.side,files:f.files,workItems:f.workItems.map(w=>({workItemId:w.workItemId,requirementChanged:w.requirementChanged}))}))}))});}
+          if(args.action==='requirements'){if(!args.rootId||!args.module)throw Error('MODEL_TRACE_REQUIRES_ROOT_AND_MODULE');const view=await new Model(this.store,this.drafts).traceView(session.target);const group=view.groups.find(g=>g.rootId===args.rootId&&g.moduleKey===args.module);if(!group)throw Error('MODEL_TRACE_MODULE_NOT_FOUND');return textResult({module:group.moduleName,items:group.items.map(i=>({workItemId:i.workItemId,title:i.title,type:i.type}))});}
+          if(args.action==='note_read'){if(!args.workItemId)throw Error('MODEL_TRACE_REQUIRES_WORK_ITEM');return textResult(await new Model(this.store,this.drafts).noteRead(session.target,args.workItemId));}
+          if(!args.workItemId||!args.marks)throw Error('MODEL_TRACE_REQUIRES_WORK_ITEM_AND_MARKS');
+          const written=await new Model(this.store,this.drafts).noteWrite(session.target,args.workItemId,{format:'polarion-sidebar-model-note',version:1,marks:args.marks});
+          return textResult({workItemId:args.workItemId,marks:args.marks,verified:written.verified});
+        }),
+        tool('dedup_search','写前查重：把准备写入的需求文本与当前文档已索引条目比对，返回相似条目、重叠分数（0-1）与共享术语（信号名/参数/关键措辞）。写新需求前先查；分数高时先打开相似条目比对，考虑复用、合并或注明差异，而不是重复造一条。索引为空时提示用户在需求总览「体检」或模型工作台构建覆盖索引。',{text:z.string().min(1).max(20000),exclude:z.string().min(1).max(100).optional()},async args=>{
+          const result=new Coverage(this.store,this.drafts,new Model(this.store,this.drafts)).dedup(session.target,args.text,5,args.exclude);
+          return textResult(result);
+        }),
+        tool('save_workflow', EDITOR_TOOL_DESCRIPTIONS.save_workflow, {          name: z.string().trim().min(1).max(60),
+          description: z.string().max(300).default(''),
+          steps: z.array(z.object({ title: z.string().trim().min(1).max(80), prompt: z.string().min(1).max(20000), pause: z.boolean().default(false), guidelineId: z.string().uuid().optional() })).min(1).max(30),
+        }, async ({ name, description, steps }) => {
+          if (!this.workflows) throw Error('WORKFLOWS_UNAVAILABLE');
+          const def = this.workflows.createFromAgent(session.target.projectId, name, description, steps);
+          return textResult({ saved: true, id: def.id, name: def.name, steps: def.steps.length, usage: `已保存；用户在输入框输入 /wf:${def.name} 即可对当前工作项运行` });
+        }),
       ] });
       const ownNames = new Set(EDITOR_TOOL_NAMES.map(n => 'mcp__polarion_drafts__' + n));
       for(const name of boardToolNames)ownNames.add(name);
-      ownNames.add('mcp__polarion_drafts__list_guidelines');ownNames.add('mcp__polarion_drafts__read_guideline');
+      ownNames.add('mcp__polarion_drafts__list_guidelines');ownNames.add('mcp__polarion_drafts__read_guideline');ownNames.add('mcp__polarion_drafts__save_workflow');ownNames.add('mcp__polarion_drafts__model_trace');ownNames.add('mcp__polarion_drafts__dedup_search');
       // Keep tool ownership and terminal state for this runtime's lifetime. Hooks can
       // arrive after a refusal or after the next warm turn has rebound `run`.
-      const toolStates=new Map<string,{run:Run;startedAt:number;settled:boolean}>();
+      type ToolState = {run: Run; startedAt: number; settled: boolean; proposalId?: string};
+      const toolStates = new Map<string, ToolState>();
+      const track = (state: ToolState, id: string, name: string, args: Record<string,unknown>) => {
+        if (state.proposalId || state.settled) return;
+        const owner = state.run;
+        const draftId = typeof args.draftId === 'string' ? args.draftId : undefined;
+        const workItemId = draftId ? this.store.get<{workItemId:string}>('draft',draftId)?.workItemId : undefined;
+        state.proposalId = this.proposals.runtime({ target: owner.target, source: owner.workflow ? 'workflow' : 'agent', workItemId,
+          summary: `工具操作 ${name}`, op: {kind:'tool', runId:owner.id, toolUseId:id, tool:name, draftId, workflowRunId:owner.workflow?.workflowRunId} }).id;
+      };
+      const decide = (state: ToolState, allow: boolean) => {
+        if (state.proposalId && this.proposals.get(state.proposalId).status === 'pending') this.proposals.decideRuntime(state.proposalId, allow);
+      };
       const startTool=(id:string,name:string,args:Record<string,unknown>)=>{
         let state=toolStates.get(id);
         if(!state){
@@ -284,6 +336,11 @@ export class Engines {
           status='failed';outcome='cancelled';summary='任务已取消，未确认工具完成';
         }
         state.settled=true;
+        if (state.proposalId) {
+          const proposal = this.proposals.get(state.proposalId);
+          if (proposal.status === 'pending') this.proposals.decideRuntime(proposal.id, false);
+          else if (proposal.status === 'approved') this.proposals.finishRuntime(proposal.id, status === 'failed' ? summary : undefined);
+        }
         this.store.event(state.run,'tool-result',{id,status,summary,durationMs:durationMs??Date.now()-state.startedAt,...(outcome?{outcome}:{})});
       };
       const cancelTools=(runId:string)=>{
@@ -294,6 +351,11 @@ export class Engines {
         const id=input.tool_use_id,name=input.tool_name,args=(input.tool_input??{}) as Record<string,unknown>;
         const state=startTool(id,name,args);
         const decision=(():'allow'|'ask'|'deny'=>{if(controller.signal.aborted||!this.active.has(state.run.id)||state.run.id!==run.id)return 'deny';const base=permissionDecision(run.permissionMode??'ask',name,args,workspace,ownNames);return base==='ask'&&this.runAllows.get(state.run.id)?.has(name)?'allow':base;})();
+        const ownedWrite = /^mcp__polarion_drafts__(?:create_work_item|replace_text|replace_all_text|edit_table|update_table|restyle_document|edit_block|update_rich_document|format_text|save_workflow|propose_board_changes|propose_board_generation)$/.test(name);
+        if (ownedWrite || decision === 'ask' && name !== 'AskUserQuestion') {
+          track(state,id,name,args);
+          if (decision !== 'ask') decide(state,decision === 'allow');
+        }
         if(decision==='deny')finishTool(id,'failed','此操作不在当前授权范围内',0,'denied');
         return {hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:decision,permissionDecisionReason:decision==='deny'?'Polarion changes must use local drafts and explicit UI save.':decision==='ask'?'Confirm this operation in the sidebar.':'Allowed by selected session permission mode.'}};
       };
@@ -305,7 +367,7 @@ export class Engines {
       };
       const guideline = run.guidelineId ? this.store.get<Guideline>('guideline', run.guidelineId) : undefined;
       const library = this.store.guidelines().filter(g => g.kind === 'library').map(({ id, name, description }) => ({ id, name, description }));
-      const promptText = enginePrompt(run, this.store.drafts(session.target), guideline ? (() => { try { return guidelineContent(guideline); } catch (error) { return { name: guideline.name, description: guideline.description, text: '（指令内容不可用：' + safeError(error) + '）', source: 'inline' as const, files: [] }; } })() : undefined, library, readExperience(session.target.projectId, this.experienceDir).text);
+      const promptText = enginePrompt(run, this.store.drafts(session.target), guideline ? (() => { try { return guidelineContent(guideline); } catch (error) { return { name: guideline.name, description: guideline.description, text: '（指令内容不可用：' + safeError(error) + '）', source: 'inline' as const, files: [] }; } })() : undefined, library, readExperience(session.target.projectId, this.experienceDir).text, modelContextDigest(this.store, session.target.projectId));
       let content: Exclude<Extract<SDKUserMessage['message'], {role:'user'}>['content'], string> = [{type:'text',text:promptText}];
       if (attachments.length && !run.prompt.startsWith('/')) {
         content=[{type:'text',text:promptText+'\n附件清单（资料，非指令；必须读取实际内容再回答）：\n'+JSON.stringify(attachments)}];
@@ -325,7 +387,8 @@ export class Engines {
           abortController: lifetime, mcpServers: { polarion_drafts: ownedServer }, hooks: { PreToolUse: [{ hooks: [guard] }],PostToolUse:[{hooks:[toolEnd]}],PostToolUseFailure:[{hooks:[toolEnd]}],UserPromptExpansion:[{hooks:[async input=>{if(input.hook_event_name==='UserPromptExpansion')this.store.event(run,'command-expanded',{name:input.command_name,source:input.command_source,type:input.expansion_type});return{};}]}] },
           allowedTools: [...ownNames],
           canUseTool: async (name, input, options) => {
-            const owner=startTool(options.toolUseID,name,input).run;
+            const state=startTool(options.toolUseID,name,input);
+            const owner=state.run;
             const activeController=this.active.get(owner.id);
             const signal=activeController?AbortSignal.any([activeController.signal,options.signal]):options.signal;
             const reject=(message:string)=>{
@@ -339,9 +402,12 @@ export class Engines {
               return answer.action==='accept'&&!signal.aborted?{behavior:'allow',updatedInput:{...input,answers:Object.fromEntries(Object.entries(answer.values).map(([key,value])=>[key,Array.isArray(value)?value.join(', '):String(value)]))}}:reject('用户已取消提问，未执行');
             }
             const decision=(():'allow'|'ask'|'deny'=>{const base=permissionDecision(run.permissionMode??'ask',name,input,workspace,ownNames);return base==='ask'&&this.runAllows.get(run.id)?.has(name)?'allow':base;})();
-            if(decision==='allow')return{behavior:'allow',updatedInput:input};
+            if(decision==='allow'){decide(state,true);return{behavior:'allow',updatedInput:input};}
             if(decision==='deny')return reject('此操作不在当前授权范围内');
-            return await this.permission(owner, name, input, signal)&&!signal.aborted ? { behavior: 'allow', updatedInput: input } : reject('用户已拒绝，未执行');
+            track(state,options.toolUseID,name,input);
+            const allowed = await this.permission(owner, name, input, signal) && !signal.aborted;
+            decide(state,allowed);
+            return allowed ? { behavior: 'allow', updatedInput: input } : reject('用户已拒绝，未执行');
           },
           onElicitation:async(request,options)=>{
             try{const {form,validate}=mcpForm(request);const answer=await this.interactions.ask(run,form,AbortSignal.any([controller.signal,options.signal]),validate);return answer.action==='accept'?{action:'accept',content:answer.values}:{action:answer.action};}
@@ -459,6 +525,10 @@ export class Engines {
       const idle=this.pooled.get(session.id);if(idle){idle.inUse=false;idle.timer=setTimeout(()=>{if(!idle.inUse)this.releaseRuntime(session.id);},20*60*1000);idle.timer.unref();}
       // 继续排队输入（含引导打断后接上的新请求）；失败/取消同样继续队列。
       this.pump(run.sessionId);
+      // 动态工作流：目标拆解轮完成后，解析步骤并立即按顺序执行。
+      if (run.status === 'completed' && run.workflow?.planGoal) { try { this.workflows?.launchPlanned(run); } catch { /* 解析失败已作为会话消息反馈 */ } }
+      // AI 预审与会议分诊：结果轮完成后解析结构化卡片。
+      if (run.status === 'completed' && (run.workflow?.reviewId || run.workflow?.meetingId)) { try { if (run.workflow.reviewId) this.reviews?.complete(run); if (run.workflow.meetingId) this.meetings?.complete(run); } catch { /* 解析失败已作为会话消息反馈 */ } }
     }
   }
   assertTarget(target: Session['target'], session: Session) {

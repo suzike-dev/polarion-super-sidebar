@@ -13,6 +13,8 @@ import '../ui/attachments.css';
 import '../ui/assistant-content.css';
 import '../ui/compact-workspace.css';
 import '../ui/editor-toolbar.css';
+import '../ui/model-workbench.css';
+import 'katex/dist/katex.min.css';
 export default defineContentScript({
   matches: ['https://polarion.pufafen.com/polarion/*'], allFrames: false,
   cssInjectionMode: 'ui', runAt: 'document_idle',

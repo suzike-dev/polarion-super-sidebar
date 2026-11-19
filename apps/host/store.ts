@@ -137,13 +137,13 @@ export class Store {
   events(sessionId: string, after: number): RunEvent[] {
     return this.db.prepare('SELECT * FROM events WHERE session_id=? AND seq>? ORDER BY seq LIMIT 120').all(sessionId, after).map(r => ({ seq: Number(r.seq), sessionId: String(r.session_id), runId: String(r.run_id), kind: String(r.kind), data: JSON.parse(String(r.data)), at: Number(r.at) }));
   }
-  startRun(sessionId: string, requestId: string, prompt: string, contexts: Context[], selectedTarget?: Target, attachments: string[] = [], permissionMode: PermissionMode = DEFAULT_PERMISSION_MODE, delivery: TurnDelivery = DEFAULT_TURN_DELIVERY, guidelineId?: string) {
+  startRun(sessionId: string, requestId: string, prompt: string, contexts: Context[], selectedTarget?: Target, attachments: string[] = [], permissionMode: PermissionMode = DEFAULT_PERMISSION_MODE, delivery: TurnDelivery = DEFAULT_TURN_DELIVERY, guidelineId?: string, workflow?: Run['workflow']) {
     const session = this.require<Session>('session', sessionId);
     const target = selectedTarget ?? session.target;
     const prior = this.db.prepare('SELECT run_id FROM requests WHERE id=?').get(requestId);
     if (prior) {
       const run = this.require<Run>('run', String(prior.run_id));
-      if ((run.permissionMode ?? 'ask') !== permissionMode || (run.delivery ?? DEFAULT_TURN_DELIVERY) !== delivery || run.guidelineId !== guidelineId || run.sessionId !== sessionId || run.prompt !== prompt || JSON.stringify(run.contexts) !== JSON.stringify(contexts) || JSON.stringify(run.attachments ?? []) !== JSON.stringify(attachments) || !sameTarget(run.target ?? session.target, target)) throw Error('REQUEST_ID_REUSED');
+      if ((run.permissionMode ?? 'ask') !== permissionMode || (run.delivery ?? DEFAULT_TURN_DELIVERY) !== delivery || run.guidelineId !== guidelineId || run.sessionId !== sessionId || run.prompt !== prompt || JSON.stringify(run.contexts) !== JSON.stringify(contexts) || JSON.stringify(run.attachments ?? []) !== JSON.stringify(attachments) || JSON.stringify(run.workflow ?? null) !== JSON.stringify(workflow ?? null) || !sameTarget(run.target ?? session.target, target)) throw Error('REQUEST_ID_REUSED');
       return { run, created: false };
     }
     if (target.origin !== session.target.origin || target.projectId !== session.target.projectId) throw Error('SESSION_PROJECT_MISMATCH');
@@ -156,7 +156,7 @@ export class Store {
     const pending = this.list<Run>('run').filter(r => r.sessionId === sessionId && ['running', 'waiting', 'queued'].includes(r.status));
     if (pending.filter(r => r.status === 'queued').length >= MAX_QUEUED_RUNS) throw Error('SESSION_QUEUE_FULL');
     const queued = pending.length > 0;
-    const run: Run = { permissionMode, delivery, guidelineId, id: crypto.randomUUID(), requestId, sessionId, target: structuredClone(target), prompt, contexts: structuredClone(contexts), attachments: [...attachments], status: queued ? 'queued' : 'running', startedAt: queued ? Math.max(Date.now(), Math.max(...pending.map(r => r.startedAt)) + 1) : Date.now() };
+    const run: Run = { permissionMode, delivery, guidelineId, id: crypto.randomUUID(), requestId, sessionId, target: structuredClone(target), prompt, contexts: structuredClone(contexts), attachments: [...attachments], status: queued ? 'queued' : 'running', startedAt: queued ? Math.max(Date.now(), Math.max(...pending.map(r => r.startedAt)) + 1) : Date.now(), ...(workflow ? { workflow } : {}) };
     this.db.exec('BEGIN IMMEDIATE');
     try {
       this.put('run', run.id, run);

@@ -7,26 +7,52 @@ import {Boards} from './boards.ts';
 import {Variants} from './variants.ts';
 import {Changes} from './changes.ts';
 import {Credentials} from './credentials.ts';
+import {Workflows} from './workflows.ts';
+import {Model, scanModelRoot} from './model.ts';
+import {Coverage} from './coverage.ts';
+import {Rules} from './rules.ts';
+import {Proposals} from './proposals.ts';
 import {validateGuideline} from './guidelines.ts';
 import {pickFolder, pickFiles} from './dialogs.ts';
-import {buildTestCard, sendCardToGroups} from './feishu.ts';
-import {readExperience, writeExperience, clearExperience, conversationDigest, distillExperience} from './experience.ts';
-import { RequestSchema, PROTOCOL, normalizeGuideline, type Reply, type Run, type Session, type SessionGroup } from '../../packages/protocol/index.ts';
+import {buildTestCard, sendCardToGroups, buildMorningCard, buildReviewCard} from './feishu.ts';
+import {Events} from './events.ts';
+import {Gates} from './gates.ts';
+import {Reviews} from './reviews.ts';
+import {Meetings} from './meeting.ts';
+import {Worksets} from './worksets.ts';
+import {Macros} from './macros.ts';
+import {sweepStalledRecords} from './stall-guard.ts';
+import {Snapshots} from './snapshots.ts';
+import {readExperience, writeExperience, clearExperience, conversationDigest, distillExperience, refineExperience} from './experience.ts';
+import { RequestSchema, PROTOCOL, TargetSchema, normalizeGuideline, type Reply, type Run, type Session, type SessionGroup, type DocumentQualityReport, type BriefConfig, type DashboardView, type TimelineView } from '../../packages/protocol/index.ts';
+import { lintText } from '../../packages/core/requirement-lint.ts';
 export class Service {
   store: Store; drafts: Drafts; engines: Engines;
   capabilities: Capabilities;
   assets: Assets;
   variants: Variants;
   changes: Changes;
+  model: Model;
+  coverage: Coverage;
+  events: Events;
+  gates: Gates;
+  snapshots: Snapshots;
+  reviews: Reviews;
+  meetings: Meetings;
+  worksets: Worksets;
+  macros: Macros;
+  rules: Rules;
+  proposals: Proposals;
+  workflows: Workflows;
   credentials?: Credentials;
-  constructor(store: Store, drafts?: Drafts) { this.store = store; this.assets = new Assets(store); this.drafts = drafts ?? new Drafts(store, new Polarion(this.assets)); this.engines = new Engines(store, this.drafts, this.assets); this.capabilities = new Capabilities(store); this.variants = new Variants(store, this.drafts, this.assets); this.changes = new Changes(store, this.drafts, this.assets); }
+  constructor(store: Store, drafts?: Drafts) { this.store = store; this.assets = new Assets(store); this.drafts = drafts ?? new Drafts(store, new Polarion(this.assets)); this.engines = new Engines(store, this.drafts, this.assets); this.capabilities = new Capabilities(store); this.variants = new Variants(store, this.drafts, this.assets); this.changes = new Changes(store, this.drafts, this.assets); this.rules = new Rules(store, this.drafts); this.model = new Model(store, this.drafts); this.coverage = new Coverage(store, this.drafts, this.model); this.events = new Events(store); this.gates = new Gates(store, this.rules); this.reviews = new Reviews(store); this.meetings = new Meetings(store); this.snapshots = new Snapshots(store, this.coverage, this.gates, this.reviews); this.worksets = new Worksets(store); this.macros = new Macros(store, this.engines); this.engines.reviews = this.reviews; this.engines.meetings = this.meetings; this.reviews.engines = this.engines; this.meetings.engines = this.engines; this.proposals = new Proposals(store, this.drafts, this.changes); this.engines.proposals = this.proposals; this.workflows = new Workflows(store); this.workflows.proposals = this.proposals; this.workflows.engines = this.engines; this.engines.workflows = this.workflows; }
   async request(input: unknown): Promise<Reply> {
     // 解析失败也要带回请求 id，否则客户端只能等 100 秒超时，看不到具体校验错误。
     let id = input && typeof input === 'object' && typeof (input as { id?: unknown }).id === 'string' ? String((input as { id?: unknown }).id) : '';
     try {
       const request = RequestSchema.parse(input); id = request.id; const c = request.command; let value: unknown;
       switch (c.method) {
-        case 'health': value = { protocol: PROTOCOL, version: '0.12.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
+        case 'health': value = { protocol: PROTOCOL, version: '0.13.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
         case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;const capabilities=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);value={...capabilities,connected:!!runtime};break;}
         case 'engine.manage': value=await this.engines.manage(c.sessionId,c.action,c.server);break;
         case 'engine.context': this.store.require<Session>('session',c.sessionId);value=await this.engines.contextUsage.read(c.sessionId,c.refresh);break;
@@ -47,7 +73,7 @@ export class Service {
         case 'sessionGroups.list': value = this.store.list<SessionGroup>('session-group').sort((a, b) => a.createdAt - b.createdAt); break;
         case 'sessionGroups.create': { const name = c.name.trim(); if (!name) throw Error('GROUP_NAME_EMPTY'); const existing = this.store.get<SessionGroup>('session-group', name); value = existing ?? (() => { const g: SessionGroup = { name, createdAt: Date.now() }; this.store.put('session-group', name, g); return g; })(); break; }
         case 'sessionGroups.delete': { this.store.remove('session-group', c.name); for (const s of this.store.list<Session>('session')) if (s.group === c.name) this.store.put('session', s.id, { ...s, group: undefined }); value = { disbanded: c.name }; break; }
-        case 'sessions.read': value = { session: this.store.require<Session>('session', c.sessionId), runs: this.store.list<Run>('run').filter(r => r.sessionId === c.sessionId).sort((a, b) => a.startedAt - b.startedAt).map(({ contexts, prompt, ...r }) => r), events: this.store.events(c.sessionId, c.after) }; break;
+        case 'sessions.read': value = { session: this.store.require<Session>('session', c.sessionId), runs: this.store.list<Run>('run').filter(r => r.sessionId === c.sessionId).sort((a, b) => a.startedAt - b.startedAt).map(({ contexts, prompt, ...r }) => r), events: this.store.events(c.sessionId, c.after), workflow: this.workflows.viewOf(c.sessionId) }; break;
         case 'runs.start': { const result = this.store.startRun(c.sessionId, c.requestId, c.prompt, c.contexts, c.target, c.attachments, c.permissionMode, c.delivery, c.guidelineId); if (result.created) { if (result.run.status === 'queued') { if (c.delivery === 'steer') this.engines.steer(c.sessionId, result.run.id); this.engines.pump(c.sessionId); } else void this.engines.execute(result.run); } value = result.run; break; }
         case 'assets.begin': value = this.assets.begin(c.target,c.name,c.mime,c.size); break;
         case 'assets.chunk': value = this.assets.chunk(c.assetId,c.offset,c.data); break;
@@ -75,8 +101,9 @@ export class Service {
         case 'runs.cancel': this.engines.cancel(c.runId); value = { requested: true }; break;
         case 'runs.steer': value = this.engines.steerQueued(c.runId); break;
         case 'experience.read': value = readExperience(c.projectId); break;
-        case 'experience.write': value = writeExperience(c.projectId, c.text); break;
+        case 'experience.write': value = writeExperience(c.projectId, c.text, undefined, c.expectedUpdated); break;
         case 'experience.clear': value = clearExperience(c.projectId); break;
+        case 'experience.refine': value = await refineExperience({ text: c.text, messages: c.messages, model: c.model }); break;
         case 'experience.distill': {
           const s = this.store.require<Session>('session', c.sessionId);
           const digest = conversationDigest(this.store, c.sessionId);
@@ -127,7 +154,7 @@ export class Service {
         case 'drafts.conflict.read': value=await this.drafts.conflictRead(c.draftId);break;
         case 'drafts.conflict.resolve': value=await this.drafts.resolveConflict(c.draftId,c.expectedRevision,c.remoteHash,c.remoteUpdated,c.strategy);break;
         case 'drafts.replaceText': value = this.drafts.replace(c.draftId, c.expectedRevision, c.nodeId, c.expectedText, c.text); break;
-        case 'drafts.save': value = await this.drafts.save(c.draftId, c.expectedRevision, c.nativeState); break;
+        case 'drafts.save': { const saved = await this.drafts.save(c.draftId, c.expectedRevision, c.nativeState); this.events.record(saved.target.projectId, 'save', `${saved.workItemId} 保存到 Polarion`, { workItemId: saved.workItemId, detail: `修订 ${saved.revision}` }); value = saved; break; }
         case 'variants.list': value = await this.variants.list(c.target, c.mainWorkItemId); break;
         case 'variants.roles': value = await this.variants.roles(c.target); break;
         case 'variants.create': value = await this.variants.create({target:c.target,mainWorkItemId:c.mainWorkItemId,label:c.label,title:c.title,copy:c.copy,role:c.role}); break;
@@ -140,8 +167,282 @@ export class Service {
         case 'variants.undo': value = await this.variants.undo(c.applyId); break;
         case 'variants.details.read': value = await this.variants.details(c.target, c.variantId); break;
         case 'variants.details.write': value = await this.variants.saveDetails(c.target, c.variantId, c.details); break;
+        case 'workflows.list': value = this.workflows.defs(c.projectId); break;
+        case 'workflows.save': value = this.workflows.saveDef(c.def); break;
+        case 'workflows.delete': value = this.workflows.removeDef(c.id); break;
+        case 'workflows.run': value = this.workflows.run(c.defId, c.sessionId, c.target, c.contexts, c.permissionMode, c.note); break;
+        case 'workflows.resume': value = this.workflows.resume(c.id); break;
+        case 'workflows.cancel': value = this.workflows.cancel(c.id); break;
+        case 'workflows.plan': value = this.workflows.plan(c.sessionId, c.target, c.contexts, c.permissionMode, c.goal); break;
+        case 'workflows.keep': value = this.workflows.keep(c.id, c.name); break;
+        case 'workflows.history': value = this.workflows.history(c.projectId, c.limit); break;
+        case 'workflows.seed': value = this.workflows.seedTemplates(c.projectId); break;
+        case 'workflows.schedule': value = this.workflows.schedule(c.id, c.scheduleAt, c.target); break;
+        case 'workflows.runBatch': value = this.workflows.runBatch(c.target, c.defId, c.workItemIds, c.permissionMode, c.note); break;
+        case 'model.roots': value = await this.model.roots(c.target); break;
+        case 'model.roots.save': value = await this.model.rootsSave(c.target, c.roots, c.expectedUpdated); break;
+        case 'model.roots.bind': value = this.model.bindLocal(c.target, c.rootId, c.path); break;
+        case 'model.roots.scan': value = scanModelRoot(c.path); break;
+        case 'model.note.read': value = await this.model.noteRead(c.target, c.workItemId); break;
+        case 'model.note.write': { const written = await this.model.noteWrite(c.target, c.workItemId, c.note); this.events.record(c.target.projectId, 'note', `${c.workItemId} 更新实现模块备注`, { workItemId: c.workItemId, detail: `${c.note.marks.reduce((count, mark) => count + mark.modules.length, 0)} 个模块` }); value = written; break; }
+        case 'model.index.sync': value = await this.model.indexSync(c.target, c.query); break;
+        case 'model.trace.view': value = await this.model.traceView(c.target); break;
+        case 'model.baseline.set': { const view = await this.model.baselineSet(c.target, c.rootId); this.events.record(c.target.projectId, 'check', `模型基准已设定（${view.checkedFiles} 个文件指纹）`); value = view; break; }
+        case 'model.check': { const view = await this.model.check(c.target, c.rootId); if (!view.ok) this.events.record(c.target.projectId, 'watcher', `巡检发现 ${view.findings.length} 项差异`, { detail: `${view.changedFiles} 个文件变化` }); value = view; break; }
+        case 'model.baseline.list': value = this.model.baselines(c.projectId); break;
+        case 'model.autolink': {
+          const session = this.store.require<Session>('session', c.sessionId);
+          if (session.target.projectId !== c.target.projectId) throw Error('SESSION_PROJECT_MISMATCH');
+          const { prompt, count } = this.model.autolinkPrompt(c.target);
+          const result = this.store.startRun(c.sessionId, crypto.randomUUID(), prompt, structuredClone(c.contexts), c.target, [], c.permissionMode, 'queue', undefined, { workflowRunId: '', defName: '模型初关联', stepIndex: 0, stepTotal: 1, stepTitle: `初关联 ${count} 条` });
+          if (result.created) { if (result.run.status === 'queued') this.engines.pump(c.sessionId); else void this.engines.execute(result.run); }
+          value = { runId: result.run.id, count };
+          break;
+        }
+        case 'coverage.sync': value = await this.coverage.sync(c.target); break;
+        case 'coverage.view': value = this.coverage.view(c.target); break;
+        case 'dedup.search': value = this.coverage.dedup(c.target, c.text, c.limit, c.exclude); break;
+        case 'impact.view': value = this.coverage.impact(c.target, c.workItemId); break;
+        case 'rules.get': value = await this.rules.read(c.target, c.refresh); break;
+        case 'rules.save': value = await this.rules.save(c.target, c.pack, c.expectedUpdated); break;
+        case 'quality.document.check': {
+          const report = await this.documentQuality(c.target, c.limit);
+          this.store.put('quality-report', c.target.projectId, report);
+          this.events.record(c.target.projectId, 'lint', `整册体检：${report.checked - report.clean} 条有发现`, { detail: `已查 ${report.checked}/${report.total} · 规则来源 ${report.ruleSource}` });
+          value = report;
+          break;
+        }
+        case 'gates.view': value = await this.gates.view(c.target); break;
+        case 'gates.policy.get': value = this.gates.policy(c.projectId); break;
+        case 'gates.policy.save': value = this.gates.savePolicy(c.projectId, c.policy); break;
+        case 'snapshots.save': value = await this.snapshots.save(c.target, c.label); break;
+        case 'snapshots.list': value = this.snapshots.list(c.projectId, c.limit); break;
+        case 'snapshots.diff': value = this.snapshots.diff(c.target); break;
+        case 'review.start': value = this.reviews.start(c.sessionId, c.target, c.contexts, c.permissionMode); break;
+        case 'review.list': value = this.reviews.list(c.target); break;
+        case 'review.decide': value = this.reviews.decide(c.id, c.issueId, c.decision); break;
+        case 'review.share': {
+          const review = this.reviews.require(c.id);
+          const groupsView = await this.changes.feishuGroups(c.target).catch(() => null);
+          const groups = groupsView?.groups ?? [];
+          if (!groups.length) throw Error('REVIEW_SHARE_NO_GROUPS：未配置飞书推送群（PSB-FEISHU）。');
+          const open = review.issues.filter(issue => issue.status === 'open');
+          value = { results: await sendCardToGroups(groups, buildReviewCard({ projectId: c.target.projectId, document: review.document, at: review.at, issues: open })), sent: open.length };
+          this.events.record(c.target.projectId, 'lint', `AI 预审汇总已发送（未决 ${open.length} 条）`);
+          break;
+        }
+        case 'worksets.list': value = this.worksets.list(c.projectId); break;
+        case 'worksets.save': value = this.worksets.save(c.target, { ...(c.id ? { id: c.id } : {}), name: c.name, kind: c.kind, query: c.query }); break;
+        case 'worksets.delete': value = this.worksets.remove(c.id); break;
+        case 'worksets.items': value = await Promise.resolve(this.worksets.items(c.target, c.id)); break;
+        case 'dashboard.view': value = this.dashboardView(c.target); break;
+        case 'macros.list': value = this.macros.list(c.projectId); break;
+        case 'macros.capture': value = this.macros.capture(c.sessionId, c.name, c.count); break;
+        case 'macros.delete': value = this.macros.remove(c.id); break;
+        case 'macros.run': value = this.macros.run(c.sessionId, c.id, c.target, c.contexts, c.permissionMode); break;
+        case 'macros.schedule': value = this.macros.schedule(c.id, c.scheduleAt, c.target); break;
+        case 'timeline.view': value = this.timelineView(c.target, c.workItemId); break;
+        case 'evidence.markdown': value = await this.evidenceMarkdown(c.target, c.workItemId); break;
+        case 'meeting.triage': value = this.meetings.start(c.sessionId, c.target, c.contexts, c.permissionMode, c.text); break;
+        case 'meeting.list': value = this.meetings.list(c.target); break;
+        case 'meeting.decide': value = this.meetings.decide(c.id, c.actionId, c.decision); break;
+        case 'events.list': value = this.events.list(c.projectId, c.limit); break;
+        case 'watch.view': value = this.events.watch(c.target); break;
+        case 'brief.preview': value = await this.composeBrief(c.target); break;
+        case 'brief.send': value = await this.sendBrief(c.target); break;
+        case 'brief.toggle': {
+          const config = this.store.get<BriefConfig & { id?: string; document?: string }>('brief-config', c.target.projectId) ?? { enabled: false, at: '07:30' };
+          const next: BriefConfig & { id: string; document: string } = { ...config, enabled: c.enabled, id: c.target.projectId, document: config.document && config.id === c.target.projectId ? config.document : c.target.document };
+          this.store.put('brief-config', c.target.projectId, next);
+          value = next;
+          break;
+        }
+        case 'proposals.list': value = this.proposals.list(c.target); break;
+        case 'proposals.create': value = this.proposals.create({ source: c.source, target: c.target, workItemId: c.workItemId, summary: c.summary, op: c.op }); break;
+        case 'proposals.approve': { const result = await this.proposals.approve(c.id, c.nativeState); this.events.record(result.proposal.target.projectId, 'proposal', `提案已处理：${result.proposal.status === 'applied' ? '已应用' : result.proposal.status}`, { workItemId: result.proposal.workItemId, detail: result.proposal.summary }); value = result; break; }
+        case 'proposals.reject': { const proposal = this.proposals.reject(c.id); this.events.record(proposal.target.projectId, 'proposal', '提案已拒绝', { workItemId: proposal.workItemId, detail: proposal.summary }); value = proposal; break; }
       }
       return { protocol: 1, id, ok: true, value };
     } catch (error) { return { protocol: 1, id, ok: false, error: safeError(error) }; }
+  }
+
+  /** 整册体检：outline 逐条 peek + lint（RPC 与晨报共用）。 */
+  private async documentQuality(target: import('../../packages/protocol/index.ts').Target, limit: number): Promise<DocumentQualityReport> {
+    if (!(this.drafts.remote instanceof Polarion) || !this.drafts.remote.outline) throw Error('POLARION_UNAVAILABLE');
+    const outline = await this.drafts.remote.outline(target);
+    const rules = await this.rules.read(target, false);
+    const byRule = new Map<string, number>();
+    const report: DocumentQualityReport = { at: Date.now(), total: outline.items.length, checked: 0, clean: 0, items: [], byRule: [], ruleSource: rules.source };
+    for (const item of outline.items.slice(0, limit)) {
+      report.checked++;
+      try {
+        const peek = await this.drafts.peek(target, item.id);
+        const issues = lintText(`${peek.title}\n${peek.text}`, rules.pack).map(({ ruleId, severity, message, matchedText, suggestion }) => ({ ruleId, severity, message, matchedText, ...(suggestion ? { suggestion } : {}) }));
+        if (!issues.length) report.clean++;
+        for (const issue of issues) byRule.set(issue.ruleId, (byRule.get(issue.ruleId) ?? 0) + 1);
+        report.items.push({ workItemId: item.id, title: item.title, outline: item.outline, issues });
+      } catch { report.items.push({ workItemId: item.id, title: item.title, outline: item.outline, issues: [], unreadable: true }); }
+    }
+    report.byRule = [...byRule.entries()].map(([ruleId, count]) => ({ ruleId, count })).sort((a, b) => b.count - a.count);
+    return report;
+  }
+
+  /** 晨报素材：整册体检 + 各根目录巡检（有基准才查）+ 待审批数 → 卡片与文本摘要。 */
+  private async composeBrief(target: import('../../packages/protocol/index.ts').Target): Promise<{ card: ReturnType<typeof buildMorningCard>; digest: string; quality: DocumentQualityReport; checks: { label: string; ok: boolean; changedFiles: number; findings: number; modules: string[] }[] }> {
+    const [quality, rootsView] = await Promise.all([
+      this.documentQuality(target, 200).catch(() => ({ at: Date.now(), total: 0, checked: 0, clean: 0, items: [], byRule: [], ruleSource: 'default' as const })),
+      this.model.roots(target),
+    ]);
+    const checks: { label: string; ok: boolean; changedFiles: number; findings: number; modules: string[] }[] = [];
+    for (const root of rootsView.roots.filter(row => row.path)) {
+      try {
+        const view = await this.model.check(target, root.id);
+        if (view.baselineAt != null) checks.push({ label: root.label, ok: view.ok, changedFiles: view.changedFiles, findings: view.findings.length, modules: view.findings.filter(finding => finding.side !== 'requirement').map(finding => finding.moduleName) });
+      } catch { /* 未绑定/不可读的根跳过 */ }
+    }
+    const pendingProposals = this.proposals.list(target).filter(proposal => proposal.status === 'pending' && proposal.op.kind !== 'tool' && proposal.op.kind !== 'gate').length;
+    const qualitySummary = { checked: quality.checked, clean: quality.clean, findings: quality.checked - quality.clean, topRules: quality.byRule.slice(0, 4) };
+    const card = buildMorningCard({ projectId: target.projectId, document: target.document, at: Date.now(), quality: qualitySummary, checks, pendingProposals });
+    const digest = [
+      `质量体检：${qualitySummary.checked ? `${qualitySummary.checked} 条中 ${qualitySummary.findings} 条有发现${qualitySummary.topRules.length ? `（${qualitySummary.topRules.map(rule => `${rule.ruleId}×${rule.count}`).join('、')}）` : ''}` : '未执行'}`,
+      `模型一致性：${checks.length ? checks.map(check => `${check.label}${check.ok ? '一致' : `${check.changedFiles} 文件变化、${check.findings} 模块需关注`}`).join('；') : '未设基准'}`,
+      `待办：待审批提案 ${pendingProposals} 条`,
+    ].join('\n');
+    return { card, digest, quality, checks };
+  }
+
+  /** 显式发送晨报到项目飞书群（用户点击触发的外发动作）。 */
+  private async sendBrief(target: import('../../packages/protocol/index.ts').Target) {
+    const { card, digest } = await this.composeBrief(target);
+    const groupsView = await this.changes.feishuGroups(target).catch(() => null);
+    const groups = groupsView?.groups ?? [];
+    if (!groups.length) return { card, digest, sent: false, reason: '未配置飞书推送群（PSB-FEISHU）' };
+    const results = await sendCardToGroups(groups, card);
+    this.events.record(target.projectId, 'brief', `晨报已发送（${results.filter(result => result.ok).length}/${results.length} 个群）`);
+    return { card, digest, sent: results.some(result => result.ok), results };
+  }
+
+  /** 每日晨报定时：按项目配置（brief-config）到点触发；当天已发不重复。 */
+  private briefTimer: NodeJS.Timeout | undefined;
+  startBriefScheduler() {
+    if (this.briefTimer) return;
+    try { const sweep = sweepStalledRecords(this.store, id => this.engines.isActiveRun(id)); for (const run of sweep.completed) { this.reviews.complete(run); this.meetings.complete(run); } } catch { /* 启动自愈失败不阻断服务 */ }
+    this.briefTimer = setInterval(() => { void this.morningTick(); }, 60_000);
+    this.briefTimer.unref();
+  }
+  /** 仪表盘：聚合提案/警报/体检/覆盖/工作流/事件/工作集/评审，数字即可点入对应视图。 */
+  private dashboardView(target: import('../../packages/protocol/index.ts').Target): DashboardView {
+    const quality = this.store.get<DocumentQualityReport>('quality-report', target.projectId);
+    const coverage = this.coverage.view(target);
+    const alerts = this.events.watch(target).alerts.filter(alert => alert.level === 'warn').length;
+    return {
+      pendingProposals: this.proposals.list(target).filter(proposal => proposal.status === 'pending' && proposal.op.kind !== 'tool' && proposal.op.kind !== 'gate').length,
+      alerts,
+      quality: quality && quality.checked ? { checked: quality.checked, findings: quality.checked - quality.clean, byRule: quality.byRule.slice(0, 5) } : null,
+      coverage: coverage.items.length ? { total: coverage.items.length, withModule: coverage.summary.withModule, withUpstream: coverage.summary.withUpstream, withVerification: coverage.summary.withVerification, orphans: coverage.summary.orphans } : null,
+      workflows: this.workflows.defs(target.projectId).length,
+      events: this.events.list(target.projectId, 500).length,
+      worksets: this.worksets.list(target.projectId).length,
+      briefEnabled: (this.store.get<BriefConfig>('brief-config', target.projectId)?.enabled) ?? false,
+      reviewOpen: this.reviews.list(target).filter(review => review.status === 'open').reduce((count, review) => count + review.issues.filter(issue => issue.status === 'open').length, 0),
+    };
+  }
+
+  /** 时间线：事件流按时间倒序；带 workItemId 时过滤出“一条需求的一生”。 */
+  private timelineView(target: import('../../packages/protocol/index.ts').Target, workItemId?: string): TimelineView {
+    const entries = this.events.list(target.projectId, 400)
+      .filter(event => !workItemId || event.workItemId === workItemId)
+      .map(event => ({ at: event.at, kind: event.kind, subject: event.subject, ...(event.workItemId ? { workItemId: event.workItemId } : {}), ...(event.detail ? { detail: event.detail } : {}) }));
+    return { scope: workItemId ? 'item' : 'document', ...(workItemId ? { workItemId } : {}), entries };
+  }
+
+  /** 证据链 Markdown：需求摘要 + 模块（含疑似过期）+ 链接 + 巡检/事件史，供评审与交接引用。 */
+  private async evidenceMarkdown(target: import('../../packages/protocol/index.ts').Target, workItemId: string): Promise<{ markdown: string }> {
+    const impact = this.coverage.impact(target, workItemId);
+    const timeline = this.timelineView(target, workItemId).entries;
+    const lines: string[] = [
+      `# 证据链 · ${workItemId} ${impact.title}`,
+      ``,
+      `- 项目：${target.projectId} · 文档：${target.document}`,
+      `- 生成时间：${new Date().toLocaleString('zh-CN', { hour12: false })} · 覆盖索引：${impact.coverageAt ? new Date(impact.coverageAt).toLocaleString('zh-CN', { hour12: false }) : '未构建'}`,
+      ``,
+      `## 实现模块（${impact.modules.length}）`,
+      ...(impact.modules.length ? impact.modules.map(module => `- ${module.rootLabel} / ${module.moduleName}${module.stale ? ' · **疑似过期**（基准后模型侧有变化）' : ''}`) : ['- （未标注）']),
+      ``,
+      `## 上游 / 下游 / 验证`,
+      `- 上游：${impact.upstream.length ? impact.upstream.map(link => `${link.workItemId}(${link.role})`).join('、') : '无'}`,
+      `- 下游：${impact.downstream.length ? impact.downstream.map(link => `${link.workItemId}(${link.role})`).join('、') : '无'}`,
+      `- 验证：${impact.verification.length ? impact.verification.map(link => `${link.workItemId}(${link.role})`).join('、') : '无'}`,
+      ``,
+      `## 历史轨迹（${timeline.length} 条）`,
+      ...(timeline.length ? timeline.map(entry => `- ${new Date(entry.at).toLocaleString('zh-CN', { hour12: false })} [${entry.kind}] ${entry.subject}`) : ['- （暂无记录：保存、提案、备注、巡检会自动累积）']),
+    ];
+    if (impact.staleCount) lines.push('', `> ⚠ ${impact.staleCount} 个关联模块在基准后变化过，建议做一次一致性巡检并复验本条。`);
+    return { markdown: lines.join('\n') };
+  }
+
+  private briefRunning = false;
+  private async morningTick() {
+    if (this.briefRunning) return;
+    this.briefRunning = true;
+    try {
+      const now = new Date();
+      const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const today = now.toISOString().slice(0, 10);
+      const configs = this.store.list<BriefConfig & { id?: string; document?: string }>('brief-config').filter(config => config.enabled && config.id && config.document);
+      for (const config of configs) {
+        if (config.at !== hhmm) continue;
+        const marker = `brief-sent:${config.id}:${today}`;
+        if (this.store.get('brief-sent', marker)) continue;
+        this.store.put('brief-sent', marker, { at: Date.now() });
+        try {
+          const target = TargetSchema.parse({ origin: 'https://polarion.pufafen.com', projectId: config.id, document: config.document });
+          const { card } = await this.composeBrief(target);
+          const groupsView = await this.changes.feishuGroups(target).catch(() => null);
+          const groups = groupsView?.groups ?? [];
+          if (groups.length) await sendCardToGroups(groups, card);
+          this.events.record(config.id!, 'brief', groups.length ? `定时晨报已发送（${groups.length} 个群）` : '定时晨报跳过：未配置飞书推送群');
+        } catch (error) {
+          this.events.record(config.id!, 'brief', `定时晨报失败：${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      // 每日定时宏：到点对目标文档所在项目重放（当天去重）。
+      for (const macro of this.macros.due(now)) {
+        this.store.put('macro-sent', macro.marker, { at: Date.now() });
+        try {
+          const target = TargetSchema.parse({ origin: 'https://polarion.pufafen.com', projectId: macro.projectId, document: macro.document! });
+          const session = this.store.list<Session>('session').filter(row => row.target.projectId === macro.projectId).sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? this.store.createSession(target, `定时宏 · ${macro.name}`);
+          const started = this.macros.run(session.id, macro.id, target, [], 'auto');
+          this.events.record(macro.projectId, 'brief', `定时宏「${macro.name}」已触发（${started.started} 条指令）`);
+        } catch (error) {
+          this.events.record(macro.projectId, 'brief', `定时宏「${macro.name}」失败：${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      // 停滞自愈：评审/分诊记录卡在 running（run 丢失/终态/引擎已不在跑）时复位，避免 UI 永远“预审中”。
+      try {
+        const sweep = sweepStalledRecords(this.store, id => this.engines.isActiveRun(id));
+        for (const run of sweep.completed) { this.reviews.complete(run); this.meetings.complete(run); }
+        for (const failed of sweep.failed) {
+          const projectId = (this.store.get<{ projectId: string }>(failed.collection, failed.id)?.projectId) ?? '';
+          if (projectId) this.events.record(projectId, 'brief', `AI 任务中断已复位（${failed.collection === 'review-record' ? '预审' : '会议分诊'} · ${failed.reason}）`);
+        }
+      } catch { /* 自愈失败不影响其他定时任务 */ }
+      // 每日定时工作流：到点对该项目最近会话运行（当天去重）。
+      // 遍历所有有工作流定义的项目（此前误写 defs('*') 恒为空，工作流定时从未触发）。
+      const workflowProjects = new Set(this.store.list<{ projectId: string }>('workflow-def').map(def => def.projectId));
+      for (const project of workflowProjects) {
+        for (const def of this.workflows.dueWorkflow(now, project)) {
+          this.store.put('workflow-sent', def.marker, { at: Date.now() });
+          try {
+            const target = TargetSchema.parse({ origin: 'https://polarion.pufafen.com', projectId: def.projectId, document: def.document! });
+            const session = this.store.list<Session>('session').filter(row => row.target.projectId === def.projectId).sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? this.store.createSession(target, `定时工作流 · ${def.name}`);
+            this.workflows.run(def.id, session.id, target, [], 'auto', '定时触发');
+            this.events.record(def.projectId, 'brief', `定时工作流「${def.name}」已触发`);
+          } catch (error) {
+            this.events.record(def.projectId, 'brief', `定时工作流「${def.name}」失败：${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+      }
+    } finally { this.briefRunning = false; }
   }
 }

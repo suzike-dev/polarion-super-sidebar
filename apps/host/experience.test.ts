@@ -4,7 +4,7 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from './store.ts';
-import { experiencePath, readExperience, writeExperience, clearExperience, conversationDigest, distillExperience } from './experience.ts';
+import { experiencePath, readExperience, writeExperience, clearExperience, conversationDigest, distillExperience, refineExperience } from './experience.ts';
 import type { query } from '@anthropic-ai/claude-agent-sdk';
 
 test('experience files are per-project, sanitized, and round-trip through write/read/clear', async () => {
@@ -67,4 +67,50 @@ test('distill merges lessons, strips fences, and reports failures honestly', asy
   await assert.rejects(distillExperience({ digest: 'x', existing: '' }, empty), /EXPERIENCE_EMPTY/);
   const broken: typeof query = () => { throw Error('spawn claude ENOENT'); };
   await assert.rejects(distillExperience({ digest: 'x', existing: '' }, broken), /EXPERIENCE_UNAVAILABLE/);
+});
+
+test('refine sends baseline and intents, returns note plus full next draft', async () => {
+  let seenPrompt = '';
+  const payload = JSON.stringify({ note: '新增表格表头一条。', text: '## 排版\n- 老条目。\n- 表格必须有表头。' });
+  const inner = distillFixture([{ type: 'result', subtype: 'success', result: payload }]);
+  const ok: typeof query = (options: any) => { seenPrompt = options.prompt; return inner(options); };
+  const result = await refineExperience({ text: '## 排版\n- 老条目。', messages: [
+    { role: 'user', text: '加一条：表格必须有表头。' },
+  ] }, ok);
+  assert.deepEqual(result, { note: '新增表格表头一条。', text: '## 排版\n- 老条目。\n- 表格必须有表头。' });
+  assert.match(seenPrompt, /以它为修改基准/);
+  assert.match(seenPrompt, /- 老条目。/);
+  assert.match(seenPrompt, /【用户】加一条：表格必须有表头。/);
+});
+
+test('refine tolerates fenced JSON, keeps multi-turn history, and reports failures honestly', async () => {
+  const fenced = distillFixture([{ type: 'result', subtype: 'success', result: '```json\n{"note":"合并重复条目","text":"## 排版\\n- 合并后。"}\n```' }]);
+  const result = await refineExperience({ text: '## 排版\n- 重复一。\n- 重复二。', messages: [
+    { role: 'user', text: '去重精简' },
+    { role: 'assistant', text: '已合并重复条目。' },
+    { role: 'user', text: '再精简一点' },
+  ] }, fenced);
+  assert.deepEqual(result, { note: '合并重复条目', text: '## 排版\n- 合并后。' });
+  const unparseable = distillFixture([{ type: 'result', subtype: 'success', result: '抱歉，这不是 JSON。' }]);
+  await assert.rejects(refineExperience({ text: 'x', messages: [{ role: 'user', text: '改' }] }, unparseable), /EXPERIENCE_PARSE/);
+  const emptyText = distillFixture([{ type: 'result', subtype: 'success', result: '{"note":"n","text":"   "}' }]);
+  await assert.rejects(refineExperience({ text: 'x', messages: [{ role: 'user', text: '改' }] }, emptyText), /EXPERIENCE_EMPTY/);
+  const failed = distillFixture([{ type: 'result', subtype: 'error_during_execution', errors: ['boom'] }]);
+  await assert.rejects(refineExperience({ text: 'x', messages: [{ role: 'user', text: '改' }] }, failed), /EXPERIENCE_FAILED/);
+});
+
+test('经验写入版本保护：mtime 变化的并发写被拒绝，相同内容幂等通过', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'psb-exp-conflict-'));
+  try {
+    const projectId = 'conflict-test';
+    const first = writeExperience(projectId, '初稿内容', dir);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const second = writeExperience(projectId, '另一页面的修改', dir, first.updatedAt);
+    assert.notEqual(second.updatedAt, first.updatedAt);
+    // 旧版本再写不同内容 → 冲突（不覆盖别人刚写的内容）
+    assert.throws(() => writeExperience(projectId, '我的覆盖', dir, first.updatedAt), /EXPERIENCE_CONFLICT/);
+    assert.equal(readExperience(projectId, dir).text, '另一页面的修改');
+    // 旧版本写相同内容 → 幂等放行
+    assert.equal(writeExperience(projectId, '另一页面的修改', dir, first.updatedAt).text, '另一页面的修改');
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });

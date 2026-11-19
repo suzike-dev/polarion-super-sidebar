@@ -13,6 +13,8 @@ export function documentNodeStyle(type: string, attrs: Record<string, any> = {})
     tableCell: `${text};border:1px solid #cbd6e5;padding:9px 11px;vertical-align:top`,
     tableHeader: `${text};border:1px solid #cbd6e5;padding:9px 11px;vertical-align:top;background-color:#edf3fb;font-weight:600;text-align:left`,
     horizontalRule: 'border:0;border-top:1px solid #d7e1ed;margin:22px 0',
+    details: `${text};margin:12px 0;border:1px solid #d7e1ed;padding:0`,
+    detailsSummary: `${text};padding:8px 12px;font-weight:600;cursor:pointer`,
     code: 'background-color:#eef2f7;padding:2px 5px;color:#af4e66;font-size:.92em;font-family:Consolas,monospace',
   };
   return styles[type] ?? '';

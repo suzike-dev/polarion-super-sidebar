@@ -2,19 +2,39 @@ import { defineBackground } from 'wxt/utils/define-background';
 import { browser } from 'wxt/browser';
 import { RequestSchema, routeFromUrl, ContextSchema, type Reply } from '../../../packages/protocol/index';
 import {nativeWorkItemRefresh} from '../lib/native-refresh';
+import {FrameAssembler, splitJsonFrames, type FrameChunk} from '../lib/host-framing';
 export default defineBackground(() => {
   let port: ReturnType<typeof browser.runtime.connectNative> | undefined;
   // 并发复制时不重复创建离屏文档，第二个会以“仅允许一个离屏文档”失败。
   let offscreenReady: Promise<void> | null = null;
   const pending = new Map<string, { resolve: (v: Reply) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  // 大消息分帧（Chrome Native Messaging 单条 1MB 硬上限）：宿主把超限响应拆成 __chunk 帧，这里聚合。
+  const replyFrames = new FrameAssembler();
+  function dispatchReply(reply: Reply) { const p = pending.get(reply.id); if (p) { clearTimeout(p.timer); pending.delete(reply.id); p.resolve(reply); } }
   function host() {
     if (port) return port;
     port = browser.runtime.connectNative('com.nanju.polarion.sidebar');
-    port.onMessage.addListener((reply: Reply) => { const p = pending.get(reply.id); if (p) { clearTimeout(p.timer); pending.delete(reply.id); p.resolve(reply); } });
+    port.onMessage.addListener((reply: Reply & Partial<FrameChunk>) => {
+      if (reply?.__chunk?.kind === 'reply') {
+        try {
+          const json = replyFrames.accept(reply.__chunk);
+          if (json) dispatchReply(JSON.parse(json) as Reply);
+        } catch { dispatchReply({ protocol: 1, id: reply.__chunk.id, ok: false, error: 'REPLY_CHUNK_INVALID' } as Reply); }
+        return;
+      }
+      dispatchReply(reply as Reply);
+    });
     port.onDisconnect.addListener(() => {
       const reason = browser.runtime.lastError?.message ?? 'HOST_DISCONNECTED'; port = undefined;
       for (const p of pending.values()) { clearTimeout(p.timer); p.reject(Error(reason)); } pending.clear();
     }); return port;
+  }
+  // 请求方向同样可能超限（大文档保存）：按共享模块切成 __chunk 帧，宿主桥聚合。
+  function postRequest(request: unknown & { id: string }) {
+    const json = JSON.stringify(request);
+    const frames = splitJsonFrames('request', request.id, json);
+    if (!frames.length) { host().postMessage(request); return; }
+    for (const frame of frames) host().postMessage(frame);
   }
   const sendTop = (tabId: number, value: unknown) => browser.tabs.sendMessage(tabId, value, { frameId: 0 }).catch(() => {});
   browser.runtime.onInstalled.addListener(() => {
@@ -59,7 +79,7 @@ export default defineBackground(() => {
       // The extension is the only NM client; document scripts cannot directly send runtime messages.
       return new Promise<Reply>((resolve, reject) => {
         const timer = setTimeout(() => { pending.delete(request.id); reject(Error('HOST_REQUEST_TIMEOUT')); }, 100000);
-        pending.set(request.id, { resolve, reject, timer }); host().postMessage(request);
+        pending.set(request.id, { resolve, reject, timer }); postRequest(request);
       });
     }
   });

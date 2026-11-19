@@ -91,7 +91,8 @@ function search(start:Point,end:Point,obstacles:Rect[],bounds?:Rect):Point[]|nul
 }
 
 function placeLabel(text:string,points:Point[],nodes:Box[],routes:Route[],reservedLines:[Point,Point][],bounds?:Rect):Route['label']|null{
-  const label=text.replace(/[a-z]/g,c=>c.toUpperCase()),width=gridUp(textBudget(label,14)+16),height=32;
+  // Preserve the model's original casing; masking and spacing are what keep labels legible.
+  const label=text,width=gridUp(textBudget(label,14)+16),height=32;
   const choices=segments(points).map(([a,b],segment)=>({a,b,segment,length:distance(a,b)})).sort((a,b)=>b.length-a.length);
   const allLines=[...segments(points),...routes.flatMap(r=>segments(r.points)),...reservedLines];
   for(const {a,b,segment,length} of choices){const horizontal=a[1]===b[1];if(length<(horizontal?width:height)+(bounds?24:48))continue;
@@ -106,6 +107,9 @@ function placeLabel(text:string,points:Point[],nodes:Box[],routes:Route[],reserv
 
 function preferredSides(from:Box,to:Box,direction:'right'|'down',variant:number):[Side,Side]{
   const dx=to.x+to.width/2-from.x-from.width/2,dy=to.y+to.height/2-from.y-from.height/2;
+  // Later attempts use same-side ports: return/back edges then loop around the outside
+  // in one clean rectangle instead of snaking between nodes.
+  if(variant>=4){const horizontal=Math.abs(dx)/(from.width+to.width)>=Math.abs(dy)/(from.height+to.height);return horizontal?(dy>=0?['bottom','bottom']:['top','top']):(dx>=0?['right','right']:['left','left']);}
   if(variant>=2){const horizontal=Math.abs(dx)/(from.width+to.width)>=Math.abs(dy)/(from.height+to.height);return horizontal?(dx>=0?['right','left']:['left','right']):(dy>=0?['bottom','top']:['top','bottom']);}
   if(direction==='down'&&dy<0)return variant%2?['left','left']:['right','right'];
   if(direction==='right'&&dx<0)return variant%2?['top','top']:['bottom','bottom'];
@@ -119,7 +123,7 @@ export function routeBoard(nodes:Box[],edges:FlowEdge[],direction:'right'|'down'
   if(options.bounds&&nodes.some(n=>!contained(n,options.bounds!)))throw Error('BOARD_CANVAS_OVERFLOW: 节点超出画幅内容区');
   const map=new Map(nodes.map(n=>[n.id,n])),attempts:string[]=[];
   for(let attempt=0;attempt<12;attempt++){
-    const assignments=edges.map(edge=>{const [start,end]=preferredSides(map.get(edge.from)!,map.get(edge.to)!,direction,attempt%4);return{edge,start,end};});
+    const assignments=edges.map(edge=>{const [start,end]=preferredSides(map.get(edge.from)!,map.get(edge.to)!,direction,attempt%8);return{edge,start,end};});
     const groups=new Map<string,{edgeId:string;end:'start'|'end';side:Side}[]>();
     for(const item of assignments)for(const end of ['start','end'] as const){const nodeId=end==='start'?item.edge.from:item.edge.to,side=item[end],key=nodeId+':'+side;groups.set(key,[...(groups.get(key)??[]),{edgeId:item.edge.id,end,side}]);}
     const ports=new Map<string,Port>();let invalid=false;

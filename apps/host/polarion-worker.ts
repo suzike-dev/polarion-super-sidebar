@@ -1,7 +1,7 @@
 // This process alone receives the existing DPAPI credentials. Never forward its environment to an AI engine.
 import { PolarionSoapClient, escapeXml } from '../../packages/polarion-soap/soap.js';
 import { loadConfig } from '../../packages/polarion-soap/config.js';
-import { TargetSchema } from '../../packages/protocol/index.ts';
+import { TargetSchema, ModelNoteSchema } from '../../packages/protocol/index.ts';
 import { createHash } from 'node:crypto';
 import readline from 'node:readline';
 import {BoardManifestSchema,boardFileNames} from '../../packages/core/board-contract.ts';
@@ -193,7 +193,7 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
         const description = String(request.description ?? '');
         const title = String(request.title ?? '');
         const fileName = String(request.fileName ?? '');
-        if (!/^sidebar-change-[0-9a-f-]{36}\.(record|session)\.json$/.test(fileName) && fileName !== 'sidebar-feishu.groups.json' && !/^sidebar-change-[0-9a-f-]{36}\.html$/.test(fileName)) throw Error('INVALID_CHANGE_ATTACHMENT');
+        if (!/^sidebar-change-[0-9a-f-]{36}\.(record|session)\.json$/.test(fileName) && fileName !== 'sidebar-feishu.groups.json' && fileName !== 'sidebar-model.roots.json' && fileName !== 'sidebar-rules.pack.json' && !/^sidebar-change-[0-9a-f-]{36}\.html$/.test(fileName)) throw Error('INVALID_CHANGE_ATTACHMENT');
         const dataBase64 = String(request.dataBase64 ?? '');
         let workItemId = typeof request.workItemId === 'string' ? request.workItemId : '';
         let currentUri = '', currentUpdated = '';
@@ -297,6 +297,68 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     if (request.method === 'peek') {
       const item = await client.getWorkItem(target.projectId, String(request.workItemId));
       reply(request.id, { workItemId: item.id ?? String(request.workItemId), title: item.title ?? '', description: item.description ?? '', updated: item.updated });
+      continue;
+    }
+    // 模型备注：项目内任意工作项（不要求属于当前文档）；附件文件名固定白名单。
+    if (request.method === 'model.note.read') {
+      try {
+        const item = await client.getWorkItem(target.projectId, String(request.workItemId));
+        const attachment = item.attachments.find(a => a.file_name === 'sidebar-model.json');
+        if (!attachment?.id || !item.uri) { reply(request.id, { note: null }); continue; }
+        const bytes = await client.getAttachmentContent(item.uri, attachment.id);
+        reply(request.id, { note: JSON.parse(bytes.toString('utf8')) });
+      } catch { reply(request.id, { note: null }); }
+      continue;
+    }
+    if (request.method === 'model.note.write') {
+      try {
+        const parsed = ModelNoteSchema.safeParse(request.note);
+        if (!parsed.success) throw Error('INVALID_MODEL_NOTE');
+        const item = await client.getWorkItem(target.projectId, String(request.workItemId));
+        if (!item.uri) throw Error('MODEL_NOTE_ITEM_NOT_FOUND');
+        const data = Buffer.from(JSON.stringify(parsed.data), 'utf8');
+        const attachment = item.attachments.find(a => a.file_name === 'sidebar-model.json');
+        const result = await client.manageAttachment({ projectId: target.projectId, workItemId: String(request.workItemId), operation: attachment?.id ? 'update' : 'create', ...(attachment?.id ? { attachmentId: attachment.id } : {}), fileName: 'sidebar-model.json', title: 'Polarion Sidebar 模型备注', dataBase64: data.toString('base64') });
+        const uri = result.item?.uri ?? item.uri;
+        if (!result.verified || !result.attachment?.id || !uri) throw Error('ATTACHMENT_READBACK_MISMATCH');
+        const readback = await client.getAttachmentContent(uri, result.attachment.id);
+        if (readback.toString('utf8') !== data.toString('utf8')) throw Error('ATTACHMENT_READBACK_MISMATCH');
+        reply(request.id, { verified: true, attachmentId: result.attachment.id, updated: result.item?.updated ?? item.updated ?? '' });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw Error(/^(INVALID_MODEL_NOTE|MODEL_NOTE_ITEM_NOT_FOUND|ATTACHMENT_READBACK_MISMATCH)$/.test(message) ? message : `MODEL_NOTE_WRITE_FAILED: ${message.slice(0, 400)}`);
+      }
+      continue;
+    }
+    if (request.method === 'model.notes') {
+      // 追溯索引批量同步：分页查询（含附件清单与正向链接），只对带 sidebar-model.json 的工作项逐个取内容。
+      try {
+        const query = String(request.query ?? '').trim() || 'NOT(title:PSB-*)';
+        const items: { workItemId: string; title: string; type: string; updated: string; marks: { rootId: string; modules: string[] }[]; links: { workItemId: string; role: string }[] }[] = [];
+        const linksOf = (row: { linked_work_items?: { role?: string; work_item_uri?: string }[] }) => (row.linked_work_items ?? []).flatMap(link => { const id = workItemIdFromUri(link.work_item_uri ?? ''); return id ? [{ workItemId: id, role: link.role ?? '' }] : []; });
+        let total = 0; let partial = false; let offset = 0;
+        const PAGE = 200, MAX_PAGES = 30;
+        for (let page = 0; page < MAX_PAGES; page++) {
+          let rows: Awaited<ReturnType<typeof client.queryWorkItems>>;
+          try { rows = await client.queryWorkItemsPage(target.projectId, query, 'updated DESC', ['id', 'title', 'type', 'updated', 'attachments', 'linkedWorkItems'], offset, PAGE).then(r => { total = r.total; return r.items; }); }
+          catch { rows = await client.queryWorkItems(target.projectId, query, 'updated DESC', ['id', 'title', 'updated', 'linkedWorkItems'], PAGE * (page + 1)); total = rows.length; partial = true; }
+          if (!rows.length) break;
+          for (const row of rows) {
+            const links = linksOf(row);
+            const attachment = (row.attachments ?? []).find(a => a.file_name === 'sidebar-model.json');
+            if (!attachment?.id || !row.uri) { items.push({ workItemId: row.id ?? '', title: row.title ?? '', type: row.type ?? '', updated: row.updated ?? '', marks: [], links }); continue; }
+            try {
+              const bytes = await client.getAttachmentContent(row.uri, attachment.id);
+              const note = JSON.parse(bytes.toString('utf8')) as { marks?: { rootId?: string; modules?: string[] }[] };
+              items.push({ workItemId: row.id ?? '', title: row.title ?? '', type: row.type ?? '', updated: row.updated ?? '', marks: (note.marks ?? []).filter(m => typeof m?.rootId === 'string' && Array.isArray(m.modules)).map(m => ({ rootId: String(m.rootId), modules: m.modules!.map(String).slice(0, 60) })), links });
+            } catch { items.push({ workItemId: row.id ?? '', title: row.title ?? '', type: row.type ?? '', updated: row.updated ?? '', marks: [], links }); }
+          }
+          offset += rows.length;
+          if (offset >= total) break;
+        }
+        if (offset < total) partial = true;
+        reply(request.id, { items, total, partial });
+      } catch (error) { throw Error(`MODEL_NOTES_SYNC_FAILED: ${(error instanceof Error ? error.message : String(error)).slice(0, 400)}`); }
       continue;
     }
     const item = await client.getWorkItem(target.projectId, request.workItemId);

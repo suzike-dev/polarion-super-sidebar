@@ -99,8 +99,8 @@
 /* 草稿状态徽标：青柠药丸（功能卡「待保存」标签语言）。 */
 :host .workspace .draft-row > span { color: #2c4a22; background: #d8ebad; border: 1px solid #c9df8e; border-radius: 999px; font-size: 10px; font-weight: 600; padding: 1px 8px; white-space: nowrap; }
 
-/* 回答排版：字号跟随用户设置，层级用比例；表格横向滚动、表头与首列固定。 */
-:host .workspace .user-message { color: var(--ui-ink); background: #f2f4ec; border: 1px solid transparent; border-radius: var(--ui-radius-lg) var(--ui-radius-lg) var(--ui-radius-xs) var(--ui-radius-lg); font-size: 14px; line-height: 1.7; }
+/* 回答排版：字号跟随用户设置，层级用比例；表格横向滚动、表头与首列固定。用户气泡比回答小一档，弱化自述回显。 */
+:host .workspace .user-message { color: var(--ui-ink); background: #f2f4ec; border: 1px solid transparent; border-radius: var(--ui-radius-lg) var(--ui-radius-lg) var(--ui-radius-xs) var(--ui-radius-lg); font-size: calc(var(--assistant-font-size, 14px) - 1px); line-height: 1.7; }
 :host .workspace .assistant-label { color: var(--ui-secondary); font-size: 12px; }
 :host .workspace .assistant-label strong { font-weight: 600; }
 :host .workspace .assistant-label small { color: var(--ui-muted); font-size: 11px; }

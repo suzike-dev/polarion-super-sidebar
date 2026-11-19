@@ -180,3 +180,58 @@
 :host .rich-layer .rich-header .rich-heading h2{font-size:17px;line-height:1.45}
 @media(max-width:1100px){:host .rich-layer .rich-header .rich-heading h2{font-size:15px}}
 .rich-layer .rich-popover .inline-fields input{font-size:12px}
+
+/* ---- v0.13 公式 / 折叠块 / 代码高亮 / 徽章 ---- */
+.tiptap .rich-formula{border-radius:3px;transition:outline-color .12s}
+.tiptap .rich-formula-inline{padding:0 3px}
+.tiptap .rich-formula-block{display:block;margin:10px 0;padding:8px 12px;background:#f6f8fa;overflow-x:auto}
+.tiptap .rich-formula.editing{outline:2px dashed #2563eb;outline-offset:2px}
+.tiptap .rich-formula.ProseMirror-selectednode{outline:2px solid #1e573c;outline-offset:2px}
+.tiptap .rich-formula-editor{display:block;min-width:260px;max-width:420px;margin:6px 0;font:12px/1.5 Consolas,monospace;color:#243b2f;border:1px solid #bcd3c2;border-radius:4px;padding:5px 7px;resize:both}
+.tiptap .rich-formula-editor:focus{outline:2px solid #1e573c;outline-offset:1px}
+.rich-popover .formula-input{width:100%;min-width:280px;font:12px/1.6 Consolas,monospace;border:1px solid #c3cebd;border-radius:5px;padding:7px 9px;resize:vertical;color:#243b2f}
+.rich-popover .formula-input:focus{outline:2px solid #1e573c;outline-offset:1px}
+.rich-popover .formula-kind{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#3a4c3d}
+.tiptap details[data-sidebar-details]{margin:12px 0;border:1px solid #cfdccf;border-radius:5px;padding:0;background:#fcfdfb}
+.tiptap details[data-sidebar-details]>summary{padding:8px 12px;font-weight:600;color:#22577a;cursor:pointer;list-style:revert}
+/* 编辑时始终显示折叠块内容，保证可编辑；原生/预览视图按 open 属性真实折叠。 */
+.tiptap details[data-sidebar-details]:not([open])>*:not(summary){display:block}
+.tiptap details[data-sidebar-details]>*:not(summary){border-top:1px dashed #dfe7df;padding:8px 12px}
+.tiptap details[data-sidebar-details]>summary{border-top:0}
+.tiptap .hljs-comment,.tiptap .hljs-quote{color:#7c8b7f;font-style:italic}
+.tiptap .hljs-keyword,.tiptap .hljs-selector-tag,.tiptap .hljs-literal,.tiptap .hljs-section,.tiptap .hljs-doctag,.tiptap .hljs-type,.tiptap .hljs-name,.tiptap .hljs-strong{color:#1d5c4a;font-weight:600}
+.tiptap .hljs-string,.tiptap .hljs-regexp,.tiptap .hljs-addition,.tiptap .hljs-attribute,.tiptap .hljs-meta .hljs-string{color:#5c7a1d}
+.tiptap .hljs-number,.tiptap .hljs-symbol,.tiptap .hljs-bullet,.tiptap .hljs-variable,.tiptap .hljs-template-variable,.tiptap .hljs-attr,.tiptap .hljs-selector-attr{color:#9a5b16}
+.tiptap .hljs-title,.tiptap .hljs-title.function_,.tiptap .hljs-title.class_,.tiptap .hljs-built_in,.tiptap .hljs-builtin-name{color:#22577a;font-weight:600}
+.tiptap .hljs-params{color:#31424f}
+.tiptap .hljs-deletion{color:#a13c3c}
+.tiptap .hljs-emphasis{font-style:italic}
+.tiptap .hljs-meta,.tiptap .hljs-subst{color:#5b6e85}
+/* 写前查重与影响前置卡（编辑器弹窗内）。 */
+.dedup-match{border:1px solid var(--ui-soft-line,#edf1e4);border-radius:7px;margin-top:7px;overflow:hidden}
+.dedup-match .dedup-open{display:flex;align-items:center;gap:8px;width:100%;border:0;background:#fff;padding:7px 9px;text-align:left}
+.dedup-match .dedup-open:hover{background:var(--ui-subtle,#f4f7ef)}
+.dedup-match strong{font-size:11px;color:#22577a}
+.dedup-match .dedup-open span{flex:1;min-width:0;font-size:11px;color:var(--ui-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dedup-match .dedup-open i{font-style:normal;font-size:10px;font-weight:600;padding:2px 7px;border-radius:9px}
+.dedup-match .dedup-open i.high{background:#fbe4df;color:#8c3b26}
+.dedup-match .dedup-open i.mid{background:#fdf1e3;color:#9a5b16}
+.dedup-match .dedup-open i.low{background:#eef2fb;color:#22577a}
+.dedup-match small{display:block;padding:0 9px 7px;font-size:10px;color:var(--ui-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.impact-card{display:flex;flex-direction:column;gap:9px;min-width:280px}
+.impact-modules b,.impact-links b{display:block;font-size:10.5px;color:var(--ui-muted);margin-bottom:4px}
+.impact-modules{display:flex;flex-wrap:wrap;gap:5px}
+.impact-modules span{font-size:10.5px;border:1px solid var(--ui-line,#e1e6d8);border-radius:9px;padding:2px 8px;color:var(--ui-secondary);background:#fff}
+.impact-modules span.stale{background:#fdf1e3;color:#9a5b16;border-color:#ecd9bd}
+.impact-links{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.impact-links button{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--ui-line,#e1e6d8);border-radius:9px;padding:2px 8px;background:#fff}
+.impact-links button:hover{background:var(--ui-subtle,#f4f7ef)}
+.impact-links strong{font-size:10.5px;color:#22577a}
+.impact-links small{font-size:9.5px;color:var(--ui-muted)}
+.impact-links>small{font-size:10.5px;color:var(--ui-muted)}
+/* 影响卡里的门禁行。 */
+.impact-gates{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.impact-gates b{width:100%;font-size:10.5px;color:var(--ui-muted)}
+.impact-gates span{font-size:10.5px;border-radius:9px;padding:2px 8px}
+.impact-gates span.pass{background:#e7f3ec;color:#0f766e}
+.impact-gates span.fail{background:#fbe4df;color:#8c3b26}

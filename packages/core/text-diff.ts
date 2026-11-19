@@ -5,9 +5,10 @@ export type TextDiffPart = {kind: 'same'; text: string} | {kind: 'change'; id: n
  * 块内文字差异：中文按字、英文按词、空白按段切 token，再做 LCS。
  * 变更组把同一处的删除/新增合并成一个 id，供左右联动和悬停对照使用。
  */
-export function diffTextParts(before: string, after: string): TextDiffPart[] {
+export function diffTextParts(before: string, after: string, byCharacter = false): TextDiffPart[] {
   if (before === after) return before ? [{kind: 'same', text: before}] : [];
-  const a = tokenize(before), b = tokenize(after);
+  const split = byCharacter ? (value: string) => Array.from(value) : tokenize;
+  const a = split(before), b = split(after);
   if (!a.length || !b.length || a.length * b.length > 4_000_000 || a.length > 6000 || b.length > 6000) {
     return fallbackParts(before, after);
   }
@@ -44,8 +45,8 @@ export function diffTextParts(before: string, after: string): TextDiffPart[] {
 }
 
 /** 兼容块级渲染：把变更组拆成左右两套 segment。 */
-export function diffText(before: string, after: string): {before: TextDiffSegment[]; after: TextDiffSegment[]} {
-  const parts = diffTextParts(before, after);
+export function diffText(before: string, after: string, byCharacter = false): {before: TextDiffSegment[]; after: TextDiffSegment[]} {
+  const parts = diffTextParts(before, after, byCharacter);
   const beforeSegments: TextDiffSegment[] = [], afterSegments: TextDiffSegment[] = [];
   for (const part of parts) {
     if (part.kind === 'same') {

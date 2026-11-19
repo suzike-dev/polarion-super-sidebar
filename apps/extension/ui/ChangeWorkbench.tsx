@@ -21,6 +21,7 @@ type RecordHoverState = {
   failed?: boolean;
 };
 
+const sourceLabel = {agent:'来自助手', lint:'来自体检修复', workflow:'来自工作流', manual:'手动'} as const;
 function RecordHoverCard({state, projectScope}: {state: RecordHoverState; projectScope: boolean}) {
   const record = state.record;
   const info = record ?? state.summary;
@@ -868,9 +869,10 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
           {loading && !workspace && <div className="cw-side-state"><Loader2 size={13} className="cw-spin"/>读取中…</div>}
           {workspace && listRows.length === 0 && <div className="cw-side-state">{scope === 'project' ? '这个项目还没有变更记录。' : '这篇文档还没有变更记录。'}<br/>设定基准或按时间补建后，记录会写进当前项目。</div>}
           {!loading && listRows.length > 0 && filteredRows.length === 0 && <div className="cw-side-state">没有匹配的记录。</div>}
+          {workspace?.proposalActivity?.filter(p => (scope === 'project' || p.target.document === target.document) && (!recordQuery.trim() || `${p.summary} ${p.workItemId ?? ''}`.toLowerCase().includes(recordQuery.trim().toLowerCase()))).map(p => <div key={p.id} className="cw-record"><span className="cw-record-main"><b>{p.summary}</b><small>{sourceLabel[p.source]} · {p.workItemId} · {p.savedToPolarion ? '正文已回读 · 项目记录待核对' : '本机操作记录'} · {stamp(p.appliedAt ?? 0)}</small></span></div>)}
           {groupedRecords.map(([day, rows]) => <div className="cw-day" key={day}><div className="cw-day-head">{day}</div>{rows.map(row => <button key={row.id} className={'cw-record' + (selectedId === row.id ? ' selected' : '')} onClick={() => {setRecordHover(null); void openRecord(row.id);}} onPointerEnter={event => showRecordHover(row, event.currentTarget)} onPointerLeave={hideRecordHover}>
             <span className="cw-record-time">{stamp(row.baselineAt).slice(11)}<br/>{stamp(row.endedAt).slice(11)}</span>
-            <span className="cw-record-main"><b>{friendlyRecordName(row.headline, row.documentTitle, row.changedItems)}</b><small>{scope === 'project' ? row.documentTitle + ' · ' : ''}{row.changedItems} 项 · 改 {row.modified} · 增 {row.added} · 删 {row.removed}</small></span>
+            <span className="cw-record-main"><b>{friendlyRecordName(row.headline, row.documentTitle, row.changedItems)}</b><small>{sourceLabel[row.source ?? 'manual']} · {scope === 'project' ? row.documentTitle + ' · ' : ''}{row.changedItems} 项 · 改 {row.modified} · 增 {row.added} · 删 {row.removed}</small></span>
             <ChevronRight size={13} className="cw-record-arrow"/>
           </button>)}</div>)}
         </div>

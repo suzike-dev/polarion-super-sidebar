@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {CLAUDE, DATA, ROOT} from './paths.ts';
 import type {Store} from './store.ts';
-import type {ExperienceView, Run} from '../../packages/protocol/index.ts';
+import type {ExperienceRefineMessage, ExperienceRefineView, ExperienceView, Run} from '../../packages/protocol/index.ts';
 
 /** 经验按项目沉淀为本地 Markdown 文件，后续每轮注入提示词，避免重犯已被纠正的做法。 */
 const safeProject = (projectId: string) => projectId.replace(/[^\w.-]+/g, '_').slice(0, 120) || 'project';
@@ -13,8 +13,15 @@ export function readExperience(projectId: string, dataDir = DATA): ExperienceVie
   try { const stat = fs.statSync(file); return { text: fs.readFileSync(file, 'utf8'), path: file, updatedAt: Math.round(stat.mtimeMs) }; }
   catch { return { text: '', path: file, updatedAt: 0 }; }
 }
-export function writeExperience(projectId: string, text: string, dataDir = DATA): ExperienceView {
+export function writeExperience(projectId: string, text: string, dataDir = DATA, expectedUpdated?: number): ExperienceView {
   const file = experiencePath(projectId, dataDir);
+  // 冲突保护：外部编辑/另一页面已改过（mtime 变化）且内容确实不同 → 拒绝覆盖，交给用户重载后合并。
+  if (expectedUpdated !== undefined) {
+    const current = readExperience(projectId, dataDir);
+    if (current.updatedAt !== expectedUpdated && current.text.trim() !== text.trim()) {
+      throw Error('EXPERIENCE_CONFLICT：经验文件已被其他页面或外部编辑修改，请重新载入后再合并。');
+    }
+  }
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const temporary = file + '.tmp'; fs.writeFileSync(temporary, text, 'utf8'); fs.renameSync(temporary, file);
   return readExperience(projectId, dataDir);
@@ -100,6 +107,80 @@ export async function distillExperience(input: { digest: string; existing: strin
     if (controller.signal.aborted) throw Error('EXPERIENCE_TIMEOUT');
     const message = error instanceof Error ? error.message : String(error);
     if (/^EXPERIENCE_[A-Z_]+$/.test(message)) throw error;
+    throw Error('EXPERIENCE_UNAVAILABLE');
+  } finally {
+    clearTimeout(timer);
+    try { stream?.close(); } catch { /* 已结束 */ }
+  }
+}
+
+/**
+ * 经验共编同样是一次性、无工具的短对话：以客户端基准稿 + 对话意图生成完整下一稿，不落盘。
+ * 应用与否由用户在差异确认后决定，Host 不保存任何共编状态。
+ */
+export async function refineExperience(input: { text: string; messages: ExperienceRefineMessage[]; model?: string }, runtimeQuery: typeof query = query): Promise<ExperienceRefineView> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90_000);
+  let stream: ReturnType<typeof query> | undefined;
+  try {
+    const prompt = [
+      '你是经验共编助手。用户正在和你共同编辑「经验沉淀」文档：按对话里最新的意图修改全文，未涉及的条目逐字保留。',
+      '',
+      '当前全文（可能是上一轮尚未应用的提议稿，以它为修改基准）：',
+      input.text.trim() || '（空）',
+      '',
+      '对话记录（越靠后越新，最后一条用户消息是本次要执行的意图）：',
+      ...input.messages.map(message => (message.role === 'user' ? '【用户】' : '【助手】') + message.text),
+      '',
+      '输出要求：',
+      '1. 只输出一个 JSON 对象：{"note":"一句话说明本次改了什么","text":"修改后的完整 Markdown 全文"}；不要输出 JSON 以外的文字、解释或代码围栏。',
+      '2. 全文用「## 分类」组织、分类下用「- 」条目；每条经验一句话，写清应当怎么做 / 不要怎么做。',
+      '3. 用户要求删除、合并、改写、重排时照做；不编造用户没有表达过的偏好或事实；被推翻的旧条目删除或改写。',
+      '4. 全文不超过 6000 字；用户明确要求清空且没有其他内容时 text 填「（暂无沉淀经验）」。',
+    ].join('\n');
+    stream = runtimeQuery({
+      prompt,
+      options: {
+        cwd: ROOT,
+        pathToClaudeCodeExecutable: CLAUDE,
+        executable: 'node',
+        // 必须加载用户级设置：认证方式和可用模型都在其中。
+        settingSources: ['user'],
+        permissionMode: 'bypassPermissions',
+        allowDangerouslySkipPermissions: true,
+        maxTurns: 1,
+        mcpServers: {},
+        allowedTools: [],
+        disallowedTools: ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'LS', 'WebFetch', 'WebSearch', 'Task', 'TodoWrite', 'NotebookRead', 'NotebookEdit', 'BashOutput', 'KillShell'],
+        includePartialMessages: false,
+        abortController: controller,
+        systemPrompt: {type: 'preset', preset: 'claude_code', append: '只做中文经验共编，只依据当前全文与对话修改，不调用任何工具，不编造事实，只输出一个 JSON 对象。'},
+        ...(input.model ? {model: input.model} : {}),
+      },
+    });
+    let text = '';
+    for await (const message of stream) {
+      if (message.type === 'assistant' && !message.parent_tool_use_id) {
+        for (const block of message.message.content) if (block.type === 'text') text += block.text;
+      }
+      if (message.type === 'result') {
+        if (message.subtype !== 'success') throw Error('EXPERIENCE_FAILED');
+        if (typeof message.result === 'string' && message.result.trim()) text = message.result;
+      }
+    }
+    const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const start = cleaned.indexOf('{'), end = cleaned.lastIndexOf('}');
+    const parsed = start >= 0 && end > start ? JSON.parse(cleaned.slice(start, end + 1)) as {note?: unknown; text?: unknown} : null;
+    if (!parsed || typeof parsed.text !== 'string') throw Error('EXPERIENCE_PARSE');
+    const next = parsed.text.trim();
+    if (!next) throw Error('EXPERIENCE_EMPTY');
+    const note = typeof parsed.note === 'string' ? parsed.note.trim().slice(0, 600) : '';
+    return { note: note || '已生成修改稿。', text: next.slice(0, 8000) };
+  } catch (error) {
+    if (controller.signal.aborted) throw Error('EXPERIENCE_TIMEOUT');
+    const message = error instanceof Error ? error.message : String(error);
+    if (/^EXPERIENCE_[A-Z_]+$/.test(message)) throw error;
+    if (error instanceof SyntaxError) throw Error('EXPERIENCE_PARSE');
     throw Error('EXPERIENCE_UNAVAILABLE');
   } finally {
     clearTimeout(timer);

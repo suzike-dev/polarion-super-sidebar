@@ -1,4 +1,5 @@
 import type {BoardElement} from './board-changes.ts';
+import {BOARD_NODE_TYPES,type BoardNodeType} from './board-generation.ts';
 
 /** Element types Excalidraw can bind arrows to. Lines never bind. */
 const BINDABLE=new Set(['rectangle','diamond','ellipse','text','image','frame']);
@@ -177,5 +178,16 @@ export function applyArrowStyle(elements:readonly BoardElement[],ids:readonly st
     // 实线/虚线只改线型，保留继承空心三角、组合菱形、crowfoot 基数等语义箭头。
     if(style==='plain')return bump({...element,startArrowhead:null,endArrowhead:null});
     return bump({...element,strokeStyle:style==='dashed'?'dashed':'solid'});
+  });
+}
+
+/** Apply a semantic node-type palette entry to selected shapes so hand-drawn boxes can
+ * join the generated type system; locked chrome (canvas/legend) is never repainted. */
+export function applyNodeType(elements:readonly BoardElement[],ids:readonly string[],type:BoardNodeType):BoardElement[]{
+  const style=BOARD_NODE_TYPES[type],selected=new Set(ids);
+  return elements.map(element=>{
+    if(!selected.has(element.id)||!['rectangle','diamond','ellipse'].includes(element.type))return element;
+    if(element.locked||element.customData?.boardRole==='canvas')return element;
+    return bump({...element,backgroundColor:style.fill,strokeColor:style.stroke,strokeStyle:style.dashed?'dashed':'solid',strokeWidth:type==='focal'?2.5:2,customData:{...element.customData,nodeType:type}});
   });
 }

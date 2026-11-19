@@ -1,4 +1,4 @@
-import type { Run, RunEvent, Session } from '../../../packages/protocol/index';
+import type { Run, RunEvent, Session, WorkflowRunView } from '../../../packages/protocol/index';
 
 // Matches Store.events' current page limit. A bounded batch yields between bursts.
 export const SESSION_EVENT_PAGE_SIZE = 120;
@@ -18,18 +18,19 @@ export function appendSessionEvents(history: EventHistory, incoming: RunEvent[])
   return { events: [...history.events, ...fresh], byRun, cursor: fresh.at(-1)!.seq };
 }
 
-export type SessionPage = { events: RunEvent[]; runs: Run[]; session?: Session };
+export type SessionPage = { events: RunEvent[]; runs: Run[]; session?: Session; workflow?: WorkflowRunView };
 export async function readSessionBatch(
   read: (after: number) => Promise<SessionPage>, after: number,
   cancelled: () => boolean = () => false, maxPages = 8,
 ): Promise<SessionPage & { cursor: number; more: boolean }> {
   const events: RunEvent[] = [];
-  let runs: Run[] = [], session:Session|undefined, more = false;
+  let runs: Run[] = [], session:Session|undefined, workflow:WorkflowRunView|undefined, more = false;
   for (let page = 0; page < maxPages && !cancelled(); page++) {
     const response = await read(after);
     if (cancelled()) break;
     runs = response.runs;
     session = response.session;
+    workflow = response.workflow;
     const fresh = response.events.filter(event => event.seq > after);
     if (response.events.length && !fresh.length) throw new Error('会话事件游标未推进，请重试。');
     events.push(...fresh);
@@ -37,7 +38,7 @@ export async function readSessionBatch(
     more = response.events.length >= SESSION_EVENT_PAGE_SIZE;
     if (!more) break;
   }
-  return { events, runs, session, cursor: after, more };
+  return { events, runs, session, workflow, cursor: after, more };
 }
 
 // Reset starts a fresh transcript without deleting the older auditable turns.

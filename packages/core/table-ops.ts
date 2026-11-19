@@ -83,15 +83,15 @@ const rowHasSpan = (row: PMNode) => {
 
 function freshParagraph(text?: string) {
   const trimmed = (text ?? '').trim();
-  return richSchema.nodes.paragraph.createChecked(null, trimmed ? richSchema.text(trimmed) : undefined);
+  return richSchema.node('paragraph', null, trimmed ? richSchema.text(trimmed) : undefined);
 }
 
 function freshCell(header: boolean, text?: string) {
-  return (header ? richSchema.nodes.tableHeader : richSchema.nodes.tableCell).createChecked({ colspan: 1, rowspan: 1, colwidth: null }, [freshParagraph(text)]);
+  return richSchema.node(header ? 'tableHeader' : 'tableCell', { colspan: 1, rowspan: 1, colwidth: null }, [freshParagraph(text)]);
 }
 
 function freshRow(columns: number, header: boolean, texts?: string[]) {
-  return richSchema.nodes.tableRow.createChecked(null, Array.from({ length: columns }, (_unused, column) => freshCell(header, texts?.[column])));
+  return richSchema.node('tableRow', null, Array.from({ length: columns }, (_unused, column) => freshCell(header, texts?.[column])));
 }
 
 /** 定位表格与其行；表格序号与 listTables 一致（文档顺序，含嵌套）。 */
@@ -137,7 +137,7 @@ export function applyTableOperations(document: JSONContent, operations: TableOpe
       const rows = Math.floor(operation.rows), columns = Math.floor(operation.columns);
       if (!(rows >= 1 && rows <= 60 && columns >= 1 && columns <= 12)) throw Error('TABLE_SIZE_OUT_OF_RANGE');
       const body = Array.from({ length: rows }, (_unused, row) => freshRow(columns, Boolean(operation.header) && row === 0));
-      const table = richSchema.nodes.table.createChecked(null, body);
+      const table = richSchema.node('table', null, body);
       const blocks = topLevelPositions(doc);
       const at = operation.at ?? blocks.length;
       if (!(at >= 0 && at <= blocks.length)) throw Error('BLOCK_INDEX_OUT_OF_RANGE');
@@ -165,7 +165,7 @@ export function applyTableOperations(document: JSONContent, operations: TableOpe
       if (operation.cells && (operation.cells.length > count || operation.cells.some(row => row.length > columns))) throw Error('CELL_TEXTS_OUT_OF_RANGE');
       const fresh = Array.from({ length: count }, (_unused, row) => {
         const texts = operation.cells?.[row];
-        return richSchema.nodes.tableRow.createChecked(null, Array.from({ length: columns }, (_slot, column) => freshCell(Boolean(operation.header), texts?.[column])));
+        return richSchema.node('tableRow', null, Array.from({ length: columns }, (_slot, column) => freshCell(Boolean(operation.header), texts?.[column])));
       });
       tr.insert(at < rows.length ? rows[at]!.pos : table.pos + 1 + table.node.content.size, fresh);
       continue;

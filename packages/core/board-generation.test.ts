@@ -34,7 +34,7 @@ test('fixed frames reserve readable title blocks and reject titles that need mor
   for(const text of ['工程控制模式与温度请求判断流程'.repeat(3),'W'.repeat(58),'第一行\n第二行']){const {elements}=generateBoardDiagram({title:text,summary:'标题不遮挡图形',nodes:[{id:'a',text:'开始'},{id:'b',text:'结束'}]},namespace),title=elements.find(e=>e.customData?.boardRole==='title')!;
     assert.equal(title.fontSize,28);assert.equal(title.originalText,text);assert.equal(title.height,title.text.split('\n').length*28*title.lineHeight);
     assert.ok(title.text.split('\n').every((line:string)=>Array.from(line).length*28<=title.width));
-    assert.ok(elements.filter(e=>!['canvas','title'].includes(e.customData?.boardRole)).every(element=>element.y-(title.y+title.height)>=24-1e-9));
+    assert.ok(elements.filter(e=>!['canvas','title','title-band','kind-tag'].includes(e.customData?.boardRole)).every(element=>element.y-(title.y+title.height)>=24-1e-9));
   }
   for(const title of ['W'.repeat(160),'第一行\n第二行\n第三行'])assert.throws(()=>generateBoardDiagram({title,summary:'过长标题',nodes:[{id:'a',text:'开始'}]},namespace),/BOARD_TITLE_TOO_LONG/);
 });
@@ -44,9 +44,9 @@ test('generation rejects off-frame coordinates while the manual-board export cap
   assert.deepEqual(boardPreviewDimensions(600,320),{width:600,height:320,scale:1});
   for(const [w,h] of [[Infinity,20],[20,NaN],[0,20],[-1,20]])assert.throws(()=>boardPreviewDimensions(w!,h!),/EXPORT_SIZE_INVALID/);
 });
-test('flowchart contract enforces 9 nodes, 12 arrows, 2 accents and labeled decision exits',()=>{
-  const nodes=Array.from({length:10},(_,i)=>({id:'n'+i,text:'节点'}));assert.equal(BoardDiagramSchema.safeParse({title:'预算',summary:'node budget',nodes}).success,false);
-  assert.equal(BoardDiagramSchema.safeParse({...diagram,edges:Array.from({length:13},(_,i)=>({id:'e'+i,from:'start',to:'cool'}))}).success,false);
+test('flowchart contract enforces 12 nodes, 16 arrows, 2 focal accents and labeled decision exits',()=>{
+  const nodes=Array.from({length:13},(_,i)=>({id:'n'+i,text:'节点'}));assert.equal(BoardDiagramSchema.safeParse({title:'预算',summary:'node budget',nodes}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...diagram,edges:Array.from({length:17},(_,i)=>({id:'e'+i,from:'start',to:'cool'}))}).success,false);
   assert.equal(BoardDiagramSchema.safeParse({...diagram,nodes:diagram.nodes.map(n=>({...n,tone:'accent'}))}).success,false);
   for(const edges of [[{id:'a',from:'check',to:'cool',label:'是'}],[{id:'a',from:'check',to:'cool',label:'是'},{id:'b',from:'check',to:'wait'}],[{id:'a',from:'check',to:'cool',label:'a'.repeat(15)},{id:'b',from:'check',to:'wait',label:'否'}]])assert.equal(BoardDiagramSchema.safeParse({...diagram,edges}).success,false);
 });
@@ -159,8 +159,14 @@ test('sequence kind lays out lifelines with bound horizontal messages, returns a
   assert.equal(arrows.length,4);
   for(const arrow of arrows){
     assert.ok(arrow.startBinding&&arrow.endBinding);
-    assert.ok(lifelineById.has(arrow.customData!.from as string)&&lifelineById.has(arrow.customData!.to as string));
-    for(const binding of [arrow.startBinding,arrow.endBinding])assert.ok(first.elements.some(e=>e.id===binding!.elementId&&e.boundElements.some((b:{id:string;type:string})=>b.id===arrow.id)));
+    const message=sequence.messages.find(m=>m.id===arrow.customData!.messageId)!;
+    const start=lifelineById.get(message.from)!,end=lifelineById.get(message.to)!;
+    assert.equal(arrow.startBinding.elementId,start.id);
+    assert.equal(arrow.endBinding.elementId,end.id);
+    for(const line of lifelines){
+      const references=line.boundElements.filter((b:{id:string;type:string})=>b.type==='arrow'&&b.id===arrow.id);
+      assert.equal(references.length,line===start||line===end?1:0,`${message.id}: one reference per participating lifeline`);
+    }
     const points=arrow.points as number[][];
     if(arrow.customData!.kind==='self'){assert.equal(points.length,4);assert.ok(points.every((p,i)=>!i||p[0]===points[i-1]![0]||p[1]===points[i-1]![1]));assert.equal(arrow.elbowed,false);}
     else{assert.ok(points.every(p=>p[1]===points[0]![1]),'message must be horizontal');assert.equal(arrow.elbowed,false);}
@@ -210,14 +216,32 @@ test('class kind builds three-compartment UML boxes with UML arrowheads and boun
   const arrows=first.elements.filter(e=>e.type==='arrow');
   assert.equal(arrows.length,3);
   for(const arrow of arrows){assert.ok(arrow.startBinding&&arrow.endBinding);assert.ok(boxById.has(byRole('class').find(box=>box.id===arrow.startBinding!.elementId)!.customData!.logicalId as string));}
-  const heads=Object.fromEntries(arrows.map(arrow=>[arrow.customData!.relationKind,arrow.endArrowhead]));
-  assert.equal(heads.inheritance,undefined);assert.equal(heads.association,null);assert.equal(heads.aggregation,'diamond_outline');assert.equal(heads.dependency,'arrow');
+  const aggregation=arrows.find(arrow=>arrow.customData!.relationKind==='aggregation')!;
+  assert.deepEqual([aggregation.startArrowhead,aggregation.endArrowhead],['diamond_outline',null]);
   const dependency=arrows.find(arrow=>arrow.customData!.relationKind==='dependency')!;
   assert.equal(dependency.strokeStyle,'dashed');
   assert.deepEqual(byRole('relation-label').map(label=>label.originalText),['1..*']);
   const canvas=first.summary.checks.canvas;
   for(const element of first.elements.filter(e=>!['canvas','title'].includes(e.customData?.boardRole as string)))assert.ok(element.x>=0&&element.y>=0&&element.x+element.width<=canvas.width&&element.y+element.height<=canvas.height);
 });
+
+for(const [kind,from,to,startHead,endHead] of [
+  ['composition','owner','part','diamond',null],
+  ['aggregation','owner','part','diamond_outline',null],
+  ['inheritance','child','parent',null,'triangle_outline'],
+  ['dependency','client','supplier',null,'arrow'],
+  ['association','left','right',null,null],
+] as const){
+  test(`class ${kind} binds the intended endpoints and decorates the correct side`,()=>{
+    const classes=[{id:to,name:to},{id:from,name:from}];
+    const relations=[{id:'rel',kind,from,to}];
+    const {elements}=generateBoardDiagram({kind:'class',title:'Class relation',summary:kind,classes,relations},namespace);
+    const relation=elements.find(e=>e.customData?.boardRole==='relation')!;
+    const boxId=(id:string)=>elements.find(e=>e.customData?.boardRole==='class'&&e.customData.logicalId===id)!.id;
+    assert.deepEqual([relation.startBinding?.elementId,relation.endBinding?.elementId],[boxId(from),boxId(to)]);
+    assert.deepEqual([relation.startArrowhead,relation.endArrowhead],[startHead,endHead]);
+  });
+}
 
 test('class schema rejects mixed models, unknown references and self relations',()=>{
   const base={title:'类图',summary:'校验',kind:'class',classes:[{id:'a',name:'A'},{id:'b',name:'B'}],relations:[{id:'r1',from:'a',to:'b'}]} as const;
@@ -401,4 +425,193 @@ test('sequence layout rejects dense wrapped messages with a bounded-canvas error
   const text='这是一个非常长的消息标签用于测试时序图在高密度布局下是否会压住箭头以及后续消息并且是否会导致画布溢出的真实缺陷'.repeat(3).slice(0,120);
   const messages=Array.from({length:14},(_,index)=>({id:'m'+index,from:index%2?'b':'a',to:index%2?'a':'b',text}));
   assert.throws(()=>generateBoardDiagram({title:'超密时序',summary:'长标签',kind:'sequence',participants:[{id:'a',name:'A'},{id:'b',name:'B'}],messages},namespace),/BOARD_LAYOUT_TOO_DENSE/);
+});
+
+test('semantic node types paint by role with two-tier labels, edge variants and a legend',()=>{
+  const typed={title:'冷却链路语义类型',summary:'类型色、副标签与边变体',direction:'down',
+    nodes:[
+      {id:'ops',text:'操作员',type:'user',sub:'现场运维'},
+      {id:'svc',text:'冷却服务',type:'process',sub:'FastAPI :8000'},
+      {id:'db',text:'冷却记录',type:'data',sub:'PostgreSQL'},
+      {id:'vendor',text:'供应商接口',type:'external',sub:'HTTPS'},
+      {id:'audit',text:'安全审计',type:'security'},
+      {id:'goal',text:'目标温度达成',type:'focal'}],
+    edges:[
+      {id:'a',from:'ops',to:'svc',variant:'emphasis',label:'下发'},
+      {id:'b',from:'svc',to:'db'},
+      {id:'c',from:'vendor',to:'svc',variant:'dashed'}]};
+  const first=generateBoardDiagram(typed,namespace),again=generateBoardDiagram(typed,namespace);
+  assert.deepEqual(first,again);
+  assert.equal(first.summary.checks.ok,true);
+  validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:first.elements,files:{}}));
+  const shapes=first.elements.filter(e=>e.customData?.boardRole==='node'),styleOf=(id:string)=>shapes.find(e=>e.customData.logicalId===id)!;
+  assert.equal(styleOf('ops').backgroundColor,'#faf5e9');assert.equal(styleOf('ops').strokeColor,'#9c7a3c');
+  assert.equal(styleOf('db').backgroundColor,'#f4f2fa');assert.equal(styleOf('db').strokeColor,'#7b6cb4');
+  assert.equal(styleOf('svc').backgroundColor,'#f7f9fa');assert.equal(styleOf('svc').strokeColor,'#46586b');assert.equal(styleOf('svc').strokeStyle,'solid');
+  assert.equal(styleOf('vendor').strokeStyle,'dashed');
+  assert.equal(styleOf('audit').strokeStyle,'dashed');assert.equal(styleOf('audit').strokeColor,'#b25b6a');assert.equal(styleOf('audit').backgroundColor,'#faf1f2');
+  assert.equal(styleOf('goal').strokeColor,'#2f6f4f');assert.equal(styleOf('goal').strokeWidth,2.5);assert.equal(styleOf('goal').backgroundColor,'#e7f2ee');
+  assert.equal(styleOf('goal').customData.nodeType,'focal');
+  const subs=first.elements.filter(e=>e.customData?.boardRole==='node-sub');
+  assert.equal(subs.length,4);
+  for(const sub of subs){const box=shapes.find(e=>e.customData.logicalId===sub.customData.logicalId)!;assert.equal(sub.strokeColor,'#687176');assert.ok(sub.y>box.y&&sub.y+sub.height<box.y+box.height+1e-6,'sublabel sits inside its node');assert.equal(sub.groupIds.join(),box.groupIds.join(),'sublabel moves with its node');}
+  const arrows=first.elements.filter(e=>e.type==='arrow');
+  const emphasis=arrows.find(a=>a.customData.variant==='emphasis')!;
+  assert.equal(emphasis.strokeColor,'#2f6f4f');assert.equal(emphasis.strokeWidth,3);assert.equal(emphasis.startArrowhead,'dot','emphasis edges start with a direction dot');
+  const dashed=arrows.find(a=>a.customData.variant==='dashed')!;
+  assert.equal(dashed.strokeStyle,'dashed');
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='legend-item'&&e.originalText==='外部系统'),'compact legend items render');
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='summary-note'&&String(e.text).startsWith('流程图 · ')),'summary footnote carries the kind tag');
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='node-dot'&&e.customData.logicalId==='goal'),'type sigil dots render on rectangle nodes');
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='legend-item'&&e.originalText==='主路径'));
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='legend-item'&&e.originalText==='外部系统'));
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='title-band'));
+  assert.equal(checkBoardCanvas(first.elements).ok,true);
+  const quiet=generateBoardDiagram({...typed,legend:'none'},namespace);
+  assert.ok(!quiet.elements.some(e=>e.customData?.boardRole==='legend-item'),'legend:none omits the items');
+});
+
+test('groups draw dashed boundary frames below nodes with a label strip and keep members inside',()=>{
+  const grouped={title:'分组边界',summary:'组框包住成员',nodes:[
+    {id:'a',text:'网关',type:'process'},{id:'b',text:'鉴权',type:'security'},{id:'c',text:'业务服务',type:'process'},{id:'d',text:'外部审计',type:'external'}],
+    edges:[{id:'e1',from:'a',to:'b'},{id:'e2',from:'b',to:'c'},{id:'e3',from:'c',to:'d',variant:'dashed'}],
+    groups:[{id:'g1',label:'安全边界',nodes:['a','b','c']}]};
+  const result=generateBoardDiagram(grouped,namespace);
+  assert.equal(result.summary.checks.ok,true);
+  assert.equal(result.summary.checks.groups,1);
+  const frame=result.elements.find(e=>e.customData?.boardRole==='group-frame')!;
+  assert.equal(frame.strokeStyle,'dashed');
+  const members=result.elements.filter(e=>e.customData?.boardRole==='node'&&['a','b','c'].includes(e.customData.logicalId));
+  for(const member of members)assert.ok(member.x>=frame.x&&member.y>=frame.y&&member.x+member.width<=frame.x+frame.width&&member.y+member.height<=frame.y+frame.height,'member stays inside its boundary: '+member.customData.logicalId);
+  assert.ok(result.elements.indexOf(frame)<Math.min(...members.map(m=>result.elements.indexOf(m))),'boundary sits below its member nodes');
+  const chip=result.elements.find(e=>e.customData?.boardRole==='group-chip')!,chipText=result.elements.find(e=>e.customData?.boardRole==='group-chip-text')!;
+  assert.equal(chipText.originalText,'安全边界');
+  assert.ok(chip.roundness&&chip.roundness.value>=12,'group label renders as a pill chip');
+  assert.ok(chip.y+chip.height<=Math.min(...members.map(m=>m.y))+1e-6,'boundary chip stays above the members');
+  assert.equal(checkBoardCanvas(result.elements).ok,true);
+});
+
+test('group schema requires flow kind, known members and single membership',()=>{
+  const base={title:'分组',summary:'校验',nodes:[{id:'a',text:'甲'},{id:'b',text:'乙'},{id:'c',text:'丙'}],edges:[{id:'e1',from:'a',to:'b'}],groups:[{id:'g1',label:'组',nodes:['a','b']}]} as const;
+  assert.equal(BoardDiagramSchema.safeParse(base).success,true);
+  assert.equal(BoardDiagramSchema.safeParse({...base,groups:[{id:'g1',label:'组',nodes:['a','ghost']}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,groups:[{id:'g1',label:'组',nodes:['a','b']},{id:'g2',label:'组二',nodes:['b','c']}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,groups:[{id:'g1',label:'组',nodes:['a']}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,kind:'swimlane',lanes:[{id:'l1',name:'泳道一'},{id:'l2',name:'泳道二'}],nodes:[{id:'a',text:'甲',lane:'l1'},{id:'b',text:'乙',lane:'l2'},{id:'c',text:'丙',lane:'l1'}]}).success,false);
+});
+
+test('state kind renders capsules with initial dots, double-ring finals and labeled transitions',()=>{
+  const machine={title:'冷却控制状态机',summary:'待机、运行与故障恢复',kind:'state',states:[
+    {id:'s0',initial:true},{id:'s1',name:'待机'},{id:'s2',name:'运行中'},{id:'s3',name:'故障恢复'},{id:'s4',final:true}],
+    transitions:[{id:'t1',from:'s0',to:'s1'},{id:'t2',from:'s1',to:'s2',label:'启动'},{id:'t3',from:'s2',to:'s3',label:'故障'},{id:'t4',from:'s3',to:'s1',label:'复位'},{id:'t5',from:'s2',to:'s4',label:'完成'}]};
+  const first=generateBoardDiagram(machine,namespace),again=generateBoardDiagram(machine,namespace);
+  assert.deepEqual(first,again);
+  validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:first.elements,files:{}}));
+  assert.equal(first.summary.checks.ok,true);
+  assert.equal(first.summary.nodes,5);assert.equal(first.summary.edges,5);
+  const states=first.elements.filter(e=>e.customData?.boardRole==='state');
+  assert.equal(states.length,5);
+  const initial=states.find(e=>e.customData.initial)!;
+  assert.equal(initial.type,'ellipse');assert.equal(initial.backgroundColor,'#3a4147');
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='state-final-core'),'final renders a double ring');
+  const capsules=states.filter(e=>e.type==='rectangle');
+  assert.equal(capsules.length,3);
+  for(const capsule of capsules){assert.ok(capsule.roundness&&capsule.roundness.value>=16,'capsule radius follows its height');assert.ok(first.elements.some(e=>e.containerId===capsule.id&&e.customData?.boardRole==='state-name'),'capsule carries its bound name');}
+  const arrows=first.elements.filter(e=>e.type==='arrow');
+  assert.equal(arrows.length,5);
+  assert.ok(arrows.every(a=>a.elbowed&&a.startBinding&&a.endBinding&&a.points.every((p:number[],i:number)=>!i||p[0]===a.points[i-1][0]||p[1]===a.points[i-1][1])));
+  for(const arrow of arrows)for(const binding of [arrow.startBinding,arrow.endBinding])assert.ok(first.elements.some(e=>e.id===binding!.elementId&&e.boundElements.some((b:{id:string;type:string})=>b.id===arrow.id&&b.type==='arrow')));
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='edge-label'&&e.originalText==='启动'));
+  const canvas=first.summary.checks.canvas;
+  for(const element of first.elements.filter(e=>!['canvas','title','title-band'].includes(e.customData?.boardRole as string)))assert.ok(element.x>=0&&element.y>=0&&element.x+element.width<=canvas.width&&element.y+element.height<=canvas.height);
+  assert.equal(checkBoardCanvas(first.elements).ok,true);
+});
+
+test('horizontal-first: omitting direction lays flow out left-to-right on a wide canvas',()=>{
+  const chain=[['a','开始'],['b','解析请求'],['c','执行处理'],['d','返回结果'],['e','归档']].map(([id,text])=>({id,text}));
+  const edges=[['e1','a','b'],['e2','b','c'],['e3','c','d'],['e4','d','e']].map(([id,from,to])=>({id,from,to}));
+  const horizontal=generateBoardDiagram({title:'横向优先链路',summary:'省略 direction 默认自左向右。',nodes:chain,edges},namespace);
+  const boxes=horizontal.elements.filter(e=>e.customData?.boardRole==='node');
+  assert.ok(horizontal.summary.checks.canvas.width>=horizontal.summary.checks.canvas.height,'wide canvas preferred over tall');
+  const byId=new Map(boxes.map(box=>[box.customData.logicalId as string,box]));
+  for(const [from,to] of [['a','b'],['b','c'],['c','d'],['d','e']])assert.ok(byId.get(to)!.x>byId.get(from)!.x,'chain advances rightward: '+from+'→'+to);
+  const maxSpan=Math.max(...boxes.map(b=>b.y+b.height))-Math.min(...boxes.map(b=>b.y));
+  assert.ok(maxSpan<=horizontal.summary.checks.canvas.height*.6,'content stays in a screen-friendly band');
+  const explicit=generateBoardDiagram({title:'纵向链路',summary:'显式 down 保持纵向阅读。',direction:'down',nodes:chain,edges},namespace);
+  const downBoxes=explicit.elements.filter(e=>e.customData?.boardRole==='node');
+  const downById=new Map(downBoxes.map(box=>[box.customData.logicalId as string,box]));
+  assert.ok(downById.get('b')!.y>downById.get('a')!.y,'explicit down keeps top-to-bottom flow');
+});
+
+test('state schema enforces named states, endpoints, budget and rejects mixed models',()=>{
+  const base={title:'状态',summary:'校验',kind:'state',states:[{id:'s1',name:'待机'},{id:'s2',name:'运行'}],transitions:[{id:'t1',from:'s1',to:'s2'}]} as const;
+  assert.equal(BoardDiagramSchema.safeParse(base).success,true);
+  assert.equal(BoardDiagramSchema.safeParse({...base,states:[{id:'s1'},{id:'s2',name:'运行'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,transitions:[{id:'t1',from:'s1',to:'ghost'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,transitions:[{id:'t1',from:'s1',to:'s1'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,nodes:[{id:'n1',text:'节点'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,edges:[{id:'e1',from:'s1',to:'s2'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,direction:'right'}).success,true,'state machines may run left-to-right');
+  assert.equal(BoardDiagramSchema.safeParse({...base,direction:'down'}).success,true,'state machines may also run top-down');
+  assert.equal(BoardDiagramSchema.safeParse({...base,groups:[{id:'g1',label:'组',nodes:['s1','s2']}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,states:[{id:'i1',initial:true},{id:'i2',initial:true},{id:'i3',initial:true},{id:'s2',name:'运行'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,states:[{id:'f1',final:true},{id:'f2',final:true},{id:'f3',final:true},{id:'s2',name:'运行'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({...base,states:[{id:'x',initial:true,final:true},{id:'s2',name:'运行'}]}).success,false);
+  assert.equal(BoardDiagramSchema.safeParse({title:'流程',summary:'流程不能带状态',states:[{id:'s1',name:'待机'},{id:'s2',name:'运行'}],transitions:[{id:'t1',from:'s1',to:'s2'}],nodes:[{id:'n1',text:'步骤'}]}).success,false);
+});
+
+test('tree kind renders a bus-style hierarchy with a single root and typed nodes',()=>{
+  const tree={title:'热管理功能分解',summary:'控制器、传感与执行三层拆解。',
+    kind:'tree',
+    nodes:[
+      {id:'sys',text:'热管理系统',type:'focal'},
+      {id:'ctrl',text:'控制单元',type:'process',sub:'MCU · 双环控制'},
+      {id:'sense',text:'传感采集',type:'data',sub:'NTC · CAN'},
+      {id:'act',text:'执行输出',type:'process',sub:'PWM 风扇'},
+      {id:'ui',text:'状态上报',type:'external',sub:'车机 HUD'},
+      {id:'diag',text:'故障诊断',type:'security'}],
+    edges:[{id:'e1',from:'sys',to:'ctrl'},{id:'e2',from:'sys',to:'sense'},{id:'e3',from:'sys',to:'act'},{id:'e4',from:'ctrl',to:'ui'},{id:'e5',from:'ctrl',to:'diag'}]};
+  const first=generateBoardDiagram(tree,namespace),again=generateBoardDiagram(tree,namespace);
+  assert.deepEqual(first,again);
+  validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:first.elements,files:{}}));
+  assert.equal(first.summary.checks.ok,true);
+  assert.equal(first.summary.checks.tree,true);
+  const shapes=first.elements.filter(e=>e.customData?.boardRole==='node'),byId=new Map(shapes.map(e=>[e.customData.logicalId as string,e]));
+  assert.ok(byId.get('sys')!.x<byId.get('ctrl')!.x,'root sits left of its children');
+  assert.ok(byId.get('ctrl')!.x<byId.get('ui')!.x,'grandchildren advance further right');
+  assert.ok(byId.get('sense')!.y<byId.get('act')!.y,'siblings stack vertically');
+  const arrows=first.elements.filter(e=>e.type==='arrow');
+  assert.equal(arrows.length,5);
+  assert.ok(arrows.every(a=>a.startBinding&&a.endBinding&&a.points.every((p:number[],i:number)=>!i||p[0]===a.points[i-1][0]||p[1]===a.points[i-1][1])),'bus connectors are orthogonal');
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='kind-tag'&&e.originalText==='层级图'));
+  assert.ok(first.elements.some(e=>e.customData?.boardRole==='legend-item'&&e.originalText==='焦点'));
+  assert.equal(checkBoardCanvas(first.elements).ok,true);
+});
+
+test('tree schema enforces single root, edge count, acyclicity and no edge labels',()=>{
+  const base={title:'树',summary:'校验',kind:'tree',nodes:[{id:'a',text:'根'},{id:'b',text:'子'},{id:'c',text:'孙'}],edges:[{id:'e1',from:'a',to:'b'},{id:'e2',from:'b',to:'c'}]} as const;
+  assert.equal(BoardDiagramSchema.safeParse(base).success,true);
+  assert.equal(BoardDiagramSchema.safeParse({...base,edges:[{id:'e1',from:'a',to:'b'}]}).success,false,'edge count must be nodes-1');
+  assert.equal(BoardDiagramSchema.safeParse({...base,nodes:[{id:'a',text:'根'},{id:'b',text:'子'},{id:'c',text:'孙'},{id:'d',text:'多余'}]}).success,false,'a second root is rejected');
+  assert.equal(BoardDiagramSchema.safeParse({...base,edges:[{id:'e1',from:'a',to:'b'},{id:'e2',from:'b',to:'a'}]}).success,false,'cycles are rejected');
+  assert.equal(BoardDiagramSchema.safeParse({...base,edges:[{id:'e1',from:'a',to:'b'},{id:'e2',from:'a',to:'c',label:'分支'}]}).success,false,'edge labels are rejected on trees');
+  assert.equal(BoardDiagramSchema.safeParse({...base,groups:[{id:'g1',label:'组',nodes:['a','b']}]}).success,false,'groups are flow-only');
+});
+
+test('architecture kind routes through the typed flow pipeline with groups and a kind tag',()=>{
+  const arch={title:'边缘计算架构',summary:'端、边、云三段。',
+    kind:'architecture',
+    nodes:[
+      {id:'device',text:'边缘设备',type:'user',sub:'ARM · MQTT'},
+      {id:'gateway',text:'边缘网关',type:'security',sub:'TLS 1.3'},
+      {id:'broker',text:'消息中间件',type:'data',sub:'Kafka'},
+      {id:'cloud',text:'云平台',type:'process',sub:'K8s'}],
+    edges:[{id:'a',from:'device',to:'gateway',variant:'emphasis'},{id:'b',from:'gateway',to:'broker'},{id:'c',from:'broker',to:'cloud'}],
+    groups:[{id:'edge',label:'边缘侧',nodes:['device','gateway']}]};
+  const result=generateBoardDiagram(arch,namespace);
+  assert.equal(result.summary.checks.ok,true);
+  assert.ok(result.elements.some(e=>e.customData?.boardRole==='kind-tag'&&e.originalText==='架构图'));
+  assert.ok(result.elements.some(e=>e.customData?.boardRole==='group-chip-text'&&e.originalText==='边缘侧'));
+  assert.ok(result.elements.some(e=>e.customData?.boardRole==='node'&&e.customData.logicalId==='broker'&&e.backgroundColor==='#f4f2fa'),'data tint applies');
+  assert.equal(checkBoardCanvas(result.elements).ok,true);
 });

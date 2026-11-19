@@ -394,3 +394,5 @@
 .cw-feishu-add:hover{background:#f2f7ec;border-style:solid}
 .cw-feishu-add:disabled{opacity:.45;cursor:not-allowed}
 @media (max-width:520px){.cw-feishu-line{grid-template-columns:1fr}}
+/* 悬浮带（编辑工作台 + AI 协作）：与右侧悬浮助手共享 18px 内边距的浮动带，底边不再贴视口底，恢复下边框与全圆角。 */
+@media (min-width: 761px){.workspace-root.floating-band .change-workbench{bottom:18px;left:18px;border-bottom:1px solid #dfe6d6;border-radius:12px}}

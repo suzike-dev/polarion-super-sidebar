@@ -3,6 +3,7 @@ import {BookOpen, PencilLine, X} from 'lucide-react';
 import type {Draft} from '../../../packages/protocol/index';
 import type {SourceNode} from '../../../packages/core/lossless-html';
 import {RichSurface} from './RichSurface';
+import {ModuleNotePanel} from './ModuleNotePanel';
 import './workitem-reader.css';
 
 export type WorkItemView = Draft & { nodes: SourceNode[]; version: string; source?: 'draft' | 'remote' };
@@ -30,9 +31,10 @@ export function WorkItemReader({ view, onClose, onOpenEditor, onWorkItem }: { vi
         </div>
         <button ref={closeButton} className="icon" aria-label="关闭阅读预览" title="关闭阅读预览（Esc）" onClick={onClose}><X size={17}/></button>
       </header>
+      <ModuleNotePanel target={view.target} workItemId={view.workItemId} dense />
       <div className="reader-body"><RichSurface draft={view} onSelect={() => {}} onContext={() => {}} onWorkItem={onWorkItem} title={`工作项 ${view.workItemId} 只读预览`}/></div>
       <footer>
-        <span className="muted">只读预览，不修改草稿，也不会写入 Polarion。</span>
+        <span className="muted">正文为只读预览。保存实现模块会更新此工作项的备注附件。</span>
         <div><button className="secondary" onClick={onClose}>关闭</button><button className="primary" onClick={onOpenEditor}><PencilLine size={14}/>打开编辑工作台</button></div>
       </footer>
     </section>

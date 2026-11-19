@@ -38,6 +38,18 @@ test('distilled experience is embedded as a mandatory follow-up block', () => {
   assert.doesNotMatch(enginePrompt(run, [], undefined, undefined, '   '), /历史经验沉淀/);
   assert.doesNotMatch(enginePrompt(run, []), /历史经验沉淀/);
 });
+test('model review uses the registered trace tool for the current item and asks for implementation evidence', () => {
+  const run = { prompt: '按模型细化需求', target: { projectId: 'p', document: 'd' }, contexts: [{ workItemId: 'A-1' }, { workItemId: 'B-2' }] } as unknown as Run;
+  const prompt = enginePrompt(run, [], undefined, undefined, undefined, 'EP1（模块目录）');
+  assert.match(prompt, /mcp__polarion_drafts__model_trace/);
+  assert.match(prompt, /note_read[^\n]*B-2/);
+  assert.match(prompt, /overview/);
+  assert.match(prompt, /模型块|接口信号/);
+  assert.doesNotMatch(prompt, /polarion_model_trace/);
+  const byModule = enginePrompt({ ...run, contexts: [] }, [], undefined, undefined, undefined, 'EP1');
+  assert.match(byModule, /requirements/);
+  assert.doesNotMatch(byModule, /workItemId=undefined/);
+});
 test('long work-item snapshots are truncated per turn while exact selections stay verbatim', () => {
   const base = { prompt: '继续', target: { projectId: 'p', document: 'd' } } as unknown as Run;
   const big = '工'.repeat(30000);

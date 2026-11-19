@@ -31,3 +31,5 @@ docs/assets/screenshots/
 # local tool state / test artifacts
 .spec-workflow/
 .app-runtime-test-*/
+
+spikes/board-preview/

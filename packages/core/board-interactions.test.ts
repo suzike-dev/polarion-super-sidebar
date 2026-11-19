@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {connectorTargetAt,quickConnectGeometry,alignSelection,distributeSelection,applyStickyColor,applyArrowStyle,STICKY_COLORS} from './board-interactions.ts';
+import {connectorTargetAt,quickConnectGeometry,alignSelection,distributeSelection,applyStickyColor,applyArrowStyle,applyNodeType,STICKY_COLORS} from './board-interactions.ts';
 import type {BoardElement} from './board-changes.ts';
 
 const el=(id:string,type:string,x:number,y:number,width:number,height:number,extra:Partial<BoardElement>={}):BoardElement=>({id,type,x,y,width,height,angle:0,strokeColor:'#000',backgroundColor:'transparent',strokeWidth:2,strokeStyle:'solid',roughness:0,opacity:100,groupIds:[],frameId:null,index:null,roundness:null,seed:1,version:1,versionNonce:1,isDeleted:false,boundElements:[],updated:0,link:null,locked:false,...extra} as BoardElement);
@@ -106,4 +106,24 @@ test('sticky color and arrow style only touch matching selected elements and kee
   assert.equal(plain.endArrowhead,null);assert.equal(plain.startArrowhead,null);assert.equal(plain.strokeStyle,'dashed','plain only removes arrowheads and keeps the chosen line style');
   const untouched=applyArrowStyle(colored,['s'],'dashed');
   assert.equal(untouched.find(element=>element.id==='a')!.strokeStyle,'solid','unselected arrows are untouched');
+});
+test('node-type palette repaints selected shapes only and never locked chrome',()=>{
+  const shape=el('n1','rectangle',0,0,180,80);
+  const boundText=el('t1','text',10,30,160,20,{containerId:'n1'});
+  const canvas=el('canvas','rectangle',0,0,960,600,{locked:true,customData:{boardRole:'canvas'}});
+  const legend=el('legend','rectangle',800,520,140,80,{locked:true,customData:{boardRole:'legend'}});
+  const arrow=el('e1','arrow',0,0,100,0,{points:[[0,0],[100,0]]});
+  const painted=applyNodeType([shape,boundText,canvas,legend,arrow],['n1','t1','canvas','legend','e1'],'security');
+  const byId=new Map(painted.map(element=>[element.id,element]));
+  const node=byId.get('n1')!;
+  assert.equal(node.backgroundColor,'#faf1f2');assert.equal(node.strokeColor,'#b25b6a');assert.equal(node.strokeStyle,'dashed');assert.equal(node.strokeWidth,2);assert.equal(node.customData!.nodeType,'security');
+  assert.ok(node.version>shape.version,'repainted node bumps its version');
+  assert.equal(byId.get('t1')!.backgroundColor,'transparent','bound text is not repainted');
+  assert.equal(byId.get('canvas')!.strokeColor,'#000','locked canvas is never repainted');
+  assert.equal(byId.get('canvas')!.customData!.boardRole,'canvas');
+  assert.equal(byId.get('legend')!.strokeColor,'#000','locked legend is never repainted');
+  assert.equal(byId.get('e1')!.strokeColor,'#000','arrows are not part of the node palette');
+  const focal=applyNodeType(painted,['n1'],'focal');
+  const focalNode=focal.find(element=>element.id==='n1')!;
+  assert.equal(focalNode.strokeWidth,2.5);assert.equal(focalNode.customData.nodeType,'focal');assert.equal(focalNode.strokeStyle,'solid');
 });

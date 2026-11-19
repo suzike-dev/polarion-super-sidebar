@@ -56,7 +56,7 @@ export function restyleDocument(document: JSONContent, rules: RestyleRules) {
     if (edit.kind === 'promote') {
       const depth = (NUMBERED.exec(node.textContent.trim())?.[1] ?? '1').split('.').length;
       const level = Math.min(6, Math.max(1, depth + (rules.headingLevelOffset ?? 0)));
-      const heading = richSchema.nodes.heading.createChecked({ ...node.attrs, level }, node.content);
+      const heading = richSchema.node('heading', { ...node.attrs, level }, node.content);
       tr.replaceWith(pos, pos + node.nodeSize, heading);
       promoted++;
       continue;

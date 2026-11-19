@@ -15,6 +15,7 @@ import { sameTarget } from '../../packages/protocol/index.ts';
 import { LosslessHtml } from '../../packages/core/lossless-html.ts';
 import { Store } from './store.ts';
 import { RichDocument } from '../../packages/core/rich-document.ts';
+import { sanitizeRichJSON } from '../../packages/core/rich-schema.ts';
 import type { JSONContent } from '@tiptap/core';
 import { Assets } from './assets.ts';
 import {Boards} from './boards.ts';
@@ -65,6 +66,9 @@ export interface Remote {
   metadataRead?(target: Target, workItemId: string, scope?: VariantScope, name?: string): Promise<Record<string, unknown> | null>;
   metadataWrite?(target: Target, workItemId: string, details: Record<string, unknown>, scope?: VariantScope, name?: string): Promise<{verified: boolean; updated?: string}>;
   board?(target: Target, workItemId: string, src: string, scope?: VariantScope): Promise<{manifest: unknown; source: string; preview: string}>;
+  modelNoteRead?(target: Target, workItemId: string): Promise<{note: unknown}>;
+  modelNoteWrite?(target: Target, workItemId: string, note: unknown): Promise<{verified: boolean; updated?: string}>;
+  modelNotes?(target: Target, query: string): Promise<{items: {workItemId: string; title: string; type: string; updated: string; marks: {rootId: string; modules: string[]}[]}[]; total: number; partial?: boolean}>;
 }
 export class Polarion implements Remote {
   async outline(target: Target): Promise<DocumentOutline> {
@@ -164,6 +168,15 @@ export class Polarion implements Remote {
   }
   board(target: Target, workItemId: string, src: string, scope?: VariantScope) {
     return this.call<{ manifest: unknown; source: string; preview: string }>({ method: 'board', target, workItemId, src, ...(scope ? { variant: scope } : {}) });
+  }
+  modelNoteRead(target: Target, workItemId: string) {
+    return this.call<{ note: unknown }>({ method: 'model.note.read', target, workItemId });
+  }
+  modelNoteWrite(target: Target, workItemId: string, note: unknown) {
+    return this.call<{ verified: boolean; updated?: string }>({ method: 'model.note.write', target, workItemId, note });
+  }
+  modelNotes(target: Target, query: string) {
+    return this.call<{ items: { workItemId: string; title: string; type: string; updated: string; marks: { rootId: string; modules: string[] }[]; links: { workItemId: string; role: string }[] }[]; total: number; partial?: boolean }>({ method: 'model.notes', target, query });
   }
   async stop() {
     const child = this.child; if (!child) return;
@@ -315,7 +328,7 @@ export class Drafts {
     const draft = this.read(id); const model = new RichDocument(draft.html);
     const session: RichSession = { id: model.version, draftId: id, source: draft.html, revision: draft.revision };
     this.store.put('rich-editor', session.id, session); this.richModels.set(session.id, model);
-    return { editorId: session.id, draft, document: structuredClone(model.document) };
+    return { editorId: session.id, draft, document: sanitizeRichJSON(structuredClone(model.document)) };
   }
   richApply(id: string, editorId: string, expectedRevision: number, document: JSONContent) {
     if (this.saving.has(id)) throw Error('DRAFT_SAVING');

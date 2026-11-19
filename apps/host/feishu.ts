@@ -178,3 +178,48 @@ export async function sendCardToGroups(groups: SendTarget[], card: Card): Promis
     }
   }));
 }
+
+/** 每日晨报卡：整册体检摘要 + 模型巡检结论 + 待办提示；夜间/手动触发共用。 */
+export function buildMorningCard(input: { projectId: string; document: string; at: number; quality: { checked: number; clean: number; findings: number; topRules: { ruleId: string; count: number }[] }; checks: { label: string; ok: boolean; changedFiles: number; findings: number; modules: string[] }[]; pendingProposals: number }): Card {
+  const when = new Date(input.at).toLocaleString('zh-CN', { hour12: false });
+  const qualityLine = input.quality.checked
+    ? `体检 ${input.quality.checked} 条：${input.quality.clean} 通过 · ${input.quality.findings} 条有发现${input.quality.topRules.length ? `\n高频规则：${input.quality.topRules.map(rule => `${rule.ruleId} ×${rule.count}`).join('、')}` : ''}`
+    : '整册体检未执行（无规则或读取失败）';
+  const checkLines = input.checks.length
+    ? input.checks.map(check => check.ok ? `${check.label}：与基准一致` : `${check.label}：${check.changedFiles} 个文件变化、${check.findings} 个模块需关注${check.modules.length ? `（${check.modules.slice(0, 5).join('、')}${check.modules.length > 5 ? '…' : ''}）` : ''}`).join('\n')
+    : '模型巡检：未绑定目录或未设基准';
+  return {
+    config: {wide_screen_mode: true},
+    header: {
+      template: input.quality.findings || input.checks.some(check => !check.ok) ? 'orange' : 'green',
+      title: {tag: 'plain_text', content: `晨报 · ${input.projectId}`},
+      subtitle: {tag: 'plain_text', content: `${input.document.split('/').at(-1)} · ${when}`},
+    },
+    elements: [
+      greyBlock(`**质量体检**\n${qualityLine}`),
+      greyBlock(`**模型一致性**\n${checkLines}`),
+      greyBlock(`**待办**\n待审批提案 ${input.pendingProposals} 条${input.pendingProposals ? '（侧栏收件箱处理）' : ''}`),
+      {tag: 'note', elements: [{tag: 'plain_text', content: 'Polarion 超级侧边栏 · 自动晨报'}]},
+    ],
+  };
+}
+
+/** AI 预审评审汇总卡：按严重程度计数 + 未决问题清单；评审完成/分享时发送。 */
+export function buildReviewCard(input: { projectId: string; document: string; at: number; issues: { severity: string; summary: string; workItemId?: string; suggestion?: string }[] }): Card {
+  const open = input.issues;
+  const bySeverity = { blocker: open.filter(issue => issue.severity === 'blocker').length, major: open.filter(issue => issue.severity === 'major').length, minor: open.filter(issue => issue.severity === 'minor').length };
+  const lines = open.slice(0, 10).map((issue, index) => `${index + 1}. [${issue.severity}]${issue.workItemId ? ` ${issue.workItemId}：` : ' '}${issue.summary}${issue.suggestion ? `\n   建议：${issue.suggestion}` : ''}`);
+  return {
+    config: {wide_screen_mode: true},
+    header: {
+      template: bySeverity.blocker ? 'red' : bySeverity.major ? 'orange' : 'green',
+      title: {tag: 'plain_text', content: `AI 预审汇总 · ${input.projectId}`},
+      subtitle: {tag: 'plain_text', content: `${input.document.split('/').at(-1)} · ${new Date(input.at).toLocaleString('zh-CN', { hour12: false })}`},
+    },
+    elements: [
+      greyBlock(`**评审结论**\n共 ${open.length} 个未决问题：阻断 ${bySeverity.blocker} · 重要 ${bySeverity.major} · 建议 ${bySeverity.minor}`),
+      ...(lines.length ? [greyBlock(`**问题清单（前 10 条）**\n${lines.join('\n')}`)] : []),
+      {tag: 'note', elements: [{tag: 'plain_text', content: 'Polarion 超级侧边栏 · AI 预审'}]},
+    ],
+  };
+}

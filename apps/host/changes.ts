@@ -1,5 +1,6 @@
 import {createHash, randomBytes} from 'node:crypto';
 import {gzipSync, gunzipSync} from 'node:zlib';
+import type {Draft, Proposal} from '../../packages/protocol/index.ts';
 import {Store} from './store.ts';
 import {Drafts, type ChangeRemoteRow, type ChangeWriteResult, type SnapshotItem} from './polarion.ts';
 import {Assets} from './assets.ts';
@@ -29,6 +30,7 @@ const FEISHU_FILE = 'sidebar-feishu.groups.json';
 type SnapshotPayload = {v: 1; target: Target; documentTitle: string; at: number; items: SnapshotItem[]};
 
 type ChangeMeta = {
+  source?: Proposal['source'];
   v: 1;
   recordId: string;
   document: string;
@@ -173,6 +175,8 @@ export class Changes {
       session: session ?? null,
       records: loaded.records,
       projectRecords: loaded.projectRecords,
+      proposalActivity: this.store.list<Proposal>('proposal').filter(p => p.target.origin === target.origin && p.target.projectId === target.projectId && p.status === 'applied' && !p.recordId && p.op.kind !== 'gate')
+        .sort((a,b) => (b.appliedAt ?? 0) - (a.appliedAt ?? 0)).map(({id,target,source,summary,appliedAt,workItemId,recordError,savedToPolarion}) => ({id,target,source,summary,appliedAt,workItemId,recordError,savedToPolarion})),
       share: this.share.status(),
       online: loaded.online,
       ...(loaded.warning ? {warning: loaded.warning} : {}),
@@ -251,7 +255,7 @@ export class Changes {
           return {
             target: recordTarget,
             meta: {
-              v: 1, recordId: record.id, document: recordTarget.document, docTitle: record.documentTitle, state: 'done',
+              v: 1, recordId: record.id, source: record.source ?? 'manual', document: recordTarget.document, docTitle: record.documentTitle, state: 'done',
               baselineAt: record.baselineAt, endedAt: record.endedAt, itemCount: record.itemCount,
               changedItems: record.changedItems, added: record.added, removed: record.removed, modified: record.modified, moved: record.moved,
               headline: record.headline, ai: record.aiSummary.status, attachment: name,
@@ -276,7 +280,7 @@ export class Changes {
     const parsed = Date.parse(row.updated);
     const endedAt = meta.endedAt ?? (Number.isFinite(parsed) ? parsed : Date.now());
     return {
-      id: meta.recordId, target, documentTitle: meta.docTitle ?? docLabel(target),
+      id: meta.recordId, source:meta.source ?? 'manual', target, documentTitle: meta.docTitle ?? docLabel(target),
       baselineAt: meta.baselineAt, endedAt,
       itemCount: meta.itemCount, changedItems: meta.changedItems ?? 0,
       added: meta.added ?? 0, removed: meta.removed ?? 0, modified: meta.modified ?? 0, moved: meta.moved ?? 0,
@@ -610,7 +614,7 @@ export class Changes {
 
   private metaFromRecord(record: ChangeRecord): ChangeMeta {
     return {
-      v: 1, recordId: record.id, document: record.target.document, docTitle: record.documentTitle, state: 'done',
+      v: 1, recordId: record.id, source: record.source ?? 'manual', document: record.target.document, docTitle: record.documentTitle, state: 'done',
       baselineAt: record.baselineAt, endedAt: record.endedAt, itemCount: record.itemCount,
       changedItems: record.changedItems, added: record.added, removed: record.removed, modified: record.modified, moved: record.moved,
       headline: record.headline, ai: record.aiSummary.status, attachment: record.attachmentName ?? this.fileName(record.id, 'record'),
@@ -687,6 +691,23 @@ export class Changes {
       const latest = await this.rowFor(record.target, record.workItemId);
       return attempt(latest?.updated);
     }
+  }
+
+  /** Build a one-item shared record from the verified save, independent of any open baseline session. */
+  async recordSave(proposal: Pick<Proposal,'id'|'source'|'summary'|'createdAt'>, before: Draft, saved: Draft) {
+    const target = saved.target, documentTitle = docLabel(target), at = proposal.createdAt;
+    const prior: SnapshotItem = {id:before.workItemId,title:before.title,type:'',status:'',outline:'',html:before.baseHtml,updated:'before'};
+    const current = {...prior,title:saved.title,html:saved.baseHtml,updated:'after'};
+    const session: LocalSession = {id:proposal.id,target,documentTitle,baselineAt:at,startedAt:at,state:'active',itemCount:1};
+    const record = this.buildRecord(target,session,{v:1,target,documentTitle,at,items:[prior]},{documentTitle,items:[current]},saved.savedAt ?? Date.now());
+    record.source = proposal.source;
+    record.note = proposal.summary;
+    record.attachmentName = this.fileName(record.id,'record');
+    const written = await this.writeCreateRecord(record,this.metaFromRecord(record),[current]);
+    record.workItemId = written.workItemId;
+    record.updated = written.updated;
+    this.cacheRecord(record);
+    return record.id;
   }
 
   private buildRecord(target: Target, session: LocalSession, baseline: SnapshotPayload, current: {documentTitle: string; items: SnapshotItem[]}, endedAt: number): ChangeRecord {
@@ -785,7 +806,7 @@ export class Changes {
     const saveCount = this.store.list<{target: Target; startedAt: number}>('save')
       .filter(save => sameTarget(save.target, target) && save.startedAt >= session.baselineAt && save.startedAt <= endedAt).length;
     return {
-      id: session.id, target, documentTitle: current.documentTitle || session.documentTitle,
+      id: session.id, source:'manual', target, documentTitle: current.documentTitle || session.documentTitle,
       baselineAt: session.baselineAt, endedAt, itemCount,
       changedItems: changes.length, ...kindCounts,
       aiStatus: 'pending', headline,
@@ -948,7 +969,7 @@ export class Changes {
 
   private summaryFromRecord(record: ChangeRecord): ChangeRecordSummary {
     return {
-      id: record.id, target: record.target, documentTitle: record.documentTitle,
+      id: record.id, source:record.source ?? 'manual', target: record.target, documentTitle: record.documentTitle,
       baselineAt: record.baselineAt, endedAt: record.endedAt, itemCount: record.itemCount,
       changedItems: record.changedItems, added: record.added, removed: record.removed, modified: record.modified, moved: record.moved,
       aiStatus: record.aiSummary.status, headline: record.headline,

@@ -116,6 +116,7 @@ test('explicit refusal has one correlated tool outcome and late hooks cannot ove
  try{
   const first=await f.turn(),second=await f.turn();assert.equal(first.status,'completed');assert.equal(second.status,'completed');
   const outcomes=f.store.events(f.session.id,0).filter(e=>e.kind==='tool-result');
+  assert.deepEqual(f.engines.proposals.list().map(p=>[p.source,p.status]),[['agent','rejected']]);
   const refused=outcomes.filter(e=>(e.data as any).id==='refused-call');assert.equal(refused.length,1);assert.equal(refused[0]!.runId,first.id);
   assert.equal((refused[0]!.data as any).status,'failed');assert.equal((refused[0]!.data as any).outcome,'denied');assert.match((refused[0]!.data as any).summary,/用户已拒绝/);
   assert.equal(outcomes.filter(e=>e.runId===second.id).length,1);assert.equal((outcomes.find(e=>e.runId===second.id)!.data as any).status,'completed');

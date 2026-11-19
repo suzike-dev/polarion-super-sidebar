@@ -151,9 +151,11 @@ test('class diagrams pass the real generate tool as UML compartments with typed 
  validateBoardSource(JSON.stringify({type:'excalidraw',version:2,elements:p.elements,files:{}}));
  const roles=p.elements.map(e=>e.customData?.boardRole as string);
  assert.equal(roles.filter(r=>r==='class').length,3);assert.equal(roles.filter(r=>r==='relation').length,3);
- const heads=p.elements.filter(e=>e.type==='arrow').map(e=>[e.customData?.relationKind,e.endArrowhead]);
- assert.ok(heads.some(([kind,head])=>kind==='aggregation'&&head==='diamond_outline'));
- assert.ok(heads.some(([kind,head])=>kind==='dependency'&&head==='arrow'));
+ const arrows=p.elements.filter(e=>e.type==='arrow');
+ const aggregation=arrows.find(e=>e.customData?.relationKind==='aggregation');
+ assert.equal(aggregation?.startArrowhead,'diamond_outline');
+ assert.equal(aggregation?.endArrowhead,null);
+ assert.ok(arrows.some(e=>e.customData?.relationKind==='dependency'&&e.endArrowhead==='arrow'));
  assert.equal(boards.decideGeneration(draft,p.proposalId,'apply','a'.repeat(64)).status,'applied');
  assert.equal(store.list('asset').length,0);assert.equal(store.list('board').length,0);
  controller.abort();

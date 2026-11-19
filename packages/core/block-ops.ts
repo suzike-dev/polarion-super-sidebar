@@ -35,12 +35,12 @@ function protectedInside(node: PMNode) {
 function buildBlock(spec: BlockSpec): PMNode {
   if (spec.type === 'heading') {
     const level = Math.min(Math.max(Math.floor(spec.level), 1), 6);
-    return richSchema.nodes.heading.createChecked({ level }, spec.text.trim() ? [richSchema.text(spec.text.trim())] : undefined);
+    return richSchema.node('heading', { level }, spec.text.trim() ? [richSchema.text(spec.text.trim())] : undefined);
   }
-  if (spec.type === 'paragraph') return richSchema.nodes.paragraph.createChecked(null, spec.text.trim() ? [richSchema.text(spec.text.trim())] : undefined);
+  if (spec.type === 'paragraph') return richSchema.node('paragraph', null, spec.text.trim() ? [richSchema.text(spec.text.trim())] : undefined);
   const itemType = spec.type === 'bulletList' ? 'bulletList' : 'orderedList';
-  const items = spec.items.map(item => richSchema.nodes.listItem.createChecked(null, [richSchema.nodes.paragraph.createChecked(null, item.trim() ? [richSchema.text(item.trim())] : undefined)]));
-  return richSchema.nodes[itemType].createChecked(null, items);
+  const items = spec.items.map(item => richSchema.node('listItem', null, [richSchema.node('paragraph', null, item.trim() ? [richSchema.text(item.trim())] : undefined)]));
+  return richSchema.node(itemType, null, items);
 }
 
 /** 顶层块定位（doc 直接子节点）；needle 为块内文字子串（空白不敏感）。 */
@@ -90,8 +90,8 @@ export function applyBlockOperations(document: JSONContent, operations: BlockOpe
       if (hit.item.childCount !== 1 || hit.item.firstChild?.type.name !== 'paragraph') throw Error('LIST_ITEM_COMPLEX');
       const paragraph = hit.item.firstChild!;
       const replacement = operation.block === 'paragraph'
-        ? richSchema.nodes.paragraph.createChecked({ ...paragraph.attrs, sid: null }, paragraph.content)
-        : richSchema.nodes.heading.createChecked({ ...paragraph.attrs, sid: null, level: Math.min(Math.max(operation.block.heading, 1), 6) }, paragraph.content);
+        ? richSchema.node('paragraph', { ...paragraph.attrs, sid: null }, paragraph.content)
+        : richSchema.node('heading', { ...paragraph.attrs, sid: null, level: Math.min(Math.max(operation.block.heading, 1), 6) }, paragraph.content);
       const items: PMNode[] = [];
       hit.list.forEach(item => { items.push(item); });
       const before = items.slice(0, hit.index), after = items.slice(hit.index + 1);
@@ -131,12 +131,12 @@ export function applyBlockOperations(document: JSONContent, operations: BlockOpe
       if (source.type.name !== 'paragraph' && source.type.name !== 'heading') throw Error('BLOCK_TYPE_UNSUPPORTED');
       if (protectedInside(source) && operation.block !== 'paragraph' && source.type.name !== 'paragraph') { /* 段落内受保护内联对象随内容保留，无需拒绝 */ }
       let replacement: PMNode;
-      if (operation.block === 'paragraph') replacement = richSchema.nodes.paragraph.createChecked({ ...(source.type.name === 'heading' ? {} : source.attrs) }, source.content);
-      else if (typeof operation.block === 'object') replacement = richSchema.nodes.heading.createChecked({ ...source.attrs, level: Math.min(Math.max(operation.block.heading, 1), 6) }, source.content);
+      if (operation.block === 'paragraph') replacement = richSchema.node('paragraph', { ...(source.type.name === 'heading' ? {} : source.attrs) }, source.content);
+      else if (typeof operation.block === 'object') replacement = richSchema.node('heading', { ...source.attrs, level: Math.min(Math.max(operation.block.heading, 1), 6) }, source.content);
       else {
         const listType = operation.block === 'bulletItem' ? 'bulletList' : 'orderedList';
-        const item = richSchema.nodes.listItem.createChecked(null, [richSchema.nodes.paragraph.createChecked(null, source.content)]);
-        replacement = richSchema.nodes[listType].createChecked(null, [item]);
+        const item = richSchema.node('listItem', null, [richSchema.node('paragraph', null, source.content)]);
+        replacement = richSchema.node(listType, null, [item]);
       }
       tr.replaceWith(target.pos, target.pos + source.nodeSize, replacement);
       changes.typed = (changes.typed ?? 0) + 1;

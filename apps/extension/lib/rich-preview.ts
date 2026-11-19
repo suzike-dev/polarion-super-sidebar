@@ -1,9 +1,12 @@
 import { macroNameOf, type SourceNode } from '../../../packages/core/lossless-html.ts';
 import type { Target } from '../../../packages/protocol/index';
 import {headingSizes} from '../../../packages/core/document-presentation.ts';
-const tags = new Set('a b blockquote br caption code col colgroup div em font h1 h2 h3 h4 h5 h6 hr i img li ol p pre s span strong sub sup table tbody td tfoot th thead tr u ul'.split(' '));
-const cssProperties = new Set('color background-color font-family font-size font-weight font-style text-decoration text-align vertical-align white-space width min-width max-width height min-height max-height border border-top border-right border-bottom border-left border-width border-style border-color border-collapse border-spacing padding padding-left padding-right padding-top padding-bottom margin margin-left margin-right margin-top margin-bottom line-height list-style-type'.split(' '));
-const attrs = new Set(['colspan', 'rowspan', 'span', 'width', 'height', 'align', 'valign', 'start', 'reversed', 'type', 'alt', 'title', 'color', 'face', 'size', 'data-source-node', 'data-protected', 'data-review-change']);
+import {highlightToHtml, highlightThemeCss} from '../../../packages/core/code-highlight.ts';
+import katex from 'katex';
+import {detectBoardCode} from './board-code.ts';
+const tags = new Set('a b blockquote br caption code col colgroup details div em font h1 h2 h3 h4 h5 h6 hr i img li mark ol p pre s span strong sub summary sup table tbody td tfoot th thead tr u ul'.split(' '));
+const cssProperties = new Set('color background-color font-family font-size font-weight font-style text-decoration text-align vertical-align white-space width min-width max-width height min-height max-height border border-top border-right border-bottom border-left border-width border-style border-color border-collapse border-spacing border-radius padding padding-left padding-right padding-top padding-bottom margin margin-left margin-right margin-top margin-bottom line-height list-style-type'.split(' '));
+const attrs = new Set(['colspan', 'rowspan', 'span', 'width', 'height', 'align', 'valign', 'start', 'reversed', 'type', 'alt', 'title', 'color', 'face', 'size', 'data-source-node', 'data-protected', 'data-review-change', 'data-sidebar-formula', 'data-tex', 'data-sidebar-details', 'data-sidebar-callout', 'data-sidebar-tasks', 'data-sidebar-task', 'data-checked', 'data-task-marker', 'data-task-content', 'open']);
 const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 /** Display-only transformation. This HTML must never be used as the source of a save. */
@@ -30,6 +33,9 @@ export function richPreview(source: string, nodes: readonly SourceNode[], target
         try { const url = new URL(attr.value, target.origin + '/polarion/'); if (url.origin !== target.origin && !/^data:image\/(png|jpeg|gif|webp);base64,/i.test(attr.value)) element.removeAttribute(key); else element.setAttribute(key, url.href); } catch { element.removeAttribute(key); }
       } else if (key === 'href' && tag === 'a') {
         try { const url = new URL(attr.value, target.origin + '/polarion/'); if (!['https:', 'http:'].includes(url.protocol)) element.removeAttribute(key); else element.setAttribute(key, url.href); } catch { element.removeAttribute(key); }
+      } else if (key === 'class' && tag === 'code') {
+        const lang=attr.value.split(/\s+/).find(value=>/^language-[\w+-]{1,40}$/.test(value));
+        if(lang)element.setAttribute('class',lang);else element.removeAttribute(key);
       } else if (!attrs.has(key)) element.removeAttribute(key);
     }
     // 原生引用是空 span，由 Polarion 脚本补文字；本地预览自己补上编号并保留可点击标记。
@@ -42,6 +48,23 @@ export function richPreview(source: string, nodes: readonly SourceNode[], target
     const wrapper = parsed.createElement('div');
     wrapper.className = 'preview-table';
     table.replaceWith(wrapper); wrapper.append(table);
+  }
+  // 代码高亮：渲染层装饰，写回内容不受影响。
+  for (const code of Array.from(parsed.body.querySelectorAll('pre > code'))) {
+    const language = Array.from(code.classList).find(c => c.startsWith('language-'))?.slice(9) ?? '';
+    const text=code.textContent??'';
+    if(detectBoardCode(language,text)){
+      const open=parsed.createElement('button');open.type='button';open.setAttribute('data-open-board','');open.textContent='在画板中打开';
+      code.parentElement!.after(open);
+    }
+    const highlighted = highlightToHtml(text, language);
+    if (highlighted !== null) code.innerHTML = highlighted;
+  }
+  // 公式：KaTeX MathML 输出（浏览器原生渲染，无需字体资源）；失败时保留等宽源码文本。
+  for (const formula of Array.from(parsed.body.querySelectorAll('[data-sidebar-formula]'))) {
+    const tex = formula.getAttribute('data-tex') ?? formula.textContent ?? '';
+    const block = formula.getAttribute('data-sidebar-formula') === 'block';
+    try { formula.innerHTML = katex.renderToString(tex, { output: 'mathml', throwOnError: false, displayMode: block }); formula.classList.add(block ? 'formula-block' : 'formula-inline'); } catch { /* 保留源码 */ }
   }
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https://polarion.pufafen.com data: blob:; style-src 'unsafe-inline'"><style>
 html{min-height:100%;background:#fff}
@@ -66,6 +89,16 @@ code{background:#eef2f7;padding:2px 5px;color:#af4e66;font-size:.92em;font-famil
 .preview-workitem-ref{display:inline-block;padding:0 5px;border:1px solid #e6d5bb;border-radius:4px;background:#fbf4e8;color:#7a5316;font-size:12.5px;white-space:nowrap;cursor:pointer;text-decoration:none}
 .preview-workitem-ref:hover{background:#f6ead4;border-color:#d9c19c}
 pre{white-space:pre-wrap;max-width:100%;overflow:auto}
+${highlightThemeCss}
+[data-sidebar-formula]{font-family:Consolas,'Courier New',monospace}
+.formula-block{display:block;margin:10px 0;padding:8px 12px;background:#f6f8fa;overflow-x:auto}
+.formula-inline{padding:0 3px}
+details[data-sidebar-details]{margin:12px 0;border:1px solid #d7e1ed;border-radius:4px;padding:0}
+details[data-sidebar-details]>summary{padding:8px 12px;font-weight:600;cursor:pointer;color:#22577a}
+ul[data-sidebar-tasks]{list-style:none;padding-left:6px}
+ul[data-sidebar-tasks] li[data-sidebar-task]{position:relative;padding-left:22px;margin:4px 0}
+ul[data-sidebar-tasks] li[data-sidebar-task]>span[data-task-marker]{position:absolute;left:0;top:0}
+img{cursor:zoom-in}
 @media(max-width:600px){body{padding:18px 16px}}
 </style></head><body>${parsed.body.innerHTML}</body></html>`;
 }

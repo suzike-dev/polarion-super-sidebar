@@ -98,6 +98,9 @@ export class RichDocument {
       j.marks = [...parentMarks, { type: 'sourceText', attrs: { sid: r.id } }]; return [j];
     }
     const attrs = 'attrs' in n ? Object.fromEntries(n.attrs.map(a => [a.name, a.value])) : {};
+    if(n.nodeName==='span'&&attrs['data-sidebar-formula']!==undefined){
+      const j:J={type:'formulaInline',attrs:{tex:(attrs['data-tex']??this.textContent(n)).slice(0,4000)},marks:parentMarks};this.record(n,j);return[j];
+    }
     if(n.nodeName==='img'){
       const local=attrs.src?.match(/^polarion-asset:([0-9a-f-]{36})$/i)?.[1];
       const style=attrs.style??'',align=/margin-left\s*:\s*auto/i.test(style)?(/margin-right\s*:\s*auto/i.test(style)?'center':'right'):'left';
@@ -137,6 +140,18 @@ export class RichDocument {
         const j:J={type:'callout',attrs:{tone:attrs['data-sidebar-callout']},content:this.blocks('childNodes' in cells[0]?cells[0].childNodes:[])};if(!j.content!.length)j.content=[{type:'paragraph'}];const r=this.record(n,j);r.children=j.content!.map(identity).filter(Boolean) as string[];return j;
       }
       return this.opaque(n,false);
+    }
+    if((n.nodeName==='div'||n.nodeName==='p')&&attrs['data-sidebar-formula']!==undefined){
+      const j:J={type:'formula',attrs:{tex:(attrs['data-tex']??this.textContent(n)).slice(0,4000)}};this.record(n,j);return j;
+    }
+    if(n.nodeName==='details'){
+      const kids='childNodes'in n?n.childNodes:[];
+      const summary=kids.find(c=>c.nodeName==='summary');
+      const content:J[]=[];
+      if(summary){const s:J={type:'detailsSummary',content:'childNodes'in summary?summary.childNodes.flatMap(c=>this.inline(c,[])):[]};this.record(summary,s);content.push(s);}
+      else content.push({type:'detailsSummary',content:[]});
+      const body=this.blocks(kids.filter(c=>c!==summary));content.push(...(body.length?body:[{type:'paragraph'}]));
+      const j:J={type:'details',attrs:{open:attrs.open!==undefined},content};const r=this.record(n,j);r.children=content.map(identity).filter(Boolean) as string[];return j;
     }
     if (hasMacro(attrs)&&(macroName(attrs)!=='table'||n.nodeName!=='table'&&!isTableWrapper(n))) return this.opaque(n, false);
     const type = isTableWrapper(n)||isBlockWrapper(n)?'sourceContainer':/^h[1-6]$/.test(n.nodeName) ? 'heading' : tags[n.nodeName];
@@ -189,6 +204,7 @@ export class RichDocument {
     return j;
   }
   private emptySourceParagraph(n:H):J{const loc=n.sourceCodeLocation;const j:J={type:'paragraph'};this.record({nodeName:'#synthetic',sourceCodeLocation:loc?{...loc,endOffset:loc.startOffset}:undefined} as H,j,true);return j;}
+  private textContent(n:H):string{return 'value'in n?String(n.value):'childNodes'in n?n.childNodes.map(c=>this.textContent(c)).join(''):'';}
   private safeLink(href: string) { return /^(https?:\/\/|mailto:|\/|#)/i.test(href) && !/^\/\//.test(href); }
   serialize(input: J) {
     if (JSON.stringify(input).length > 2_000_000) throw Error('RICH_DOCUMENT_TOO_LARGE');
@@ -214,7 +230,7 @@ export class RichDocument {
       if(j.type==='taskList')return ['<ul data-sidebar-tasks="true" style="list-style:none;padding-left:4px">','</ul>'];
       if(j.type==='taskItem')return [`<li data-sidebar-task="true" data-checked="${a.checked?'true':'false'}" style="list-style:none;position:relative;padding-left:24px"><span data-task-marker="true" style="position:absolute;left:0;top:0">${a.checked?'☑':'☐'}</span><div data-task-content="true">`,'</div></li>'];
       let tag = r?.tag;
-      const freshTags: Record<string, string> = { paragraph: 'p', heading: `h${a.level ?? 1}`, bulletList: 'ul', orderedList: 'ol', listItem: 'li', blockquote: 'blockquote', sourceContainer: 'div', table: 'table', tableRow: 'tr', tableCell: 'td', tableHeader: 'th', horizontalRule: 'hr', hardBreak: 'br', bold: 'strong', italic: 'em', underline: 'u', strike: 's', code: 'code', link: 'a', subscript: 'sub', superscript: 'sup', sourceSpan: 'span', paint: 'span' };
+      const freshTags: Record<string, string> = { paragraph: 'p', heading: `h${a.level ?? 1}`, bulletList: 'ul', orderedList: 'ol', listItem: 'li', blockquote: 'blockquote', sourceContainer: 'div', table: 'table', tableRow: 'tr', tableCell: 'td', tableHeader: 'th', horizontalRule: 'hr', hardBreak: 'br', bold: 'strong', italic: 'em', underline: 'u', strike: 's', code: 'code', link: 'a', subscript: 'sub', superscript: 'sup', sourceSpan: 'span', paint: 'span', details: 'details', detailsSummary: 'summary' };
       if (!r || r.original.type !== j.type || r.synthetic) tag = freshTags[j.type!];
       if (j.type === 'heading') tag = `h${a.level}`;
       if(j.type==='codeBlock')tag='pre';
@@ -242,6 +258,7 @@ export class RichDocument {
       }
       if(j.type==='table'&&a.sourceStyle!==r?.original.attrs?.sourceStyle){const spacing=style.match(/(?:^|;)\s*border-spacing\s*:\s*(\d+)px\s*(?:;|$)/)?.[1];if(spacing)attributes.cellspacing=spacing;}
       if (j.type === 'orderedList') set('start', a.start, 1);
+      if (j.type === 'details') set('open', a.open ? '' : null);
       if (j.type === 'link') { if (!this.safeLink(a.href)) throw Error('UNSAFE_LINK'); attributes.href = a.href; }
       if (j.type === 'paint') { for (const [key, value] of [['color', a.color], ['background-color', a.background], ['font-size', a.size], ['font-family', a.font]]) if (value) css(key, safeStyle(`${key}:${value}`) ? value : null);if(/^(1|1\.2|1\.5|1\.75|2)$/.test(a.line))css('line-height',a.line);else if(/^\d+(\.\d+)?pt$/.test(a.size??''))css('line-height',parseFloat(a.size)>=15?'1.2':'1.5'); }
       if (style) attributes.style = style; else delete attributes.style;
@@ -286,6 +303,11 @@ export class RichDocument {
         if (!/^[A-Za-z][A-Za-z0-9_]{0,23}-\d{1,7}$/.test(id)) throw Error('INVALID_WORK_ITEM_REF');
         return `<span class="polarion-rte-link" data-type="workItem" id="fake" data-item-id="${attr(id)}" data-option-id="long"></span>`;
       }
+      if(j.type==='formula'||j.type==='formulaInline'){
+        const tex=String(j.attrs?.tex??'').trim();if(!tex||tex.length>4000)throw Error('INVALID_FORMULA');
+        const visible=escapeText(tex);
+        return j.type==='formula'?`<div data-sidebar-formula="block" data-tex="${attr(tex)}">${visible}</div>`:`<span data-sidebar-formula="inline" data-tex="${attr(tex)}">${visible}</span>`;
+      }
       if(j.type==='image'){
         const a=j.attrs??{};const attrs={...(r?.attrs??{})};
         if(a.assetId){if(!/^[0-9a-f-]{36}$/i.test(a.assetId))throw Error('INVALID_IMAGE_ASSET');attrs.src='polarion-asset:'+a.assetId;}
@@ -300,7 +322,7 @@ export class RichDocument {
         return '<img'+Object.entries(attrs).map(([k,v])=>` ${k}="${attr(v)}"`).join('')+'>';
       }
       const [open, close] = wrapper(j);
-      let body = j.type==='codeBlock'||j.type==='table'&&r?.tableLayout?'':['paragraph', 'heading'].includes(j.type!) ? inline(j.content ?? []) : children(j.content ?? [], r);
+      let body = j.type==='codeBlock'||j.type==='table'&&r?.tableLayout?'':['paragraph', 'heading', 'detailsSummary'].includes(j.type!) ? inline(j.content ?? []) : children(j.content ?? [], r);
       if(j.type==='codeBlock'){const language=j.attrs?.language;if(language&&!/^[\w+-]{1,40}$/.test(language))throw Error('INVALID_CODE_LANGUAGE');body=`<code${language?` class="language-${language}"`:''}>${escapeText((j.content??[]).map(c=>c.text??'').join(''))}</code>`;}
       // Polarion LiveDoc strips heading tags inside a work-item description. Keep
       // semantics in stored HTML and an inline style carrier for the native view.
