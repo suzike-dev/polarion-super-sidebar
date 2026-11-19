@@ -2,8 +2,11 @@ import {formatDocument, type TextFormat} from '../../packages/core/format-docume
 import {applyTableOperations, listTables, replaceTableJson, tableJsonAt, type TableOperation} from '../../packages/core/table-ops.ts';
 import {restyleDocument, type RestyleRules} from '../../packages/core/restyle.ts';
 import {applyBlockOperations, type BlockOperation} from '../../packages/core/block-ops.ts';
-import {replaceAllText} from '../../packages/core/replace-all.ts';
-import {equivalentHtml} from '../../packages/core/html-equivalence.ts';
+import {replaceAllText, replaceGlossaryMatches} from '../../packages/core/replace-all.ts';
+import {isSingleQualitySentence, qualitySentence, staleQualityFinding, type TextMatch} from '../../packages/core/editor-text.ts';
+import {richSchema} from '../../packages/core/rich-schema.ts';
+import type {QualityRewrite} from '../../packages/protocol/index.ts';
+import {equivalentHtml, matchesPolarionReadback} from '../../packages/core/html-equivalence.ts';
 import {polarionWriteHtml} from '../../packages/core/polarion-html.ts';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import readline from 'node:readline';
@@ -15,12 +18,13 @@ import { sameTarget } from '../../packages/protocol/index.ts';
 import { LosslessHtml } from '../../packages/core/lossless-html.ts';
 import { Store } from './store.ts';
 import { RichDocument } from '../../packages/core/rich-document.ts';
-import { sanitizeRichJSON } from '../../packages/core/rich-schema.ts';
 import type { JSONContent } from '@tiptap/core';
 import { Assets } from './assets.ts';
 import {Boards} from './boards.ts';
+import { requireResolvedWorkItem, requireWorkItemId, type WorkItemIdentity } from './variant-access.ts';
 type RichSession = { id: string; draftId: string; source: string; revision: number; imageAliases?:Record<string,string>;saved?:boolean };
 export type RemoteItem = { id: string; title: string; description?: string; updated?: string; status?: string; type?: string; attachments?: {id?: string; file_name?: string; title?: string}[]; submittedHtml?: string; uploadedAssets?: {localId:string;attachmentId:string;sha256:string}[] };
+type ProjectItemPreview = { workItemId: string; title: string; description?: string; updated?: string };
 export type RemoteLink = { workItemId: string; role: string };
 /** 变更基准快照：一次取出整篇文档的工作项正文，避免逐项 SOAP 往返。 */
 export type SnapshotItem = { id: string; title: string; type: string; status: string; outline: string; created?: string; updated: string; html: string };
@@ -54,10 +58,10 @@ export interface Remote {
   changeWrite?(input: ChangeWriteInput): Promise<ChangeWriteResult>;
   changeDelete?(target: Target, workItemId: string, expectedUpdated?: string): Promise<{deleted: boolean}>;
   search?(target: Target, query: string, limit: number): Promise<{ workItemId: string; title: string }[]>;
-  save(draft: Draft, scope?: VariantScope): Promise<RemoteItem>;
+  save(draft: Draft, scope?: VariantScope, overwrite?: boolean): Promise<RemoteItem>;
   image?(target: Target, workItemId: string, src: string, scope?: VariantScope): Promise<unknown>;
   create?(target: Target, title: string, type: string): Promise<RemoteItem>;
-  peek?(target: Target, workItemId: string): Promise<{workItemId: string; title: string; description?: string; updated?: string}>;
+  peek?(target: Target, workItemId: string): Promise<ProjectItemPreview>;
   link?(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string): Promise<{verified:boolean}>;
   unlink?(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string): Promise<{verified:boolean}>;
   roles?(target: Target): Promise<{id:string;name?:string;hidden?:boolean}[]>;
@@ -141,9 +145,15 @@ export class Polarion implements Remote {
       this.pending.set(id, { resolve, reject, timer,progress }); this.child!.stdin.write(JSON.stringify({ ...(data as object), id }) + '\n');
     });
   }
-  read(target: Target, workItemId: string, scope?: VariantScope) { return this.call({ method: 'read', target, workItemId, ...(scope ? { variant: scope } : {}) }); }
-  peek(target: Target, workItemId: string) {
-    return this.call<{workItemId: string; title: string; description?: string; updated?: string}>({ method: 'peek', target, workItemId });
+  async read(target: Target, workItemId: string, scope?: VariantScope) {
+    const item = await this.call<RemoteItem & WorkItemIdentity>({ method: 'read', target, workItemId, ...(scope ? { variant: scope } : {}) });
+    requireResolvedWorkItem(target.projectId, workItemId, item);
+    return { ...item, title: item.title ?? '' };
+  }
+  async peek(target: Target, workItemId: string) {
+    const item = await this.call<ProjectItemPreview & WorkItemIdentity>({ method: 'peek', target, workItemId });
+    requireResolvedWorkItem(target.projectId, workItemId, { ...item, id: item?.workItemId });
+    return item;
   }
   create(target: Target, title: string, type: string) {
     // 新需求要落进当前 LiveDoc；不传 documentLocation 会生成游离工作项，后续保存会被 WORK_ITEM_DOCUMENT_MISMATCH 拒绝。
@@ -191,10 +201,10 @@ export class Polarion implements Remote {
     const asset=this.assets.begin(target,result.name,mime,bytes.length);for(let offset=0;offset<bytes.length;offset+=384*1024)this.assets.chunk(asset.id,offset,bytes.subarray(offset,offset+384*1024).toString('base64'));
     return this.assets.finish(asset.id);
   }
-  save(draft: Draft, scope?: VariantScope) {
+  save(draft: Draft, scope?: VariantScope, overwrite = false) {
     const ids=[...new Set([...draft.html.matchAll(/\bsrc=["']polarion-asset:([0-9a-f-]{36})["']/gi)].map(m=>m[1]!))];
     const assets=ids.flatMap(id=>{if(!this.assets)throw Error('ASSET_STORE_UNAVAILABLE');const bundle=new Boards(this.assets.store,this.assets).bundle(id,draft.target,draft.workItemId);if(bundle)return bundle;const a=this.assets.require(id,draft.target);if(a.extraction!=='image')throw Error('IMAGE_ASSET_REQUIRED');return[{id,name:a.name,mime:a.mime,sha256:a.sha256!,data:this.assets.bytes(id).toString('base64')}];});
-    return this.call({ method: 'save', target: draft.target, workItemId: draft.workItemId, html: draft.html, expectedUpdated: draft.baseUpdated, baseHash: createHash('sha256').update(draft.baseHtml).digest('hex'),assets,...(scope?{variant:scope}:{}) },receipt=>{this.assets?.store.put('attachment-receipt',draft.id+':'+receipt.localId,{draftId:draft.id,revision:draft.revision,at:Date.now(),...receipt});});
+    return this.call({ method: 'save', target: draft.target, workItemId: draft.workItemId, html: draft.html, expectedUpdated: draft.baseUpdated, baseHash: createHash('sha256').update(draft.baseHtml).digest('hex'),assets,...(scope?{variant:scope}:{}),...(overwrite?{overwrite:true}:{}) },receipt=>{this.assets?.store.put('attachment-receipt',draft.id+':'+receipt.localId,{draftId:draft.id,revision:draft.revision,at:Date.now(),...receipt});});
   }
 }
 /** 预览摘要：优先正文文字，跳过表格内部单元格（否则只剩一堆字段名），表格占比高时给出提示。 */
@@ -219,10 +229,10 @@ export function previewText(html: string): string {
 export type WorkItemHit = { workItemId: string; title: string; source: 'draft' | 'remote' };
 /** 用户输入进入 lucene 前必须转义，否则括号/布尔运算符可以突破项目与文档作用域。 */
 function luceneEscape(value: string) { return value.replace(/[+\-!(){}[\]^"~*?:\\/&|]/g, '\\$&'); }
-export type WorkItemPreview = { workItemId: string; title: string; text: string; state?: string; revision?: number; source: 'draft' | 'remote' };
+export type WorkItemPreview = { target: Target; workItemId: string; title: string; text: string; state?: string; revision?: number; source: 'draft' | 'remote'; readOnlyReference: boolean };
 export class Drafts {
   store: Store; remote: Remote; snapshots = new Map<string, { revision: number; source: LosslessHtml }>();
-  private previews = new Map<string, { at: number; value: WorkItemPreview }>();
+  private previews = new Map<string, { at: number; value: Promise<WorkItemPreview>; draftId?: string; revision?: number }>();
   /** 悬停预览：本地草稿优先，其次远端读取；60 秒内同一工作项复用结果，避免悬停触发频繁请求。 */
   /** @ 引用的候选来源：本地草稿（编号/标题匹配）优先，远端 lucene 查询补充，按编号直查优先排序。 */
   async searchItems(target: Target, query: string, limit = 8): Promise<WorkItemHit[]> {
@@ -241,41 +251,68 @@ export class Drafts {
     for (const hit of [...local, ...remote]) { if (seen.has(hit.workItemId)) continue; seen.add(hit.workItemId); merged.push(hit); if (merged.length >= limit) break; }
     return merged;
   }
-  /** 完整只读预览：本地草稿优先，否则读取 Polarion 正文；节点信息供只读渲染使用。 */
-  async readOnly(target: Target, workItemId: string) {
-    const candidates = this.store.list<Draft>('draft').filter(d => d.workItemId === workItemId);
-    const local = candidates.find(d => d.target.projectId === target.projectId) ?? candidates[0];
-    // 含未保存修改（dirty/uncertain/conflict）的草稿才优先本地；clean 草稿必须与远端核对，原生页面直接保存后不能再看旧内容。
-    if (local && local.state !== 'clean') return { ...this.read(local.id), source: 'draft' as const };
-    if (local) {
-      try {
-        const item = await this.remote.read(target, workItemId, local.variantOf ? this.scopeFor(target, workItemId) : undefined);
-        return { ...this.read(this.refreshIfClean(local, item).id), source: 'draft' as const };
-      } catch { return { ...this.read(local.id), source: 'draft' as const }; }
-    }
-    const item = await this.remote.read(target, workItemId);
-    const html = item.description ?? '';
-    const parsed = new LosslessHtml(html);
-    return { id: 'remote-' + workItemId, target, workItemId, title: item.title, baseHtml: html, html, baseUpdated: item.updated ?? '', revision: 0, state: 'clean' as const, savedAt: undefined, nodes: parsed.nodes, version: parsed.version, source: 'remote' as const };
+  private previewKey(target: Target, workItemId: string) {
+    return JSON.stringify([target.origin, target.projectId, target.document, workItemId]);
   }
-  async peek(target: Target, workItemId: string): Promise<WorkItemPreview> {
-    const key = `${target.projectId}/${target.document}/${workItemId}`;
-    const cached = this.previews.get(key);
-    if (cached && Date.now() - cached.at < 60_000) return cached.value;
-    const candidates = this.store.list<Draft>('draft').filter(d => d.workItemId === workItemId);
-    const local = candidates.find(d => d.target.projectId === target.projectId) ?? candidates[0];
-    let value: WorkItemPreview;
-    if (local && local.state !== 'clean') {
-      const text = this.read(local.id).nodes.filter(n => n.text).map(n => String(n.text).trim()).filter(Boolean).join('\n').slice(0, 1200);
-      value = { workItemId, title: local.title, text, state: local.state, revision: local.revision, source: 'draft' };
-    } else {
-      // 跨文档参考：peek 只读同一项目的工作项，不受当前文档 module_uri 限制。
-      const item = this.remote.peek ? await this.remote.peek(target, workItemId) : await this.remote.read(target, workItemId);
-      const text = new LosslessHtml(item.description ?? '').nodes.filter(n => n.text).map(n => String(n.text).trim()).filter(Boolean).join('\n').slice(0, 1200);
-      value = { workItemId, title: item.title, text, source: 'remote' };
+  private async readScoped(target: Target, workItemId: string, scope?: VariantScope) {
+    const item = await this.remote.read(target, workItemId, scope);
+    requireWorkItemId(workItemId, item?.id);
+    return item;
+  }
+  private localForPreview(target: Target, workItemId: string) {
+    const candidates = this.store.list<Draft>('draft').filter(d => d.workItemId === workItemId && d.target?.origin === target.origin && d.target.projectId === target.projectId);
+    return candidates.find(d => sameTarget(d.target, target)) ?? candidates.find(d => d.state !== 'clean') ?? candidates[0];
+  }
+  private async previewSource(requested: Target, workItemId: string, local: Draft | undefined) {
+    const target = local?.target ?? requested;
+    let readOnlyReference = !sameTarget(requested, target);
+    let item: RemoteItem | undefined;
+    if (!local || local.state === 'clean') {
+      try {
+        item = await this.readScoped(target, workItemId, this.scopeFor(target, workItemId));
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== 'WORK_ITEM_DOCUMENT_MISMATCH' || !this.remote.peek) throw error;
+        const preview = await this.remote.peek(target, workItemId);
+        item = { ...preview, id: requireWorkItemId(workItemId, preview?.workItemId) };
+        readOnlyReference = true;
+      }
+      // Edits or a newly opened same-document draft can arrive during either remote read.
+      const latest = this.localForPreview(requested, workItemId);
+      if (latest && (latest.id !== local?.id || latest.revision !== local.revision || latest.state !== 'clean')) {
+        return { target: latest.target, local: latest, item: undefined, readOnlyReference: !sameTarget(latest.target, requested) || latest.id === local?.id && readOnlyReference };
+      }
+      local = latest;
     }
-    this.previews.set(key, { at: Date.now(), value });
-    return value;
+    return { target, local, item, readOnlyReference };
+  }
+  async readOnly(requested: Target, workItemId: string) {
+    const key = this.previewKey(requested, workItemId);
+    const { target, local, item, readOnlyReference } = await this.previewSource(requested, workItemId, this.localForPreview(requested, workItemId))
+      .finally(() => this.previews.delete(key));
+    const previewId = 'remote-' + workItemId;
+    if (local && (!item || !readOnlyReference)) {
+      const draft = item ? this.refreshIfClean(local, item) : local;
+      return { ...this.read(draft.id), id: readOnlyReference ? previewId : draft.id, source: 'draft' as const, type: item?.type, readOnlyReference };
+    }
+    if (!item) throw Error('NOT_FOUND');
+    const html = item.description ?? '', parsed = new LosslessHtml(html);
+    return { id: previewId, target, workItemId, title: item.title, type: item.type, baseHtml: html, html, baseUpdated: item.updated ?? '', revision: 0, state: 'clean' as const, savedAt: undefined, nodes: parsed.nodes, version: parsed.version, source: 'remote' as const, readOnlyReference };
+  }
+  async peek(requested: Target, workItemId: string): Promise<WorkItemPreview> {
+    const key = this.previewKey(requested, workItemId);
+    const prior = this.localForPreview(requested, workItemId), cached = this.previews.get(key);
+    if (cached && cached.draftId === prior?.id && cached.revision === prior?.revision && Date.now() - cached.at < 60_000) return cached.value;
+    const value = this.previewSource(requested, workItemId, prior).then<WorkItemPreview>(({ target, local, item, readOnlyReference }) => {
+      if (!item && !local) throw Error('NOT_FOUND');
+      const nodes = item ? new LosslessHtml(item.description ?? '').nodes : this.read(local!.id).nodes;
+      const text = nodes.map(n => n.text?.trim()).filter(Boolean).join('\n').slice(0, 1200);
+      return { target, workItemId, text, readOnlyReference, title: item?.title ?? local?.title ?? '', source: item ? 'remote' : 'draft', ...(!item && { state: local!.state, revision: local!.revision }) };
+    });
+    // A later full read can invalidate this hover while it is still in flight.
+    const entry = { at: Date.now(), value, draftId: prior?.id, revision: prior?.revision };
+    this.previews.set(key, entry);
+    try { return await value; }
+    catch (error) { if (this.previews.get(key) === entry) this.previews.delete(key); throw error; }
   }
   saving = new Set<string>();
   richModels = new Map<string, RichDocument>();
@@ -291,17 +328,16 @@ export class Drafts {
   async open(target: Target, workItemId: string) {
     const variant = this.variantFor(target, workItemId);
     const scope = variant ? { mainWorkItemId: variant.mainWorkItemId, role: variant.linkRole } : undefined;
+    const readCurrent = () => this.readScoped(target, workItemId, scope).finally(() => this.previews.delete(this.previewKey(target, workItemId)));
     let prior = this.store.drafts(target).find(d => d.workItemId === workItemId);
     if (prior) {
       // 旧草稿可能早于变体登记；补上归属，后续保存即可带变体作用域。
       if (variant && prior.variantOf !== variant.mainWorkItemId) { prior = { ...prior, variantOf: variant.mainWorkItemId }; this.store.put('draft', prior.id, prior); }
       // clean 草稿不代表最新：原生页面可能已直接保存，远端更新则以远端为准，避免工作台/预览显示旧内容。
-      if (prior.state === 'clean') {
-        try { prior = this.refreshIfClean(prior, await this.remote.read(target, workItemId, scope)); } catch { /* 远端暂不可读时退回本地内容 */ }
-      }
+      if (prior.state === 'clean') prior = this.refreshIfClean(prior, await readCurrent());
       return this.read(prior.id);
     }
-    const item = await this.remote.read(target, workItemId, scope);
+    const item = await readCurrent();
     // Another request can finish while the remote read is in flight.
     const existing = this.store.drafts(target).find(d => d.workItemId === workItemId);
     if (existing) return this.read(existing.id);
@@ -309,8 +345,9 @@ export class Drafts {
     this.store.put('draft', draft.id, draft); return this.read(draft.id);
   }
   /** 远端比本地新（例如用户在原生页面直接保存）：clean 草稿没有未保存内容，安全前移基准；revision+1 让旧编辑会话失效。 */
-  private refreshIfClean(draft: Draft, item: RemoteItem): Draft {
-    if (draft.state !== 'clean') return draft;
+  private refreshIfClean(prior: Draft, item: RemoteItem): Draft {
+    const draft = this.store.require<Draft>('draft', prior.id);
+    if (draft.revision !== prior.revision || draft.state !== 'clean') return draft;
     const html = item.description ?? '';
     if ((item.updated ?? '') === draft.baseUpdated && html === draft.baseHtml) return draft;
     const next: Draft = { ...draft, title: item.title || draft.title, html, baseHtml: html, baseUpdated: item.updated ?? draft.baseUpdated, revision: draft.revision + 1, savedAt: Date.now() };
@@ -328,27 +365,56 @@ export class Drafts {
     const draft = this.read(id); const model = new RichDocument(draft.html);
     const session: RichSession = { id: model.version, draftId: id, source: draft.html, revision: draft.revision };
     this.store.put('rich-editor', session.id, session); this.richModels.set(session.id, model);
-    return { editorId: session.id, draft, document: sanitizeRichJSON(structuredClone(model.document)) };
+    return { editorId: session.id, draft, document: structuredClone(model.document) };
   }
   richApply(id: string, editorId: string, expectedRevision: number, document: JSONContent) {
     if (this.saving.has(id)) throw Error('DRAFT_SAVING');
     const draft = this.read(id); const session = this.store.require<RichSession>('rich-editor', editorId);
     if (session.draftId !== id || session.revision !== expectedRevision || draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
-    if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
     let model = this.richModels.get(editorId);
     if (!model) { model = new RichDocument(session.source, session.id); this.richModels.set(editorId, model); }
-    let html = model.serialize(document);
+    let html = model.serialize(document, { recoverStructure: true });
     for(const [localId,attachmentId] of Object.entries(session.imageAliases??{}))html=html.replaceAll('polarion-asset:'+localId,'workitemimg:'+attachmentId);
     if(session.saved){html=polarionWriteHtml(html);if(equivalentHtml(html,draft.baseHtml))html=draft.baseHtml;}
     if (html === draft.html) return draft;
+    // The next rich.read must be able to parse the exact bytes being checkpointed.
+    new RichDocument(html);
+    return this.checkpointHtml(draft, html, session);
+  }
+  private checkpointHtml(draft: Draft, html: string, session?: RichSession) {
     const value: Draft = { ...draft, html, revision: draft.revision + 1, state: draft.state === 'conflict' ? 'conflict' : html === draft.baseHtml ? 'clean' : 'dirty' };
     this.store.db.exec('BEGIN IMMEDIATE');
     try {
-      this.store.put('draft-checkpoint', crypto.randomUUID(), { draftId: id, revision: draft.revision, html: draft.html, at: Date.now(), source: 'rich-editor' });
-      this.store.put('draft', id, value); this.store.put('rich-editor', editorId, { ...session, revision: value.revision });
+      const current = this.store.get<Draft>('draft', draft.id);
+      if (!current || current.revision !== draft.revision || current.state !== draft.state || current.html !== draft.html) throw Error(session ? 'STALE_DRAFT' : staleQualityFinding);
+      this.store.put('draft-checkpoint', crypto.randomUUID(), { draftId: draft.id, revision: draft.revision, html: draft.html, at: Date.now(), source: session ? 'rich-editor' : 'quality-rewrite' });
+      this.store.put('draft', draft.id, value);
+      if (session) this.store.put('rich-editor', session.id, { ...session, revision: value.revision });
       this.store.db.exec('COMMIT');
     } catch (error) { this.store.db.exec('ROLLBACK'); throw error; }
-    return this.read(id);
+    return this.read(draft.id);
+  }
+  qualityRewriteRange(target: Target, scope: QualityRewrite) {
+    const draft = this.store.get<Draft>('draft', scope.draftId);
+    if (!draft || !sameTarget(draft.target, target) || draft.workItemId !== scope.workItemId || draft.revision !== scope.expectedRevision) throw Error(staleQualityFinding);
+    if (this.saving.has(draft.id)) throw Error('DRAFT_SAVING');
+    const model = new RichDocument(draft.html), doc = richSchema.nodeFromJSON(model.document);
+    const located = qualitySentence(doc, scope.matchFrom, scope.matchTo, scope.matchedText);
+    if (located.from !== scope.from || located.to !== scope.to || located.sentence !== scope.sentence) throw Error(staleQualityFinding);
+    // When a sentence contains the same term twice, only the clicked spelling is editable.
+    const folded = scope.sentence.toLowerCase(), term = scope.matchedText.toLowerCase();
+    if (folded.indexOf(term) !== folded.lastIndexOf(term)) return { draft, model, from: scope.matchFrom, to: scope.matchTo, text: scope.matchedText };
+    return { draft, model, from: scope.from, to: scope.to, text: scope.sentence };
+  }
+  applyQualityRewrite(target: Target, scope: QualityRewrite, replacement: string) {
+    const range = this.qualityRewriteRange(target, scope);
+    if (scope.sentence === replacement) return this.read(scope.draftId);
+    if (!isSingleQualitySentence(replacement)) throw Error('改写候选超出单句范围，草稿未修改。');
+    const prefix = scope.sentence.slice(0, range.from - scope.from), suffix = scope.sentence.slice(range.to - scope.from);
+    if (!replacement.startsWith(prefix) || !replacement.endsWith(suffix) || replacement.length < prefix.length + suffix.length) throw Error('改写候选修改了同句中选定位置以外的文字，草稿未修改。');
+    const editableText = replacement.slice(prefix.length, replacement.length - suffix.length);
+    const html = range.model.replaceTextRange(range.from, range.to, range.text, editableText);
+    return this.checkpointHtml(range.draft, html);
   }
   format(id:string,expectedRevision:number,format:TextFormat,selection?:string){
     if(this.read(id).revision!==expectedRevision)throw Error('STALE_DRAFT');
@@ -366,7 +432,6 @@ export class Drafts {
     if (this.saving.has(id)) throw Error('DRAFT_SAVING');
     const draft = this.read(id);
     if (draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
-    if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
     const rich = this.richRead(id);
     const applied = applyTableOperations(rich.document, operations);
     const next = this.richApply(id, rich.editorId, expectedRevision, applied.document);
@@ -378,13 +443,12 @@ export class Drafts {
     return { editorId: rich.editorId, draftId: id, workItemId: rich.draft.workItemId, revision: rich.draft.revision, table, document: tableJsonAt(rich.document, table) };
   }
   /** 全文逐字替换：只改文本节点，保留结构/格式/受保护对象；返回替换次数。 */
-  replaceAll(id: string, expectedRevision: number, from: string, to: string, caseSensitive: boolean) {
+  replaceAll(id: string, expectedRevision: number, from: string, to: string, caseSensitive: boolean, lintMatches?: readonly TextMatch[]) {
     if (this.saving.has(id)) throw Error('DRAFT_SAVING');
     const draft = this.read(id);
     if (draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
-    if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
     const rich = this.richRead(id);
-    const applied = replaceAllText(rich.document, from, to, caseSensitive);
+    const applied = lintMatches ? replaceGlossaryMatches(rich.document, lintMatches, from, to, caseSensitive) : replaceAllText(rich.document, from, to, caseSensitive);
     const next = this.richApply(id, rich.editorId, expectedRevision, applied.document);
     return { draft: { draftId: next.id, workItemId: next.workItemId, revision: next.revision, state: next.state, savedToPolarion: false }, replacements: applied.replacements };
   }
@@ -393,7 +457,6 @@ export class Drafts {
     if (this.saving.has(id)) throw Error('DRAFT_SAVING');
     const draft = this.read(id);
     if (draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
-    if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
     const rich = this.richRead(id);
     const applied = restyleDocument(rich.document, rules);
     const next = this.richApply(id, rich.editorId, expectedRevision, applied.document);
@@ -404,7 +467,6 @@ export class Drafts {
     if (this.saving.has(id)) throw Error('DRAFT_SAVING');
     const draft = this.read(id);
     if (draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
-    if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
     const rich = this.richRead(id);
     const applied = applyBlockOperations(rich.document, operations);
     const next = this.richApply(id, rich.editorId, expectedRevision, applied.document);
@@ -431,54 +493,63 @@ export class Drafts {
   replace(id: string, expectedRevision: number, nodeId: string, expectedText: string, text: string) {
     if (this.saving.has(id)) throw Error('DRAFT_SAVING');
     const draft = this.read(id); if (draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
-    if(draft.state==='uncertain')throw Error('READBACK_REQUIRED');
     const source = this.snapshots.get(id)!.source;
     const next = source.replaceText(source.version, [{ nodeId, expectedText, text }]);
     if (next === source) return draft;
     const value: Draft = { ...draft, html: next.source, revision: draft.revision + 1, state: draft.state==='conflict'?'conflict':next.source === draft.baseHtml ? 'clean' : 'dirty' };
     this.store.put('draft', id, value); this.snapshots.set(id, { revision: value.revision, source: next }); return this.read(id);
   }
+  private adoptReadback(draft: Draft, remote: RemoteItem, uploads: NonNullable<RemoteItem['uploadedAssets']> = []) {
+    const html = remote.description ?? '', revision = draft.revision + (html === draft.html ? 0 : 1);
+    const aliases = Object.fromEntries(uploads.map(asset => [asset.localId, asset.attachmentId]));
+    // A verified save (including recovery) keeps the open editor's source IDs and undo history.
+    for (const session of this.store.list<RichSession>('rich-editor')) {
+      if (session.draftId === draft.id && session.revision === draft.revision) {
+        this.store.put('rich-editor', session.id, { ...session, revision, saved: true, imageAliases: { ...session.imageAliases, ...aliases } });
+      }
+    }
+    this.store.put('draft', draft.id, { ...draft, revision, html, baseHtml: html, baseUpdated: remote.updated ?? '', state: 'clean', savedAt: Date.now() });
+  }
   async save(id: string, expectedRevision: number, nativeState: 'clean' | 'dirty' | 'unknown') {
     if (this.saving.has(id)) throw Error('DRAFT_SAVING');
     if (nativeState !== 'clean') throw Error('NATIVE_EDITOR_' + nativeState.toUpperCase());
     const draft = this.store.require<Draft>('draft', id);
     if (draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
-    if (draft.state === 'clean') return this.read(id);
-    if (draft.state === 'uncertain') throw Error('READBACK_REQUIRED');
+    if (draft.state === 'clean') return { ...this.read(id), wroteToPolarion: false };
     this.saving.add(id);
-    let dispatched = false,knownUnchanged=false; const operationId = crypto.randomUUID();
+    let dispatched = false; const operationId = crypto.randomUUID();
     const scope = this.scopeFor(draft.target, draft.workItemId);
-    const audit = { id: operationId, draftId: id, target: draft.target, workItemId: draft.workItemId, revision: draft.revision, startedAt: Date.now(), phase: 'preflight', baseHash: createHash('sha256').update(draft.baseHtml).digest('hex'), proposedHash: createHash('sha256').update(draft.html).digest('hex') };
+    const audit = { id: operationId, draftId: id, target: draft.target, workItemId: draft.workItemId, revision: draft.revision, startedAt: Date.now(), baseHash: createHash('sha256').update(draft.baseHtml).digest('hex'), proposedHash: createHash('sha256').update(draft.html).digest('hex') };
     this.store.put('save', operationId, audit);
     try {
-      const current = await this.remote.read(draft.target, draft.workItemId, scope);
-      if (current.updated !== draft.baseUpdated || (current.description ?? '') !== draft.baseHtml) {
-        this.store.put('draft', id, { ...draft, state: 'conflict' }); throw Error('REMOTE_CONFLICT');
-      }
+      // The workbench is the source of truth: saving replaces the remote description.
+      // Tidy, an agent rewrite and hand editing all arrive here the same way.
+      const outgoing = { ...draft, html: polarionWriteHtml(draft.html) };
       // Durable before dispatch: a Host crash must not turn an unknown write into a retryable draft.
       this.store.put('draft', id, { ...draft, state: 'uncertain' });
       this.store.put('save', operationId, { ...audit, phase: 'dispatched' }); dispatched = true;
-      const outgoing={...draft,html:polarionWriteHtml(draft.html)};
-      const outcome = await this.remote.save(outgoing, scope);
-      const readback = await this.remote.read(draft.target, draft.workItemId, scope);
-      // Allow only serialization-equivalent attributes/entities/style spacing.
-      // Text, tags, CSS values/order, images and object references still must match.
-      const submitted=outcome.submittedHtml??outgoing.html;
-      const savedHtml=readback.description??'';
-      if (!equivalentHtml(savedHtml,submitted)){knownUnchanged=savedHtml===draft.baseHtml&&readback.updated===draft.baseUpdated;throw Error(knownUnchanged?'SAVE_NOT_APPLIED':'READBACK_MISMATCH');}
-      const savedRevision=draft.revision+(savedHtml===draft.html?0:1);
-      this.store.put('draft', id, { ...draft, html:savedHtml,revision:savedRevision,baseHtml: savedHtml, baseUpdated: readback.updated, state: 'clean', savedAt: Date.now() });
-      // Keep source IDs and the open editor's undo history valid across a verified save.
-      // Only sessions at the saved revision can continue; stale clients remain stale.
-      for(const session of this.store.list<RichSession>('rich-editor'))if(session.draftId===id&&session.revision===draft.revision){
-        const imageAliases={...session.imageAliases,...Object.fromEntries((outcome.uploadedAssets??[]).map(a=>[a.localId,a.attachmentId]))};
-        this.store.put('rich-editor',session.id,{...session,revision:savedRevision,imageAliases,saved:true});
+      const outcome = await this.remote.save(outgoing, scope, true);
+      // A successful write is the save. The readback refreshes the baseline with
+      // the server's own spelling; it is not a second gate that can reject it.
+      let readback: RemoteItem;
+      try { readback = await this.readScoped(draft.target, draft.workItemId, scope); }
+      catch { readback = { ...draft, id: draft.workItemId, title: draft.title, description: outcome.submittedHtml ?? outgoing.html, updated: draft.baseUpdated }; }
+      const submitted = outcome.submittedHtml ?? outgoing.html, savedHtml = readback.description ?? '';
+      // The user asked for B, so B has to be the body the reader sees. Polarion
+      // may rewrite whitespace wrappers; a completely different body is not success.
+      if (!matchesPolarionReadback(submitted, savedHtml)) {
+        throw Error(matchesPolarionReadback(draft.baseHtml, savedHtml) ? 'SAVE_NOT_APPLIED' : 'READBACK_MISMATCH');
       }
-      this.store.put('save', operationId, { ...audit, phase: 'verified', endedAt: Date.now(), serverUpdated: readback.updated,submittedHash:createHash('sha256').update(submitted).digest('hex'),uploadedAssets:outcome.uploadedAssets??[] });
-      return this.read(id);
+      this.adoptReadback(draft, readback, outcome.uploadedAssets);
+      this.store.put('save', operationId, { ...audit, phase: 'verified', endedAt: Date.now(), serverUpdated: readback.updated, submittedHash: createHash('sha256').update(outcome.submittedHtml ?? outgoing.html).digest('hex'), readbackHash: createHash('sha256').update(readback.description ?? '').digest('hex'), uploadedAssets: outcome.uploadedAssets ?? [] });
+      return { ...this.read(id), wroteToPolarion: true };
     } catch (error) {
-      if (dispatched) this.store.put('draft', id, { ...draft, state: knownUnchanged?'dirty':'uncertain' });
-      this.store.put('save', operationId, { ...audit, phase: knownUnchanged?'not-applied':dispatched ? 'uncertain' : 'not-written', endedAt: Date.now(),errorCode:error instanceof Error&&/^[A-Z_]+$/.test(error.message)?error.message:'OPERATION_FAILED' });
+      const code = error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'OPERATION_FAILED';
+      // A known not-applied body keeps the draft editable and retryable; only a
+      // lost transport response is genuinely uncertain about the remote state.
+      const knownUnchanged = code === 'SAVE_NOT_APPLIED' || code === 'READBACK_MISMATCH';
+      if (dispatched) this.store.put('draft', id, { ...draft, state: knownUnchanged ? 'dirty' : 'uncertain' });
+      this.store.put('save', operationId, { ...audit, phase: code === 'SAVE_NOT_APPLIED' ? 'not-applied' : dispatched ? 'uncertain' : 'not-written', endedAt: Date.now(), errorCode: code });
       throw error;
     } finally { this.saving.delete(id); }
   }
@@ -498,19 +569,23 @@ export class Drafts {
       return this.read(id);
     }finally{this.saving.delete(id);}
   }
-  async reconcile(id: string) {
+  async reconcile(id: string, expectedRevision?: number) {
     if (this.saving.has(id)) throw Error('DRAFT_SAVING');
     this.saving.add(id);
     try {
       const draft = this.store.require<Draft>('draft', id);
-      const remote = await this.remote.read(draft.target, draft.workItemId, this.scopeFor(draft.target, draft.workItemId));
-      let value: Draft;
-      if (equivalentHtml(remote.description??'',polarionWriteHtml(draft.html))) value = { ...draft, html:remote.description??'',revision:draft.revision+(remote.description===draft.html?0:1),baseHtml: remote.description??'', baseUpdated: remote.updated ?? '', state: 'clean', savedAt: Date.now() };
-      else if ((remote.description ?? '') === draft.baseHtml && remote.updated === draft.baseUpdated) value = { ...draft, state: 'dirty' };
-      else value = { ...draft, state: 'conflict' };
-      this.store.put('draft', id, value);
-      this.store.put('reconciliation', crypto.randomUUID(), { draftId: id, at: Date.now(), state: value.state, remoteUpdated: remote.updated, remoteHash: createHash('sha256').update(remote.description ?? '').digest('hex') });
-      return this.read(id);
+      if (expectedRevision !== undefined && draft.revision !== expectedRevision) throw Error('STALE_DRAFT');
+      const remote = await this.readScoped(draft.target, draft.workItemId, this.scopeFor(draft.target, draft.workItemId));
+      if (this.store.require<Draft>('draft', id).revision !== draft.revision) throw Error('STALE_DRAFT');
+      const html = remote.description ?? '';
+      if (equivalentHtml(polarionWriteHtml(draft.html), html)) this.adoptReadback(draft, remote);
+      else {
+        const unchanged = html === draft.baseHtml && remote.updated === draft.baseUpdated;
+        this.store.put('draft', id, { ...draft, state: unchanged ? 'dirty' : 'conflict' });
+      }
+      const result = this.read(id);
+      this.store.put('reconciliation', crypto.randomUUID(), { draftId: id, at: Date.now(), state: result.state, remoteUpdated: remote.updated, remoteHash: createHash('sha256').update(html).digest('hex') });
+      return result;
     } finally { this.saving.delete(id); }
   }
   /** 批量删除共享草稿及本地会话、检查点与附件回执；正在保存的草稿拒绝删除。 */

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { applyTablePreset, tidyDocument, tablePresetLabels } from './document-tidy.ts';
 import type { JSONContent } from '@tiptap/core';
 import { RichDocument } from './rich-document.ts';
+import { richSchema } from './rich-schema.ts';
 
 const table = (style?: string): JSONContent => ({ type: 'table', ...(style ? { attrs: { sourceStyle: style } } : {}), content: [
   { type: 'tableRow', content: [
@@ -67,15 +68,17 @@ test('tidy collapses leading and repeated empty paragraphs and resizes wide imag
     { type: 'paragraph', content: [{ type: 'text', text: '正文一' }] },
     empty, empty,
     { type: 'paragraph', content: [{ type: 'text', text: '正文二' }] },
-    { type: 'image', attrs: { src: 'polarion-asset:x', width: 2000, height: 1000 } },
+    { type: 'paragraph', content: [{ type: 'image', attrs: { src: 'polarion-asset:x', width: 2000, height: 1000 } }] },
     empty,
   ] };
   const { doc: tidy, changes } = tidyDocument(doc);
   // 开头 2 个、正文一后折叠 1 个、结尾 1 个 = 4；正文一与正文二之间保留单个空段。
   assert.equal(changes.emptyParagraphs, 4);
-  const kinds = tidy.content!.map(node => node.type);
-  assert.deepEqual(kinds, ['paragraph', 'paragraph', 'paragraph', 'image']);
-  const image = tidy.content!.find(node => node.type === 'image')!;
+  richSchema.nodeFromJSON(tidy).check();
+  assert.equal(tidy.content!.length, 4);
+  assert.deepEqual(tidy.content![1], empty);
+  const image = tidy.content!.at(-1)!.content![0]!;
+  assert.equal(image.type, 'image');
   assert.equal(image.attrs!.width, 1200);
   assert.equal(image.attrs!.height, 600);
 });
@@ -136,4 +139,65 @@ test('tidy keeps unpaired straight quotes as-is', () => {
   const doc: JSONContent = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '引用了"未闭合的引号 和 0x0 值' }] }] };
   const { changes } = tidyDocument(doc);
   assert.equal(changes.quotes, 0);
+});
+
+test('tidy never empties a table cell or leaves a list item starting with a nested list', () => {
+  const doc: JSONContent = { type: 'doc', content: [
+    { type: 'table', content: [{ type: 'tableRow', content: [
+      { type: 'tableHeader', content: [{ type: 'paragraph' }] },
+      { type: 'tableCell', content: [{ type: 'paragraph' }, { type: 'paragraph' }] },
+    ] }] },
+    { type: 'orderedList', content: [
+      { type: 'listItem', content: [{ type: 'paragraph' }, { type: 'orderedList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '子项' }] }] },
+      ] }] },
+    ] },
+  ] };
+  const { doc: tidy } = tidyDocument(doc);
+  const cell = ((tidy.content![0]!.content![0]!.content as JSONContent[])[1]!.content) as JSONContent[];
+  assert.equal(cell[0]!.type, 'paragraph'); // 单元格至少保留一个块，不能被清空
+  const item = (tidy.content![1]!.content as JSONContent[])[0]!;
+  assert.equal(item.content![0]!.type, 'paragraph'); // 嵌套列表前保留段落
+  // 修整后的结构必须能被真实 schema 接受（保存时不再抛 Invalid content）。
+  richSchema.nodeFromJSON(tidy).check();
+});
+
+test('tidy retains the original required paragraph for an empty document, task or nested list', () => {
+  const sources = [
+    '<p id="cursor"></p><p></p>',
+    '<ol id="steps"><li class="outer"><p id="lead"></p><ol><li><p id="empty"></p></li></ol></li></ol>',
+    '<ul data-sidebar-tasks="true" id="tasks"><li data-sidebar-task="true" data-checked="true" class="step"><span data-task-marker="true">☑</span><div data-task-content="true"><p id="lead"></p><ul><li>child</li></ul></div></li></ul>',
+  ];
+  for (const html of sources) {
+    const base = new RichDocument(html);
+    const first = tidyDocument(base.document);
+    richSchema.nodeFromJSON(first.doc).check();
+    const saved = base.serialize(first.doc);
+    assert.equal(saved, html.replace('<p id="cursor"></p><p></p>', '<p id="cursor"></p>'));
+    const reopened = new RichDocument(saved);
+    assert.deepEqual(tidyDocument(reopened.document).doc, reopened.document);
+  }
+});
+
+test('tidy finishes nested borderless tables in one pass and preserves native attributes, authored cells and macros', () => {
+  const macro = '<span id="polarion_wiki macro name=fixture;params=keep">literal  text。。</span>';
+  const source = '<p class="bookmark" data-native="empty"></p><table id="polarion_wiki macro name=table;params=tidy" class="outer" style="width:90%"><tbody id="rows"><tr>' +
+    '<th rowspan="1" data-fixture="head" style="background-color:#fec;text-align:center">title \u3000  here。。</th><td colspan="2" style="mso-header:keep">' +
+    '<p><img src="img.png" width="2400" height="800"></p>' + macro +
+    '<table class="nested"><tr><td>inner  text。。</td></tr></table>' +
+    '<table class="styled" style="border:3px solid red"><tr><td style="padding:2px">styled  text</td></tr></table></td></tr></tbody></table>';
+  const model = new RichDocument(source);
+  const first = tidyDocument(model.document, { tableDefaults: true });
+  richSchema.nodeFromJSON(first.doc).check();
+  assert.deepEqual(first.changes, { emptyParagraphs: 0, resizedImages: 1, tables: 2, quotes: 0, hexPrefixes: 0, spaces: 3, punctuation: 2 });
+  const result = model.serialize(first.doc);
+  for (const retained of ['<p class="bookmark" data-native="empty"></p>', 'id="polarion_wiki macro name=table;params=tidy"', '<tbody id="rows">', 'rowspan="1"', 'data-fixture="head"', 'background-color:#fec', 'text-align:center', 'colspan="2"', 'mso-header:keep', 'title here。', 'inner text。', 'width="1200"', 'height="400"', macro, '<table class="styled" style="border:3px solid red"><tr><td style="padding:2px">styled text</td></tr></table>']) assert.ok(result.includes(retained), retained);
+  const reopened = new RichDocument(result);
+  for (const doc of [first.doc, reopened.document]) {
+    const again = tidyDocument(doc, { tableDefaults: true });
+    richSchema.nodeFromJSON(again.doc).check();
+    assert.deepEqual(again.doc, doc);
+    assert.ok(Object.values(again.changes).every(count => count === 0));
+  }
+  assert.equal(reopened.serialize(reopened.document), result);
 });

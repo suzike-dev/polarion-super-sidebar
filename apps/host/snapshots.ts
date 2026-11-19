@@ -2,7 +2,7 @@ import type { Store } from './store.ts';
 import type { Coverage } from './coverage.ts';
 import type { Gates } from './gates.ts';
 import type { Reviews } from './reviews.ts';
-import type { SnapshotDiff, SnapshotView, Target } from '../../packages/protocol/index.ts';
+import { openReviewIssues, type SnapshotDiff, type SnapshotView, type Target } from '../../packages/protocol/index.ts';
 
 /**
  * 项目基线快照（时间机器一期）：把当前覆盖/体检/门禁/未决预审聚合成一条可比较的记录。
@@ -23,7 +23,7 @@ export class Snapshots {
     return { checked: report.checked, clean: report.clean, findings: report.checked - report.clean, score: Math.round((report.clean / report.checked) * 100) };
   }
   private openIssuesOf(target: Target): number {
-    return this.reviews.list(target).reduce((count, record) => count + record.issues.filter(issue => issue.status === 'open').length, 0);
+    return this.reviews.list(target).reduce((count, record) => count + openReviewIssues(record).length, 0);
   }
 
   async save(target: Target, label = ''): Promise<SnapshotView> {

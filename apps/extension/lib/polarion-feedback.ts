@@ -1,5 +1,7 @@
 const credentialHelp = '请打开设置，在“Polarion 账号”中输入用户名和密码，点击“保存并连接”。';
 const messages: Record<string, string> = {
+  WORK_ITEM_NOT_FOUND_OR_INACCESSIBLE: '工作项不存在或当前账号没有读取权限。请核对编号和项目。',
+  WORK_ITEM_ID_MISMATCH: '服务端返回的工作项与请求不匹配。请重新读取。',
   POLARION_CREDENTIAL_FILE_MISSING: '未找到 Polarion 凭据。' + credentialHelp,
   POLARION_CREDENTIAL_DECRYPT_FAILED: '无法解密 Polarion 凭据。加密凭据不能直接从其他电脑或 Windows 用户复制；请为当前用户重新配置。',
   POLARION_CREDENTIAL_FILE_INCOMPLETE: 'Polarion 凭据文件不完整。请检查凭据配置或重新配置。',

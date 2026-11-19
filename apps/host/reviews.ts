@@ -83,7 +83,7 @@ export class Reviews {
       .filter(review => review.projectId === target.projectId)
       .sort((a, b) => b.at - a.at)
       .slice(0, 20)
-      .map(review => ({ id: review.id, at: review.at, status: review.status, ...(review.error ? { error: review.error } : {}), issues: review.issues }));
+      .map(review => ({ id: review.id, document: review.document, at: review.at, status: review.status, ...(review.error ? { error: review.error } : {}), issues: review.issues }));
   }
 
   decide(id: string, issueId: string, decision: 'resolved' | 'ignored'): ReviewRecordView {
@@ -93,7 +93,7 @@ export class Reviews {
     issue.status = decision;
     if (review.status === 'open' && review.issues.every(card => card.status !== 'open')) review.status = 'done';
     this.store.put('review-record', review.id, review);
-    return { id: review.id, at: review.at, status: review.status, issues: review.issues };
+    return { id: review.id, document: review.document, at: review.at, status: review.status, issues: review.issues };
   }
 
   require(id: string): ReviewRecord { return this.store.require<ReviewRecord>('review-record', id); }

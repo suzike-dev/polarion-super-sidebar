@@ -94,14 +94,14 @@ test('view：三层覆盖计数与孤立条目汇总', t => {
 test('impact：模块含巡检疑似过期，上下游与验证按角色分组', t => {
   const { store, coverage } = fixture(t);
   seedIndex(store, [
-    { workItemId: 'SPE-9', title: '高压判定', text: '', marks: [{ rootId: 'r1', modules: ['TMS_HPMode', 'TMS_Power'] }], forwardLinks: [{ workItemId: 'SYS-9', role: 'derives' }, { workItemId: 'TC-9', role: 'verifies' }], backLinks: [{ workItemId: 'TC-10', role: 'tests' }, { workItemId: 'SPE-10', role: 'relates_to' }] },
+    { workItemId: 'SPE-9', title: '高压判定', text: '', marks: [{ rootId: 'r1', modules: ['TMS_HPMode', 'TMS_Power'] }, { rootId: 'r2', modules: ['TMS_HPMode'] }], forwardLinks: [{ workItemId: 'SYS-9', role: 'derives' }, { workItemId: 'TC-9', role: 'verifies' }], backLinks: [{ workItemId: 'TC-10', role: 'tests' }, { workItemId: 'SPE-10', role: 'relates_to' }] },
   ]);
   store.put('model-roots', target.projectId, { roots: [{ id: 'r1', label: 'TMS', modules: [{ key: 'TMS_HPMode', name: 'HPMode' }, { key: 'TMS_Power', name: 'Power' }] }] });
   const check: ModelCheckView = { at: Date.now(), baselineAt: Date.now(), ok: false, checkedFiles: 1, changedFiles: 1, findings: [{ rootId: 'r1', rootLabel: 'TMS', moduleKey: 'TMS_HPMode', moduleName: 'HPMode', side: 'model', files: [{ path: 'TMS_HPMode/TMS_HPMode.slx', change: 'modified' }], workItems: [] }] };
   store.put('model-check', `${target.projectId}:r1`, { id: `${target.projectId}:r1`, ...check });
   const view = coverage.impact(target, 'SPE-9');
-  assert.equal(view.modules.length, 2);
-  assert.deepEqual(view.modules.map(module => `${module.moduleName}:${module.stale}`), ['HPMode:true', 'Power:false']);
+  assert.equal(view.modules.length, 3);
+  assert.deepEqual(view.modules.map(module => `${module.moduleName}:${module.stale}`), ['HPMode:true', 'Power:false', 'TMS_HPMode:false']);
   assert.equal(view.staleCount, 1);
   assert.deepEqual(view.upstream, [{ workItemId: 'SYS-9', role: 'derives' }]);
   assert.deepEqual(view.downstream, [{ workItemId: 'SPE-10', role: 'relates_to' }]);

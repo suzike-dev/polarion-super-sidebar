@@ -1,5 +1,5 @@
 /** 输入框里的 @ 工作项查询：只识别结尾的 @片段；中文/全角标点后可触发，邮箱仍不误伤。 */
-const QUERY = /(?<![A-Za-z0-9._%+-])@([A-Za-z0-9_-]*)$/u;
+const QUERY = /(?<![A-Za-z0-9._%+-])@([\p{L}\p{M}\p{N}_-]*)$/u;
 const WORK_ITEM = /(?<![A-Za-z0-9_-])([A-Z][A-Z0-9_]{1,23}-\d{1,7})(?![A-Za-z0-9_-])/g;
 
 export function matchWorkItemQuery(value: string): string | null {

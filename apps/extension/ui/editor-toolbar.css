@@ -41,18 +41,66 @@
 :host .rich-layer .rich-heading .eyebrow{font:11px/1.4 var(--ui-font);letter-spacing:0;text-transform:none;color:var(--ui-muted)}
 :host .rich-layer .editor-ai-toggle{display:inline-flex;align-items:center;gap:6px;color:var(--ui-secondary);font-size:12px}
 :host .rich-layer .rich-doc-icon{background:transparent;border:0;color:var(--ui-muted)}
-/* 品牌深林绿带：功能卡 hero 直译；青柠品牌标、浅绿副标、青柠连接点。 */
-:host .workspace .brand{background:#182b20;border-color:#182b20}
-:host .workspace .brand strong{color:#f1f6ec}
-:host .workspace .brand small{font-size:10px;letter-spacing:.09em;color:#8fa48d}
-:host .workspace .brand-mark{color:#1e3b24;background:#d8ebad;box-shadow:none}
-:host .workspace .brand-mark span{color:#4b6b3d}
-:host .workspace .brand>.icon{color:#9fb39b}
-:host .workspace .brand>.icon:hover:not(:disabled){color:#eaf2e2;background:#24402d}
-:host .workspace .brand>.icon:active:not(:disabled){background:#2c4e37}
-:host .workspace .brand>.icon:disabled{color:#5c6e5d;background:transparent}
-:host .workspace .brand .connection{background:#71836f}
-:host .workspace .brand .connection.online{background:#d8ebad;box-shadow:0 0 0 3px #d8ebad38}
+/* Both assistant windows share one identity, workbench group and window controls. */
+:host .workspace .assistant-header {
+  --header-ink: var(--ui-ink);
+  --header-secondary: var(--ui-secondary);
+  --header-line: var(--ui-line);
+  --header-active: #e1ead8;
+  --header-surface: #fcfcf6;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 10px;
+  background: var(--header-surface);
+  color: var(--header-ink);
+}
+:host .workspace .assistant-header.brand {
+  --header-ink: #f1f6ec;
+  --header-secondary: #b8c9b5;
+  --header-line: #47604c;
+  --header-active: #304c37;
+  --header-surface: #182b20;
+  border-color: var(--header-surface);
+}
+:host .workspace.floating-assistant .assistant-header { min-height: 39px; padding-inline: 10px; gap: 6px; }
+:host .workspace .assistant-identity { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
+:host .workspace .assistant-logo { flex: none; position: relative; }
+:host .workspace .assistant-header .brand-mark {
+  width: 30px; height: 30px; border-radius: 7px;
+  font: 650 21px/1 var(--ui-font); color: #1e3b24; background: var(--ui-lime); box-shadow: none;
+}
+:host .workspace .assistant-header .brand-mark span { font-size: 11px; line-height: 1; top: 2px; right: 3px; color: #4b6b3d; }
+:host .workspace .assistant-logo .connection {
+  position: absolute; right: -1px; bottom: -1px; width: 7px; height: 7px;
+  background: #83917d; box-shadow: 0 0 0 2px var(--header-surface);
+}
+:host .workspace .assistant-logo .connection.online { background: #78ad6f; }
+:host .workspace .assistant-wordmark { min-width: 0; line-height: 1.2; }
+:host .workspace .assistant-header .assistant-wordmark strong { display: block; white-space: nowrap; font-size: 15px; font-weight: 650; color: var(--header-ink); }
+:host .workspace .assistant-header .assistant-wordmark small {
+  display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 11px/1.25 var(--ui-font); letter-spacing: 0; color: var(--header-secondary);
+}
+:host .workspace :is(.assistant-workbenches, .assistant-more-tools, .assistant-header-controls) { display: flex; align-items: center; gap: 2px; flex: none; }
+:host .workspace .assistant-header-controls { border-inline-start: 1px solid var(--header-line); padding-inline-start: 5px; }
+:host .workspace .assistant-header .icon { width: 29px; height: 29px; padding: 0; color: var(--header-secondary); }
+:host .workspace .assistant-header .icon:is([aria-pressed=true], [aria-expanded=true], :hover:not(:disabled)) { color: var(--header-ink); background: var(--header-active); }
+:host .workspace .assistant-header .icon[aria-disabled=true] { opacity: .55; cursor: default; background: transparent; }
+:host .workspace .assistant-header .icon:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+:host .workspace .assistant-more { position: relative; display: flex; }
+:host .workspace .assistant-more-tools[hidden] { display: none; }
+:host .workspace .assistant-more-tools.as-popover {
+  --header-secondary: var(--ui-secondary); --header-ink: var(--ui-accent-ink); --header-active: var(--ui-accent-soft);
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 9; width: max-content; min-width: 146px;
+  flex-direction: column; align-items: stretch; padding: 5px; border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-md); background: var(--ui-surface); box-shadow: var(--ui-popover-shadow);
+}
+:host .workspace .assistant-more-tools.as-popover .icon {
+  display: flex; align-items: center; gap: 9px; width: 100%; height: auto; min-height: 32px;
+  padding: 5px 9px; font: 13px/1.4 var(--ui-font); text-align: start;
+}
 :host .workspace .mini-mark{font-size:11px}
 :host .rich-layer .document-tools button{font-size:12px}
 :host .rich-layer :is(.rich-tabs>span,.rich-statusbar,.document-shortcuts){font-size:11px}

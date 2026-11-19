@@ -76,7 +76,7 @@ export class Meetings {
       .filter(meeting => meeting.projectId === target.projectId)
       .sort((a, b) => b.at - a.at)
       .slice(0, 20)
-      .map(meeting => ({ id: meeting.id, at: meeting.at, status: meeting.status, ...(meeting.error ? { error: meeting.error } : {}), ...(meeting.digest ? { digest: meeting.digest } : {}), actions: meeting.actions }));
+      .map(({ id, document, at, status, error, digest, actions }) => ({ id, document, at, status, error, digest, actions }));
   }
 
   decide(id: string, actionId: string, decision: 'done' | 'open'): MeetingRecordView {
@@ -84,8 +84,9 @@ export class Meetings {
     const action = meeting.actions.find(row => row.id === actionId);
     if (!action) throw Error('MEETING_ACTION_NOT_FOUND');
     action.status = decision;
-    if (meeting.status === 'open' && meeting.actions.every(row => row.status === 'done')) meeting.status = 'done';
+    if (meeting.status === 'open' || meeting.status === 'done') meeting.status = meeting.actions.some(row => row.status === 'open') ? 'open' : 'done';
     this.store.put('meeting-record', meeting.id, meeting);
-    return { id: meeting.id, at: meeting.at, status: meeting.status, actions: meeting.actions };
+    const { document, at, status, digest, error, actions } = meeting;
+    return { id, document, at, status, digest, error, actions };
   }
 }

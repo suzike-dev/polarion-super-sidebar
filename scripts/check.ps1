@@ -9,7 +9,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Extension preparation failed' }
   & $node node_modules/typescript/bin/tsc --noEmit -p apps/extension/tsconfig.json
   if ($LASTEXITCODE -ne 0) { throw 'Extension type check failed' }
-  & $node --test 'packages/core/*.test.ts' 'apps/host/*.test.ts' 'apps/extension/lib/*.test.ts'
+  & $node scripts/test-all.mjs
   if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
   & $node scripts/build-host.mjs
   if ($LASTEXITCODE -ne 0) { throw 'Host build failed' }

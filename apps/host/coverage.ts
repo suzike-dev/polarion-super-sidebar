@@ -1,14 +1,13 @@
 import { Store } from './store.ts';
 import { Drafts, Polarion, type RemoteLink } from './polarion.ts';
 import { Model } from './model.ts';
-import type { CoverageItem, CoverageView, DedupMatch, ImpactView, Target } from '../../packages/protocol/index.ts';
+import { isCoverageOrphan, VERIFICATION_ROLE, type CoverageItem, type CoverageView, type DedupMatch, type ImpactView, type ModelCheckView, type Target } from '../../packages/protocol/index.ts';
 
 /**
  * v0.14 语义索引一期：当前文档逐条「正文摘要 + 双向链接 + 模块备注」入 sqlite，
  * 派生三层覆盖（上游链接 / 实现模块 / 验证链接）供覆盖矩阵、写前查重与影响前置卡共用。
  * 链接按角色名分类：test/verif/valid 视为验证，其余正向链接视为上游、反向视为下游引用。
  */
-const VERIFICATION_ROLE = /test|verif|valid|检验|验证/i;
 const STOP_TOKENS = new Set(['的', '了', '和', '与', '及', '或', '在', '为', '对', '由', '从', '该', '本', '并', '其', '当', '应', '须', '需', '不', '为', 'a', 'an', 'the', 'of', 'to', 'and', 'or', 'for', 'in', 'on', 'is', 'be', 'shall', 'must', 'should', 'may']);
 
 /** 分词：CJK 二元组 + 拉丁/数字词（信号名、十六进制等整体保留），去停用词。 */
@@ -56,7 +55,7 @@ export class Coverage {
         withUpstream: items.filter(item => item.upstream > 0).length,
         withModule: items.filter(item => item.moduleCount > 0).length,
         withVerification: items.filter(item => item.verification > 0).length,
-        orphans: items.filter(item => !item.upstream && !item.moduleCount && !item.verification).length,
+        orphans: items.filter(isCoverageOrphan).length,
       },
     };
   }
@@ -112,16 +111,12 @@ export class Coverage {
     const record = this.store.get<CoverageRecord>('coverage-index', target.projectId);
     const item = record?.items.find(row => row.workItemId === workItemId);
     if (!item) throw Error('IMPACT_ITEM_NOT_INDEXED：该条目不在覆盖索引里，先构建覆盖索引。');
-    // 疑似过期模块：取各根目录最近一次巡检里模型侧（含 both）变化过的模块。
-    const staleModules = new Set<string>();
-    for (const check of this.store.list<{ id?: string; findings?: { moduleKey: string; side: string }[] } & import('../../packages/protocol/index.ts').ModelCheckView>('model-check')) {
-      if (typeof check.id !== 'string' || !check.id.startsWith(target.projectId + ':')) continue;
-      for (const finding of check.findings ?? []) if (finding.side !== 'requirement') staleModules.add(finding.moduleKey);
-    }
     const roots = this.store.get<{ roots: { id: string; label: string; modules: { key: string; name: string }[] }[] }>('model-roots', target.projectId);
     const modules = item.marks.flatMap(mark => {
       const root = roots?.roots.find(row => row.id === mark.rootId);
-      return mark.modules.map(key => ({ rootId: mark.rootId, rootLabel: root?.label ?? mark.rootId, moduleKey: key, moduleName: root?.modules.find(module => module.key === key)?.name ?? key, stale: staleModules.has(key) }));
+      const check = this.store.get<ModelCheckView>('model-check', `${target.projectId}:${mark.rootId}`);
+      const changed = check?.findings.filter(finding => finding.side !== 'requirement') ?? [];
+      return mark.modules.map(key => ({ rootId: mark.rootId, rootLabel: root?.label ?? mark.rootId, moduleKey: key, moduleName: root?.modules.find(module => module.key === key)?.name ?? key, stale: changed.some(finding => finding.rootId === mark.rootId && finding.moduleKey === key) }));
     });
     const forward = item.forwardLinks.map(link => ({ workItemId: link.workItemId, role: link.role }));
     const back = item.backLinks.map(link => ({ workItemId: link.workItemId, role: link.role }));

@@ -1,5 +1,6 @@
 import type { JSONContent } from '@tiptap/core';
 import { patchStyle, styleValues } from './rich-style.ts';
+import { richSchema, sanitizeRichJSON } from './rich-schema.ts';
 
 /** 表格样式预设与全文排版整理：纯 JSON 变换，编辑器里以事务应用，可撤销；序列化走既有 safeStyle 白名单。 */
 export type TablePreset = 'plain' | 'threeLine' | 'zebra' | 'minimal';
@@ -13,36 +14,49 @@ const presets: Record<TablePreset, PresetConfig> = {
 
 const isCell = (node: JSONContent) => node.type === 'tableCell' || node.type === 'tableHeader';
 
-/** 给文档里的每个表格套用预设（嵌套在折叠块等容器里的也会处理）；返回 {doc, tables}。 */
+// Each invocation owns just the direct rows. Nested tables are visited independently.
+function styleTable(table: JSONContent, config: PresetConfig, defaultsOnly = false): JSONContent {
+  const style = (node: JSONContent, patch: Record<string, string | null>) => {
+    const attrs = { ...node.attrs };
+    if (defaultsOnly) {
+      const existing = styleValues(attrs.sourceStyle);
+      if (attrs.fill) existing['background-color'] = attrs.fill;
+      if (attrs.valign) existing['vertical-align'] = attrs.valign;
+      patch = Object.fromEntries(Object.entries(patch).filter(([key]) => !(key in existing)));
+    }
+    if (Object.keys(patch).length) attrs.sourceStyle = patchStyle(attrs.sourceStyle, patch);
+    return attrs;
+  };
+  return { ...table, attrs: style(table, config.table), content: table.content?.map((row, index) => ({ ...row, content: row.content?.map(cell => {
+    if (!isCell(cell)) return cell;
+    const header = cell.type === 'tableHeader';
+    const patch = header ? config.header : config.cell;
+    if (defaultsOnly) return { ...cell, attrs: style(cell, patch) };
+    const fill = header ? config.headerFill : index % 2 === 1 ? config.bodyFill : null;
+    const clearStripe = fill === null && styleValues(cell.attrs?.sourceStyle)['background-color']?.toLowerCase() === presets.zebra.bodyFill;
+    const attrs = style(cell, clearStripe ? { ...patch, 'background-color': null } : patch);
+    if (fill !== null || attrs.fill === presets.zebra.bodyFill) attrs.fill = fill;
+    return { ...cell, attrs };
+  }) })) };
+}
+
 export function applyTablePreset(doc: JSONContent, preset: TablePreset): { doc: JSONContent; tables: number } {
-  const config = presets[preset];
   let tables = 0;
-  const walk = (node: JSONContent, insideRow: { index: number } | null = null): JSONContent => {
-    if (node.type === 'table') {
-      tables++;
-      let row = 0;
-      return { ...node, attrs: { ...node.attrs, sourceStyle: patchStyle(node.attrs?.sourceStyle, config.table) }, content: (node.content ?? []).map(child => { if (child.type === 'tableRow') return walk(child, { index: row++ }); return walk(child, insideRow); }) };
-    }
-    if (node.type === 'tableRow') return { ...node, content: (node.content ?? []).map(child => walk(child, insideRow)) };
-    if (isCell(node) && insideRow) {
-      const style = node.type === 'tableHeader' ? config.header : config.cell;
-      const fill = node.type === 'tableHeader' ? config.headerFill : (insideRow.index % 2 === 1 ? config.bodyFill : null);
-      // 编辑中的斑马纹在 fill 中，保存重开后在 sourceStyle 中。
-      const attrs = { ...node.attrs };
-      const clearStripeStyle = fill === null && styleValues(attrs.sourceStyle)['background-color']?.toLowerCase() === presets.zebra.bodyFill;
-      attrs.sourceStyle = patchStyle(attrs.sourceStyle, clearStripeStyle ? { ...style, 'background-color': null } : style);
-      if (fill !== null || attrs.fill === presets.zebra.bodyFill) attrs.fill = fill;
-      return { ...node, attrs, content: (node.content ?? []).map(child => walk(child, insideRow)) };
-    }
-    return node.content ? { ...node, content: node.content.map(child => walk(child)) } : node;
+  const walk = (node: JSONContent): JSONContent => {
+    const next = node.content ? { ...node, content: node.content.map(walk) } : node;
+    if (node.type !== 'table') return next;
+    tables++;
+    return styleTable(next, presets[preset]);
   };
   return { doc: walk(doc), tables };
 }
 
-const isEmptyParagraph = (node: JSONContent | undefined) => !!node && node.type === 'paragraph' && !(node.content ?? []).some(child => child.type !== 'text' || (child.text ?? '').trim());
-const hasBorderStyle = (style: unknown) => typeof style === 'string' && /border/i.test(style);
-/** 代码与公式内容一律不整理：保持字面语义。 */
-const isUntouchedType = (node: JSONContent) => /code|formula|math/i.test(node.type ?? '');
+function removableParagraph(node: JSONContent) {
+  if (node.type !== 'paragraph' || Object.entries(node.attrs ?? {}).some(([key, value]) => key !== 'sid' && !!value)) return false;
+  return (node.content ?? []).every(child => child.type === 'text' && !child.text?.trim() && !child.marks?.some(mark => mark.type !== 'sourceText'));
+}
+const hasBorderStyle = (style?: string) => Object.keys(styleValues(style)).some(key => /^border(?:$|-(?:top|bottom|left|right|color|style|width)(?:-|$))/.test(key));
+const isUntouchedType = (node: JSONContent) => /code|formula|math|protected/i.test(node.type ?? '');
 
 export type TidyChanges = { emptyParagraphs: number; resizedImages: number; tables: number; quotes: number; hexPrefixes: number; spaces: number; punctuation: number };
 
@@ -56,7 +70,7 @@ export type TidyChanges = { emptyParagraphs: number; resizedImages: number; tabl
 function tidyText(text: string, changes: TidyChanges): string {
   let next = text.replace(/"([^"\n]*)"/g, (_match, inner: string) => { changes.quotes++; return `“${inner}”`; });
   next = next.replace(/(?<![A-Za-z0-9_])0X([0-9A-Fa-f]+)/g, (_match, digits: string) => { changes.hexPrefixes++; return '0x' + digits; });
-  next = next.replace(/\u3000|( {2,})/g, () => { changes.spaces++; return ' '; });
+  next = next.replace(/[ \u3000]{2,}|\u3000/g, () => { changes.spaces++; return ' '; });
   next = next.replace(/([。，；])\1+/g, match => { changes.punctuation++; return match[0]!; });
   return next;
 }
@@ -80,24 +94,28 @@ export function tidyDocument(doc: JSONContent, options: { tableDefaults?: boolea
       const scale = 1200 / Number(node.attrs.width);
       return { ...node, attrs: { ...node.attrs, width: 1200, ...(node.attrs.height ? { height: Math.max(1, Math.round(Number(node.attrs.height) * scale)) } : {}) } };
     }
-    if (node.type === 'table' && options.tableDefaults && !hasBorderStyle(node.attrs?.sourceStyle) && !(node.content ?? []).some(row => (row.content ?? []).some(cell => hasBorderStyle(cell.attrs?.sourceStyle)))) {
+    if (!node.content) return node;
+    let children = node.content.map(walk);
+    const expression = richSchema.nodes[node.type!]!.spec.content;
+    if (expression === 'block+' || expression === 'paragraph block*' || node.type === 'details') {
+      const start = node.type === 'details' ? 1 : 0;
+      const last = children.findLastIndex(child => !removableParagraph(child));
+      // Keep the original required paragraph (including its sid), even when all children are blank.
+      children = children.filter((child, index, all) => {
+        if (!removableParagraph(child)) return true;
+        if (index === start && (expression === 'paragraph block*' || last < start)) return true;
+        return index > start && index < last && !removableParagraph(all[index - 1]!);
+      });
+      changes.emptyParagraphs += node.content.length - children.length;
+    }
+    const next = { ...node, content: children };
+    if (node.type === 'table' && options.tableDefaults && children.some(row => row.content?.some(isCell)) && !hasBorderStyle(node.attrs?.sourceStyle) && !children.some(row => row.content?.some(cell => hasBorderStyle(cell.attrs?.sourceStyle)))) {
       changes.tables++;
-      return applyTablePreset(node, 'plain').doc;
+      return styleTable(next, presets.plain, true);
     }
-    if (node.content) {
-      const children: JSONContent[] = [];
-      for (const child of node.content) {
-        if (isEmptyParagraph(child) && (children.length === 0 || isEmptyParagraph(children.at(-1)))) { changes.emptyParagraphs++; continue; }
-        children.push(walk(child));
-      }
-      // details 的 summary 后至少需要一个正文块，保留原段及其来源属性。
-      const minChildren = node.type === 'details' ? 2 : 0;
-      while (children.length > minChildren && isEmptyParagraph(children.at(-1))) { children.pop(); changes.emptyParagraphs++; }
-      return { ...node, content: children };
-    }
-    return node;
+    return next;
   };
-  return { doc: walk(doc), changes };
+  return { doc: walk(sanitizeRichJSON(doc)), changes };
 }
 
 export const tablePresetLabels: Record<TablePreset, string> = { plain: '全框线', threeLine: '三线表', zebra: '斑马纹', minimal: '极简' };

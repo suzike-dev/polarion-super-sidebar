@@ -167,10 +167,15 @@ export async function sendCardToGroups(groups: SendTarget[], card: Card): Promis
         signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) return {label: group.label, ok: false, error: `HTTP ${response.status}`};
-      // 飞书 webhook 出错时通常仍返回 200，用 body 里的 code 表达。
-      let payload: {code?: number; msg?: string} = {};
-      try { payload = JSON.parse(await response.text()) as {code?: number; msg?: string}; } catch { /* 非 JSON 按原文为空处理 */ }
-      if (payload.code && payload.code !== 0) return {label: group.label, ok: false, error: payload.msg || `code ${payload.code}`};
+      // HTTP 200 也可能是拒收。两种机器人回执均以明确的数值 0 确认投递。
+      const payload = await response.json().catch(() => null) as {code?: unknown; StatusCode?: unknown; msg?: unknown; StatusMessage?: unknown} | null;
+      const codes = [payload?.code, payload?.StatusCode].filter(code => code !== undefined);
+      if (!codes.length || codes.some(code => typeof code !== 'number')) return {label: group.label, ok: false, error: '未收到有效的飞书回执'};
+      const failure = codes.find(code => code !== 0);
+      if (failure !== undefined) {
+        const message = payload?.msg || payload?.StatusMessage;
+        return {label: group.label, ok: false, error: typeof message === 'string' ? message : `code ${failure}`};
+      }
       return {label: group.label, ok: true};
     } catch (exception) {
       const message = exception instanceof Error ? exception.message : String(exception);

@@ -228,21 +228,27 @@ export class Workflows {
   /** 运行轨迹：历史实例 + 每步执行证据（结果摘要）。 */
   history(projectId: string, limit = 20): WorkflowHistoryItem[] {
     return this.store.list<WorkflowRun>('workflow-run')
-      .filter(run => run.target.projectId === projectId)
+      .filter(run => run.target?.projectId === projectId)
       .sort((a, b) => b.startedAt - a.startedAt)
       .slice(0, limit)
-      .map(run => ({
-        id: run.id, defName: run.defName, status: run.status, startedAt: run.startedAt, ...(run.endedAt ? { endedAt: run.endedAt } : {}),
-        ...(run.note ? { note: run.note } : {}), ...(run.error ? { error: run.error } : {}),
-        steps: run.steps.map((stepRun, index) => {
-          const def = run.def.steps[index];
-          return {
-            stepId: stepRun.stepId, title: def?.title ?? stepRun.stepId, status: stepRun.status,
-            ...(stepRun.retries ? { retries: stepRun.retries } : {}), ...(stepRun.resultTail ? { resultPreview: stepRun.resultTail.slice(0, 200) } : {}),
-            ...(def?.check ? { checkRule: true } : {}),
-          };
-        }),
-      }));
+      .map(run => {
+        const session = run.sessionId ? this.store.get<Session>('session', run.sessionId) : undefined;
+        const sessionId = session && session.target?.projectId !== projectId ? undefined : run.sessionId;
+        const workItemId = run.contexts?.findLast(context => context.target?.projectId === projectId && context.workItemId)?.workItemId;
+        return {
+          id: run.id, defName: run.defName, status: run.status, startedAt: run.startedAt, ...(run.endedAt ? { endedAt: run.endedAt } : {}),
+          ...(sessionId ? { sessionId } : {}), ...(workItemId ? { workItemId } : {}),
+          ...(run.note ? { note: run.note } : {}), ...(run.error ? { error: run.error } : {}),
+          steps: run.steps.map((stepRun, index) => {
+            const def = run.def.steps[index];
+            return {
+              stepId: stepRun.stepId, title: def?.title ?? stepRun.stepId, status: stepRun.status,
+              ...(stepRun.retries ? { retries: stepRun.retries } : {}), ...(stepRun.resultTail ? { resultPreview: stepRun.resultTail.slice(0, 200) } : {}),
+              ...(def?.check ? { checkRule: true } : {}),
+            };
+          }),
+        };
+      });
   }
 
   /** 工作流每日定时（空=取消）；document 记录触发目标。 */
@@ -453,4 +459,4 @@ export class Workflows {
 }
 
 /** 本地日期 YYYY-MM-DD：定时去重按用户本地时区算，不能直接用 UTC（跨零点会错一天）。 */
-function localDay(now: Date) { return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
+export function localDay(now: Date) { return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }

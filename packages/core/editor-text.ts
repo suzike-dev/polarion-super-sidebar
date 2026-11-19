@@ -1,6 +1,39 @@
 import type {Node} from '@tiptap/pm/model';
 import type {EditorState} from '@tiptap/pm/state';
 export type TextMatch={from:number;to:number};
+export const staleQualityFinding = '体检发现已过期或位置不一致，请重新体检并选择要改写的那一处。';
+const sentenceSegmenter = new Intl.Segmenter('zh', { granularity: 'sentence' });
+
+export function isSingleQualitySentence(text: string) {
+  return !!text.trim() && !/[\r\n\u2028\u2029]|[；;](?!$)/u.test(text) && sentenceSegmenter.segment(text).containing(0)?.segment === text;
+}
+
+/** Marks are transparent; blocks, inline objects and semicolons bound the editable sentence. */
+export function qualitySentence(doc: Node, matchFrom: number, matchTo: number, matchedText: string) {
+  if (!matchedText || !Number.isInteger(matchFrom) || !Number.isInteger(matchTo) || matchFrom < 0 || matchTo > doc.content.size || matchTo - matchFrom !== matchedText.length) throw Error(staleQualityFinding);
+  const start = doc.resolve(matchFrom), end = doc.resolve(matchTo);
+  if (!start.sameParent(end) || !start.parent.isTextblock) throw Error(staleQualityFinding);
+  const blockWrappers = (node: Node | null) => node?.marks.filter(mark => mark.attrs.sourceBlock) ?? [];
+  const selectedWrappers = blockWrappers(start.nodeAfter);
+  let left = start.start(), right = start.end();
+  start.parent.forEach((child, offset) => {
+    const wrappers = blockWrappers(child);
+    if (child.isText && wrappers.length === selectedWrappers.length && wrappers.every((mark, i) => mark.eq(selectedWrappers[i]!))) return;
+    const pos = start.start() + offset;
+    if (pos + child.nodeSize <= matchFrom) left = pos + child.nodeSize;
+    else if (pos >= matchTo) right = Math.min(right, pos);
+    else throw Error(staleQualityFinding);
+  });
+  const text = doc.textBetween(left, right), offset = matchFrom - left;
+  if (text.slice(offset, offset + matchedText.length) !== matchedText) throw Error(staleQualityFinding);
+  const segment = sentenceSegmenter.segment(text).containing(offset);
+  if (!segment || offset + matchedText.length > segment.index + segment.segment.length) throw Error(staleQualityFinding);
+  const before = text.slice(segment.index, offset).split(/[；;\r\n]/u).at(-1)!.trimStart();
+  const after = text.slice(offset + matchedText.length, segment.index + segment.segment.length).match(/^[^；;\r\n]*[；;]?/u)![0].trimEnd();
+  const sentence = before + matchedText + after;
+  if (!isSingleQualitySentence(sentence)) throw Error(staleQualityFinding);
+  return { from: matchFrom - before.length, to: matchTo + after.length, sentence, matchFrom, matchTo, matchedText };
+}
 /** Formatting marks do not break a match; blocks and inline objects do. */
 export function findTextMatches(doc:Node,query:string,caseSensitive=true):TextMatch[]{
   const matches:TextMatch[]=[];if(!query)return matches;

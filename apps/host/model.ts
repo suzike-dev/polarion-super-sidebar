@@ -4,11 +4,19 @@ import crypto from 'node:crypto';
 import { gzipSync, gunzipSync } from 'fflate';
 import { Store } from './store.ts';
 import { Drafts, Polarion } from './polarion.ts';
-import { ModelNoteSchema, ModelRootSchema, type ModelBaselineInfo, type ModelCheckFinding, type ModelCheckView, type ModelFileChange, type ModelIndexedItem, type ModelIndexView, type ModelModule, type ModelNote, type ModelRoot, type ModelRootsView, type ModelScanView, type ModelTraceGroup, type ModelTraceView, type Target } from '../../packages/protocol/index.ts';
+import { isHeadingType, ModelNoteSchema, ModelRootSchema, type ModelBaselineInfo, type ModelCheckFinding, type ModelCheckView, type ModelFileChange, type ModelIndexedItem, type ModelIndexView, type ModelModule, type ModelNote, type ModelRoot, type ModelRootsView, type ModelScanView, type ModelTraceGroup, type ModelTraceView, type Target } from '../../packages/protocol/index.ts';
 
 /** Simulink 模型关联：项目级配置（PSB-MODEL 工作项 + sidebar-model.roots.json 附件）+ 工作项级备注（sidebar-model.json）。 */
 const TITLE = 'PSB-MODEL';
 const FILE = 'sidebar-model.roots.json';
+
+type FileOwner = Pick<ModelModule, 'key' | 'name'>;
+type PatrolBaseline = {
+  at: number;
+  files: Record<string, string>;
+  owners?: Record<string, FileOwner | null>;
+  items: { workItemId: string; title: string; updated: string }[];
+};
 
 const gzipJson = (value: unknown) => Buffer.from(gzipSync(new TextEncoder().encode(JSON.stringify(value)))).toString('base64');
 const gunzipJson = <T>(base64: string): T => JSON.parse(new TextDecoder().decode(gunzipSync(Buffer.from(base64, 'base64'))));
@@ -28,7 +36,7 @@ function classify(dir: string): ModelModule['kind'] {
  * 同目录的 _DD.sldd/.xlsx 记为字典/接口表；根级独立 .sldd 记入 dictionaries。
  * 只读目录结构，不解析模型内容，无 MATLAB 依赖。
  */
-export function scanModelRoot(inputPath: string): ModelScanView & { fileCount: number } {
+export function scanModelRoot(inputPath: string, { allowEmpty = false } = {}): ModelScanView & { fileCount: number } {
   if (!/^[a-z]:[\\/]/i.test(inputPath) && !inputPath.startsWith('\\\\')) throw Error('MODEL_ROOT_ABSOLUTE_PATH_REQUIRED');
   const root = path.resolve(inputPath);
   let stat: fs.Stats;
@@ -39,7 +47,8 @@ export function scanModelRoot(inputPath: string): ModelScanView & { fileCount: n
   let projectFile: string | null = null;
   const walk = (dir: string, depth: number) => {
     let entries: fs.Dirent[];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+    catch (error) { if (allowEmpty) throw error; return; }
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) { if (depth < 3 && !SKIP_DIRS.has(entry.name.toLowerCase())) walk(full, depth + 1); continue; }
@@ -51,7 +60,7 @@ export function scanModelRoot(inputPath: string): ModelScanView & { fileCount: n
     }
   };
   walk(root, 0);
-  if (!models.length) throw Error('MODEL_ROOT_NO_MODELS');
+  if (!models.length && !allowEmpty) throw Error('MODEL_ROOT_NO_MODELS');
   if (models.length > 800) throw Error('MODEL_ROOT_TOO_MANY_MODELS');
   const modules = new Map<string, ModelModule>();
   const moduleDirs = new Set(models.map(rel => path.dirname(rel).replaceAll('\\', '/')));
@@ -73,10 +82,28 @@ export function scanModelRoot(inputPath: string): ModelScanView & { fileCount: n
   return { rootName, label: rootName, path: root, projectFile, dictionaries: rootDictionaries.slice(0, 100), modules: [...modules.values()].slice(0, 500), scannedAt: Date.now(), fileCount: models.length };
 }
 
+type StoredModelIndex = ModelIndexView & { markedHeadings?: ModelIndexedItem[] };
+
+/** 旧索引把章节混在 items 中；按同一规则读取旧记录和同步结果，显式标注的章节单独保留。 */
+function requirementIndex(index: Omit<StoredModelIndex, 'total' | 'annotated'>): StoredModelIndex {
+  const items = index.items.filter(item => !isHeadingType(item.type));
+  const markedHeadings = index.markedHeadings ?? index.items.filter(item => isHeadingType(item.type) && item.marks.length);
+  return { ...index, items, total: items.length, annotated: items.filter(item => item.marks.length).length, ...(markedHeadings.length ? { markedHeadings } : {}) };
+}
+
+function cachedModelIndex(store: Store, projectId: string) {
+  const index = store.get<StoredModelIndex>('model-index', projectId);
+  return index && requirementIndex(index);
+}
+
+function indexedAnnotations(index?: StoredModelIndex) {
+  return index ? [...index.items.filter(item => item.marks.length), ...(index.markedHeadings ?? [])] : [];
+}
+
 /** 会话注入用的模型概况摘要：roots + 模块 + 需求覆盖计数（读本机缓存，无 IO 等待）。 */
 export function modelContextDigest(store: Store, projectId: string): string {
   const cached = store.get<{ roots: ModelRoot[] }>('model-roots', projectId);
-  const index = store.get<ModelIndexView>('model-index', projectId);
+  const index = cachedModelIndex(store, projectId);
   const roots = cached?.roots ?? [];
   if (!roots.length) return '';
   const lines: string[] = [];
@@ -190,14 +217,14 @@ export class Model {
     if (!remote.modelNotes) throw Error('MODEL_BACKEND_UNAVAILABLE');
     const effective = query.trim() || 'NOT(title:PSB-*)';
     const result = await remote.modelNotes(target, effective);
-    let inDoc: Set<string> | null = null;
+    let documentTypes: Map<string, string> | undefined;
     try {
       const outline = await remote.outline(target);
-      if (outline.items.length) inDoc = new Set(outline.items.map(item => item.id));
-    } catch { /* outline 不可用时保留全量（例如项目级配置页），矩阵可能含其他文档条目 */ }
-    const scoped = (inDoc ? result.items.filter(item => inDoc.has(item.workItemId)) : result.items);
-    const items: ModelIndexedItem[] = scoped.map(item => ({ workItemId: item.workItemId, title: item.title, type: item.type, updated: item.updated, marks: item.marks, links: item.links }));
-    const view: ModelIndexView = { items, total: items.length, annotated: items.filter(item => item.marks.length).length, syncedAt: Date.now(), query: effective, ...(result.partial || (inDoc && scoped.length < result.items.length) ? { partial: true } : {}) };
+      if (outline.items.length) documentTypes = new Map(outline.items.map(item => [item.id, item.type]));
+    } catch { /* outline 不可用时保留项目查询结果 */ }
+    const scoped = documentTypes ? result.items.filter(item => documentTypes.has(item.workItemId)) : result.items;
+    const items = scoped.map(item => ({ ...item, type: documentTypes?.get(item.workItemId)?.trim() || item.type }));
+    const view = requirementIndex({ items, syncedAt: Date.now(), query: effective, ...(result.partial || scoped.length < result.items.length ? { partial: true } : {}) });
     this.store.put('model-index', target.projectId, view);
     return view;
   }
@@ -205,31 +232,47 @@ export class Model {
   /** 追溯视图：roots（缓存）+ 索引（缓存）→ 模块分组、未标注清单、零需求模块。 */
   async traceView(target: Target): Promise<ModelTraceView> {
     const rootsView = await this.roots(target);
-    const index = this.store.get<ModelIndexView>('model-index', target.projectId);
+    const index = cachedModelIndex(this.store, target.projectId);
     const items = index?.items ?? [];
     const groups: ModelTraceGroup[] = [];
     for (const root of rootsView.roots) {
       for (const module of root.modules) {
         if (module.excluded) continue;
-        const matched = items.filter(item => item.marks.some(mark => mark.rootId === root.id && mark.modules.includes(module.key)));
-        groups.push({ rootId: root.id, rootLabel: root.label, moduleKey: module.key, moduleName: module.name, kind: module.kind, items: matched, missing: matched.length === 0 });
+        const linked = (item: ModelIndexedItem) => item.marks.some(mark => mark.rootId === root.id && mark.modules.includes(module.key));
+        const matched = items.filter(linked);
+        const markedHeadings = index?.markedHeadings?.filter(linked);
+        groups.push({ rootId: root.id, rootLabel: root.label, moduleKey: module.key, moduleName: module.name, kind: module.kind, items: matched, missing: matched.length === 0, ...(markedHeadings?.length ? { markedHeadings } : {}) });
       }
     }
-    return { roots: rootsView.roots, groups, unannotated: items.filter(item => !item.marks.length), total: items.length, annotated: items.filter(item => item.marks.length).length, syncedAt: index?.syncedAt ?? 0, stale: !index };
+    return { roots: rootsView.roots, groups, unannotated: items.filter(item => !item.marks.length), total: index?.total ?? 0, annotated: index?.annotated ?? 0, syncedAt: index?.syncedAt ?? 0, stale: !index };
   }
 
   // ---- 一致性巡检：内容指纹基准 + 双侧变更检测。 ----
 
   /** 巡检跟踪的文件：每个模块的模型/字典/接口表 + 根级公共字典（相对根目录路径）。 */
-  private trackedFiles(scan: ModelScanView): string[] {
-    const files = new Set<string>();
+  private fileOwners(scan: Pick<ModelScanView, 'modules' | 'dictionaries'>) {
+    const owners = new Map<string, FileOwner | null>();
+    for (const dictionary of scan.dictionaries) owners.set(dictionary, null);
     for (const module of scan.modules) {
-      files.add(module.model);
-      if (module.dictionary) files.add(module.dictionary);
-      if (module.interface) files.add(module.interface);
+      const owner = { key: module.key, name: module.name };
+      for (const file of [module.model, module.dictionary, module.interface]) if (file) owners.set(file, owner);
     }
-    for (const dictionary of scan.dictionaries) files.add(dictionary);
-    return [...files];
+    return owners;
+  }
+  /** 旧基准只存指纹；已从配置移除的模块仍可从基准中同目录的主模型定位。 */
+  private baselineOwners(baseline: PatrolBaseline, root: ModelRoot) {
+    if (baseline.owners) return new Map(Object.entries(baseline.owners));
+    const known = this.fileOwners(root);
+    const byDir = new Map<string, FileOwner>();
+    for (const file of Object.keys(baseline.files)) {
+      if (!/\.(slx|mdl)$/i.test(file)) continue;
+      const key = path.posix.dirname(file);
+      byDir.set(key, { key, name: path.posix.parse(file).name });
+    }
+    for (const file of Object.keys(baseline.files)) {
+      if (!known.has(file)) known.set(file, byDir.get(path.posix.dirname(file)) ?? null);
+    }
+    return known;
   }
   private hashFile(rootPath: string, rel: string): string {
     return crypto.createHash('sha256').update(fs.readFileSync(path.join(rootPath, ...rel.split('/')))).digest('hex');
@@ -247,11 +290,12 @@ export class Model {
   async baselineSet(target: Target, rootId: string): Promise<ModelCheckView> {
     const { root, path: rootPath } = this.boundRoot(target, rootId);
     const scan = scanModelRoot(rootPath);
+    const owners = this.fileOwners(scan);
     const files: Record<string, string> = {};
-    for (const rel of this.trackedFiles(scan)) files[rel] = this.hashFile(rootPath, rel);
-    const index = this.store.get<ModelIndexView>('model-index', target.projectId);
-    const items = (index?.items ?? []).filter(item => item.marks.some(mark => mark.rootId === rootId)).map(item => ({ workItemId: item.workItemId, title: item.title, updated: item.updated }));
-    this.store.put('model-baseline', `${target.projectId}:${rootId}`, { id: `${target.projectId}:${rootId}`, rootId, label: root.label, at: Date.now(), files, items });
+    for (const rel of owners.keys()) files[rel] = this.hashFile(rootPath, rel);
+    const index = cachedModelIndex(this.store, target.projectId);
+    const items = indexedAnnotations(index).filter(item => item.marks.some(mark => mark.rootId === rootId)).map(item => ({ workItemId: item.workItemId, title: item.title, updated: item.updated }));
+    this.store.put('model-baseline', `${target.projectId}:${rootId}`, { id: `${target.projectId}:${rootId}`, rootId, label: root.label, at: Date.now(), files, owners: Object.fromEntries(owners), items });
     return this.check(target, rootId);
   }
   baselines(projectId: string): ModelBaselineInfo[] {
@@ -264,9 +308,10 @@ export class Model {
   autolinkPrompt(target: Target): { prompt: string; count: number } {
     const cached = this.store.get<ModelRootsView>('model-roots', target.projectId);
     const roots = (cached?.roots ?? []).filter(root => root.path);
-    const index = this.store.get<ModelIndexView>('model-index', target.projectId);
+    const index = cachedModelIndex(this.store, target.projectId);
     if (!roots.length) throw Error('MODEL_AUTOLINK_NEEDS_ROOT：请先绑定本机模型目录并保存配置。');
-    if (!index || !index.items.length) throw Error('MODEL_AUTOLINK_NEEDS_INDEX：请先点击「同步需求备注」构建需求索引。');
+    if (!index) throw Error('MODEL_AUTOLINK_NEEDS_INDEX：请先点击「同步需求备注」构建需求索引。');
+    if (!index.total) throw Error('MODEL_AUTOLINK_NO_REQUIREMENTS：当前索引中没有可关联的需求。');
     const pending = index.items.filter(item => !item.marks.length);
     if (!pending.length) throw Error('MODEL_AUTOLINK_ALL_ANNOTATED：全部工作项已有实现模块备注，无需初关联。');
     const moduleLines = roots.flatMap(root => root.modules.filter(module => !module.excluded).map(module =>
@@ -292,13 +337,15 @@ export class Model {
   async check(target: Target, rootId: string): Promise<ModelCheckView> {
     const { root, path: rootPath } = this.boundRoot(target, rootId);
     const key = `${target.projectId}:${rootId}`;
-    const baseline = this.store.get<{ rootId: string; label: string; at: number; files: Record<string, string>; items: { workItemId: string; title: string; updated: string }[] }>('model-baseline', key);
+    const baseline = this.store.get<PatrolBaseline>('model-baseline', key);
     if (!baseline) return { at: Date.now(), baselineAt: null, ok: false, message: '尚未设定基准。先点「设为基准」，之后的模型或需求变更才会被对比。', checkedFiles: 0, changedFiles: 0, findings: [] };
-    const scan = scanModelRoot(rootPath);
+    const scan = scanModelRoot(rootPath, { allowEmpty: true });
+    const owners = this.fileOwners(scan);
+    const previousOwners = this.baselineOwners(baseline, root);
     const current: Record<string, string> = {};
     let checkedFiles = 0;
     let unreadable = 0;
-    for (const rel of this.trackedFiles(scan)) {
+    for (const rel of owners.keys()) {
       try { current[rel] = this.hashFile(rootPath, rel); checkedFiles++; }
       catch { unreadable++; }
     }
@@ -307,22 +354,19 @@ export class Model {
       if (!(rel in baseline.files)) changes.push({ path: rel, change: 'added' });
       else if (baseline.files[rel] !== hash) changes.push({ path: rel, change: 'modified' });
     }
-    for (const rel of Object.keys(baseline.files)) if (!(rel in current)) changes.push({ path: rel, change: 'removed' });
-    // 文件 → 模块归属：优先精确匹配（模型/字典/接口表），退回同目录。
-    const moduleFor = (rel: string): ModelModule | undefined => {
-      const dir = rel.split('/').slice(0, -1).join('/');
-      return scan.modules.find(m => m.model === rel || m.dictionary === rel || m.interface === rel) ?? scan.modules.find(m => m.key === dir);
-    };
+    for (const rel of Object.keys(baseline.files)) if (!owners.has(rel)) changes.push({ path: rel, change: 'removed' });
+    const moduleNames = new Map(root.modules.map(module => [module.key, module.name]));
     const modelSide = new Map<string, ModelFileChange[]>();
     for (const change of changes) {
-      const module = moduleFor(change.path);
+      const module = (change.change === 'removed' ? previousOwners : owners).get(change.path);
       const moduleKey = module?.key ?? '';
+      if (module) moduleNames.set(moduleKey, module.name);
       if (!modelSide.has(moduleKey)) modelSide.set(moduleKey, []);
       modelSide.get(moduleKey)!.push(change);
     }
     // 需求侧：基准后更新过（或新标注）的已关联工作项。
-    const index = this.store.get<ModelIndexView>('model-index', target.projectId);
-    const items = index?.items ?? [];
+    const index = cachedModelIndex(this.store, target.projectId);
+    const items = indexedAnnotations(index);
     const baselineItems = new Map(baseline.items.map(item => [item.workItemId, item.updated]));
     const requirementSide = new Map<string, Map<string, { workItemId: string; title: string; requirementChanged: boolean }>>();
     for (const item of items) {
@@ -337,19 +381,17 @@ export class Model {
       }
     }
     // 基准内已有、现在仍关联但本次未变的工作项：作为模型侧变化的影响对象列出（requirementChanged=false）。
-    const moduleKeyByName = new Map(scan.modules.map(m => [m.key, m]));
     const findings: ModelCheckFinding[] = [];
     const moduleKeys = new Set([...modelSide.keys(), ...requirementSide.keys()]);
     for (const moduleKey of moduleKeys) {
       const files = modelSide.get(moduleKey) ?? [];
       const changedItems = requirementSide.get(moduleKey);
       if (!files.length && !changedItems?.size) continue;
-      const module = moduleKeyByName.get(moduleKey);
       const affected = new Map<string, { workItemId: string; title: string; requirementChanged: boolean }>();
       if (files.length) for (const item of items) if (item.marks.some(mark => mark.rootId === rootId && mark.modules.includes(moduleKey))) affected.set(item.workItemId, { workItemId: item.workItemId, title: item.title, requirementChanged: false });
       for (const entry of changedItems?.values() ?? []) affected.set(entry.workItemId, { ...entry, requirementChanged: true });
       findings.push({
-        rootId, rootLabel: root.label, moduleKey, moduleName: module?.name ?? (moduleKey ? moduleKey : '公共字典/未归属文件'),
+        rootId, rootLabel: root.label, moduleKey, moduleName: moduleNames.get(moduleKey) ?? (moduleKey || '公共字典/未归属文件'),
         side: files.length && changedItems?.size ? 'both' : files.length ? 'model' : 'requirement',
         files: files.sort((a, b) => a.path.localeCompare(b.path)),
         workItems: [...affected.values()].sort((a, b) => a.workItemId.localeCompare(b.workItemId)),

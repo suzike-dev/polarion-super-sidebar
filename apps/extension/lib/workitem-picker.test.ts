@@ -6,6 +6,8 @@ test('@ query only matches the trailing fragment and ignores emails', () => {
   assert.equal(matchWorkItemQuery('检查 @SPE'), 'SPE');
   assert.equal(matchWorkItemQuery('检查 @'), '');
   assert.equal(matchWorkItemQuery('参考@SPE'), 'SPE');
+  assert.equal(matchWorkItemQuery('参考@图文混合'), '图文混合');
+  assert.equal(applyWorkItemPick('参考@图文混合', 'TEST-729'), '参考TEST-729 ');
   assert.equal(matchWorkItemQuery('见（@SPE-950'), 'SPE-950');
   assert.equal(matchWorkItemQuery('前缀 @SPE-95 后缀'), null);
   assert.equal(matchWorkItemQuery('联系 user@example.com'), null);

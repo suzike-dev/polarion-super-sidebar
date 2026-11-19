@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Boxes, ChevronRight, FolderOpen, RefreshCw, ShieldCheck, Sparkles, Trash2, X, Check, Grid3x3 } from 'lucide-react';
-import type { CoverageView, ModelBaselineInfo, ModelCheckView, ModelIndexView, ModelModule, ModelRoot, ModelRootsView, ModelScanView, ModelTraceView, Target } from '../../../packages/protocol/index';
+import { isCoverageOrphan, projectWorkItemUrl, VERIFICATION_ROLE, type CoverageView, type ModelBaselineInfo, type ModelCheckView, type ModelIndexView, type ModelModule, type ModelRoot, type ModelRootsView, type ModelScanView, type ModelTraceView, type Target } from '../../../packages/protocol/index';
 import { rpc } from '../lib/client';
 import './model-workbench.css';
 
@@ -22,13 +22,19 @@ const ModuleChoice = React.memo(function ModuleChoice({ module, added, onSelect 
 });
 
 /** 模型关联工作台：绑定本地 Simulink 模型根目录（SVN 目录）、维护模块清单、追溯需求↔模块覆盖。 */
-export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAutolink }: { target: Target; right: number; top: number; onClose: () => void; onOpenItem: (workItemId: string) => void; onAutolink: () => void }) {
+export function ModelWorkbench({ target, right, top, initialOrphans = false, onClose, onOpenItem, onAutolink }: { target: Target; right: number; top: number; initialOrphans?: boolean; onClose: () => void; onOpenItem: (workItemId: string) => void; onAutolink: () => void }) {
   const [rootsView, setRootsView] = useState<ModelRootsView | null>(null);
   const [trace, setTrace] = useState<ModelTraceView | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [editing, setEditing] = useState<ModelRoot | null>(null);
   const [editingDraft, setEditingDraft] = useState<{ added: string[]; removed: string[] } | null>(null);
+  const editName = useRef<HTMLInputElement>(null);
+  const openEditor = (root: ModelRoot, changes: typeof editingDraft = null) => {
+    setEditing(root);
+    setEditingDraft(changes);
+    editName.current?.focus();
+  };
   const [syncing, setSyncing] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showUnannotated, setShowUnannotated] = useState(false);
@@ -36,21 +42,19 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
   const [checks, setChecks] = useState<Record<string, ModelCheckView>>({});
   const [openFindings, setOpenFindings] = useState<string | null>(null);
   const [checking, setChecking] = useState('');
-  const [coverageMode, setCoverageMode] = useState(false);
+  const [coverageMode, setCoverageMode] = useState(initialOrphans);
+  const [traceRequested, setTraceRequested] = useState(!initialOrphans);
   const [coverage, setCoverage] = useState<CoverageView | null>(null);
   const [coverageBusy, setCoverageBusy] = useState(false);
-  const [coverageGapsOnly, setCoverageGapsOnly] = useState(false);
+  const [coverageFilter, setCoverageFilter] = useState<'all' | 'gaps' | 'orphans'>(initialOrphans ? 'orphans' : 'all');
+  const [coverageLimit, setCoverageLimit] = useState(100);
+  const [unannotatedLimit, setUnannotatedLimit] = useState(100);
   const [expandedCoverage, setExpandedCoverage] = useState<string | null>(null);
   const addedKeys = React.useMemo(() => new Set(editingDraft?.added), [editingDraft]);
   const selectModule = useCallback((key: string, selected: boolean) => {
     setEditing(current => current && { ...current, modules: current.modules.map(m => m.key === key ? { ...m, excluded: !selected } : m) });
   }, []);
-  const closeRef = useRef(onClose); closeRef.current = onClose;
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); } };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
+  const coverageTicket = useRef(0);
   const reload = useCallback(async () => {
     setError('');
     try {
@@ -71,7 +75,7 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
     }
     catch (e) { setError(errorText(e)); }
   }, [target]);
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => { if (traceRequested) void reload(); }, [reload, traceRequested]);
   const setBaseline = async (root: ModelRoot) => {
     setError(''); setChecking(root.id);
     try {
@@ -89,7 +93,13 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
     finally { setChecking(''); }
   };
   // 覆盖索引：打开即读缓存，构建走增量同步（首次较慢）。
-  useEffect(() => { void rpc<CoverageView>({ method: 'coverage.view', target }).then(setCoverage).catch(() => {}); }, [target]);
+  useEffect(() => {
+    const ticket = ++coverageTicket.current;
+    void rpc<CoverageView>({ method: 'coverage.view', target })
+      .then(value => { if (ticket === coverageTicket.current) setCoverage(value); })
+      .catch(e => { if (ticket === coverageTicket.current) setError(errorText(e)); });
+    return () => { coverageTicket.current++; };
+  }, [target]);
   const syncCoverage = async () => {
     setCoverageBusy(true); setError('');
     try { setCoverage(await rpc<CoverageView>({ method: 'coverage.sync', target })); }
@@ -103,8 +113,7 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
       if (!picked.path) return;
       setBusy('正在扫描模型目录…');
       const scan = await rpc<ModelScanView & { fileCount: number }>({ method: 'model.roots.scan', path: picked.path });
-      setEditing({ id: crypto.randomUUID(), label: scan.rootName || scan.label, path: scan.path, modules: scan.modules, projectFile: scan.projectFile, dictionaries: scan.dictionaries, scannedAt: scan.scannedAt, note: '' });
-      setEditingDraft({ added: scan.modules.map(m => m.key), removed: [] });
+      openEditor({ id: crypto.randomUUID(), label: scan.rootName || scan.label, path: scan.path, modules: scan.modules, projectFile: scan.projectFile, dictionaries: scan.dictionaries, scannedAt: scan.scannedAt, note: '' }, { added: scan.modules.map(m => m.key), removed: [] });
     } catch (e) { setError(errorText(e)); }
     finally { setBusy(''); }
   };
@@ -128,8 +137,7 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
       const merged: ModelModule[] = scan.modules.map(fresh => ({ ...fresh, excluded: previous.get(fresh.key)?.excluded ?? fresh.excluded }));
       const removed = root.modules.filter(m => !scan.modules.some(fresh => fresh.key === m.key)).map(m => m.key);
       const added = scan.modules.filter(fresh => !previous.has(fresh.key)).map(m => m.key);
-      setEditing({ ...root, modules: merged, dictionaries: scan.dictionaries, projectFile: scan.projectFile, scannedAt: scan.scannedAt });
-      setEditingDraft({ added, removed });
+      openEditor({ ...root, modules: merged, dictionaries: scan.dictionaries, projectFile: scan.projectFile, scannedAt: scan.scannedAt }, { added, removed });
     } catch (e) { setError(errorText(e)); }
     finally { setBusy(''); }
   };
@@ -164,6 +172,10 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
     } catch (e) { setError(errorText(e)); }
     finally { setSyncing(false); }
   };
+  const coverageRows = useMemo(() => (coverage?.items ?? []).filter(item => {
+    if (coverageFilter === 'orphans') return isCoverageOrphan(item);
+    return coverageFilter !== 'gaps' || !item.upstream || !item.moduleCount || !item.verification;
+  }), [coverage, coverageFilter]);
   const roots = rootsView?.roots ?? [];
   const traceGroups = trace?.groups ?? [];
   const groupsByRoot = traceGroups.reduce<Record<string, typeof traceGroups>>((acc, group) => { (acc[group.rootId] ??= []).push(group); return acc; }, {});
@@ -177,17 +189,17 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
     }
     return map;
   }, [checks]);
-  return <div className="model-layer" style={{ right, top }} role="dialog" aria-modal="false" aria-label="Simulink 模型关联工作台" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+  return <div className="model-layer" style={{ right, top }} role="dialog" aria-modal="false" aria-label="Simulink 模型关联工作台" onKeyDown={event => { if (event.key === 'Escape' && !event.nativeEvent.isComposing && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); if (editing) { setEditing(null); setEditingDraft(null); } else onClose(); } }} onMouseDown={event => { if (event.button === 0 && event.target === event.currentTarget) { event.preventDefault(); onClose(); } }}>
     <section className="model-panel">
       <header className="model-header">
         <span className="model-icon"><Boxes size={16}/></span>
         <div className="model-title"><span className="eyebrow">需求 ↔ Simulink 模型</span><strong>模型关联与追溯</strong><small>{target.projectId} · 配置随项目共享（PSB-MODEL），SVN 路径是本机的</small></div>
-        <button className="icon" aria-label="关闭模型关联" title="关闭（Esc）" onClick={onClose}><X size={17}/></button>
+        <button autoFocus className="icon" aria-label="关闭模型关联" title="关闭（Esc）" onClick={onClose}><X size={17}/></button>
       </header>
       {busy && <p className="model-busy" role="status">{busy}</p>}
-      {error && <p className="model-error" role="alert">{error}<button onClick={() => setError('')}><X size={12}/></button></p>}
-      <div className="model-body">
-        <div className="model-roots">
+      {error && <p className="model-error" tabIndex={0} role="alert">{error}<button aria-label="关闭错误提示" onClick={() => setError('')}><X size={12}/></button></p>}
+      <div className="model-body" tabIndex={0}>
+        <div className="model-roots" hidden={coverageMode}>
           <div className="model-section-head">
             <strong>模型根目录 <span>{roots.length}</span></strong>
             <button className="primary" onClick={() => void addRoot()}><FolderOpen size={13}/>绑定模型目录</button>
@@ -204,7 +216,7 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
             <div className="model-root-line">
               <strong title={root.path}>{root.label}</strong>
               <span>{root.modules.filter(m => !m.excluded).length} 个模块 · {root.scannedAt ? new Date(root.scannedAt).toLocaleString('zh-CN') : '未扫描'}</span>
-              <button disabled={!!busy} onClick={() => { setEditing(root); setEditingDraft(null); }}>选择模块</button>
+              <button disabled={!!busy} onClick={() => openEditor(root)}>选择模块</button>
               <button disabled={!!busy} title="此绑定只保存在本机" onClick={() => void bindLocal(root)}><FolderOpen size={13}/>{root.path ? '更换本机目录' : '绑定本机目录'}</button>
               <button disabled={!root.path || !!busy} title="重新扫描并合并差异" onClick={() => void rescan(root)}><RefreshCw size={13}/>重扫</button>
               <button className="danger" title="从本项目移除该模型目录（模块备注不删除）" onClick={() => void removeRoot(root)}><Trash2 size={13}/>移除</button>
@@ -234,10 +246,14 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
           </div>; })}
           {editing && <div className="model-edit" role="dialog" aria-label="模块清单编辑">
             <div className="model-edit-head">
-              <label>显示名称<input value={editing.label} maxLength={120} onChange={event => setEditing({ ...editing, label: event.target.value })}/></label>
+              <label>显示名称<input ref={editName} autoFocus value={editing.label} maxLength={120} onChange={event => setEditing({ ...editing, label: event.target.value })}/></label>
               <span title={editing.path}>{editing.path}</span>
             </div>
-            {editingDraft && (editingDraft.added.length > 0 || editingDraft.removed.length > 0) && <p className="model-diff">{editingDraft.added.length > 0 && <span className="new">新增 {editingDraft.added.length}：{editingDraft.added.slice(0, 6).join('、')}{editingDraft.added.length > 6 ? '…' : ''}</span>}{editingDraft.removed.length > 0 && <span className="gone">目录中已不存在 {editingDraft.removed.length}：{editingDraft.removed.slice(0, 6).join('、')}{editingDraft.removed.length > 6 ? '…' : ''}（对应备注保留）</span>}</p>}
+            {editingDraft && (editingDraft.added.length > 0 || editingDraft.removed.length > 0) && <details className="model-diff" open={editingDraft.added.length + editingDraft.removed.length <= 6}>
+              <summary>模块清单变更 · 新增 {editingDraft.added.length} · 目录缺失 {editingDraft.removed.length}</summary>
+              {editingDraft.added.length > 0 && <div className="new">新增模块：{editingDraft.added.join('、')}</div>}
+              {editingDraft.removed.length > 0 && <div className="gone">目录中已不存在（对应备注保留）：{editingDraft.removed.join('、')}</div>}
+            </details>}
             <div className="model-modules">
               {editing.modules.map(module => <ModuleChoice key={module.key} module={module} added={addedKeys.has(module.key)} onSelect={selectModule} />)}
             </div>
@@ -251,7 +267,7 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
         <div className="model-trace">
           <div className="model-section-head">
             <strong>需求 ↔ 模块追溯{trace && !trace.stale && <span>已标注 {trace.annotated}/{trace.total} · {new Date(trace.syncedAt).toLocaleString('zh-CN')}</span>}</strong>
-            <button className={coverageMode ? 'active' : ''} title="覆盖矩阵：每条需求的上游链接 / 实现模块 / 验证链接三层色块与孤立条目" aria-pressed={coverageMode} onClick={() => setCoverageMode(value => !value)}><Grid3x3 size={13}/>覆盖视图</button>
+            <button className={coverageMode ? 'active' : ''} title="覆盖矩阵：每条需求的上游链接 / 实现模块 / 验证链接三层色块与孤立条目" aria-pressed={coverageMode} onClick={() => { if (coverageMode) setTraceRequested(true); setCoverageMode(value => !value); }}><Grid3x3 size={13}/>覆盖视图</button>
             <button disabled={syncing || !roots.length} title="AI 逐条读取未标注需求正文，自动写第一版实现模块备注；结果在会话里汇总，人工再修正" onClick={onAutolink}><Sparkles size={13}/>AI 初关联</button>
             <button disabled={syncing || !roots.length} title="同步当前文档工作项的模块备注附件，重建追溯索引" onClick={() => void syncIndex()}><RefreshCw size={13} className={syncing ? 'spin' : ''}/>{syncing ? '同步中…' : '同步需求备注'}</button>
           </div>
@@ -259,22 +275,22 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
           {coverageMode && <div className="model-coverage">
             <div className="model-coverage-bar">
               {coverage && coverage.items.length > 0 && <span>上游 {coverage.summary.withUpstream}/{coverage.items.length} · 模块 {coverage.summary.withModule}/{coverage.items.length} · 验证 {coverage.summary.withVerification}/{coverage.items.length} · 孤立 {coverage.summary.orphans}{coverage.partial ? ' · 部分分页受限' : ''} · {new Date(coverage.at).toLocaleString('zh-CN')}</span>}
-              <label className="model-coverage-filter"><input type="checkbox" checked={coverageGapsOnly} onChange={event => setCoverageGapsOnly(event.target.checked)}/>只看有缺口</label>
+              <label className="model-coverage-filter"><input type="checkbox" checked={coverageFilter === 'gaps'} onChange={event => { setCoverageFilter(event.target.checked ? 'gaps' : 'all'); setCoverageLimit(100); }}/>只看有缺口</label>
+              <label className="model-coverage-filter" title="上游、实现模块和验证均为空"><input type="checkbox" checked={coverageFilter === 'orphans'} onChange={event => { setCoverageFilter(event.target.checked ? 'orphans' : 'all'); setCoverageLimit(100); }}/>只看孤立条目</label>
               <button disabled={coverageBusy} onClick={() => void syncCoverage()}><RefreshCw size={12} className={coverageBusy ? 'spin' : ''}/>{coverageBusy ? '构建中…首次较慢' : coverage?.items.length ? '增量重建' : '构建覆盖索引'}</button>
             </div>
-            {!coverage?.items.length && <p className="model-hint">覆盖索引还没构建：点「构建覆盖索引」逐条抓取正文摘要、双向链接与模块备注（增量，修订未变的条目秒过）。</p>}
+            {!coverage && !error && <p className="model-muted">正在读取覆盖索引…</p>}
+            {coverage && !coverage.items.length && <p className="model-hint">覆盖索引暂无条目：点「构建覆盖索引」逐条抓取正文摘要、双向链接与模块备注（增量，修订未变的条目秒过）。</p>}
             {coverage && coverage.items.length > 0 && <>
               <div className="model-coverage-head"><span>条目（点开直达）</span><b title="派生/引用等上游链接">上游</b><b title="实现模块备注">模块</b><b title="test/verif 角色链接">验证</b></div>
-              {coverage.items
-                .filter(item => !coverageGapsOnly || !item.upstream || !item.moduleCount || !item.verification)
-                .slice(0, 400)
-                .map(item => {
+              {!coverageRows.length && <p className="model-muted">没有符合当前筛选条件的条目。</p>}
+              {coverageRows.slice(0, coverageLimit).map(item => {
                   const expanded = expandedCoverage === item.workItemId;
-                  const upstream = item.forwardLinks.filter(link => !/test|verif|valid/i.test(link.role));
-                  const verification = [...item.forwardLinks, ...item.backLinks].filter(link => /test|verif|valid/i.test(link.role));
-                  const downstream = item.backLinks.filter(link => !/test|verif|valid/i.test(link.role));
+                  const upstream = item.forwardLinks.filter(link => !VERIFICATION_ROLE.test(link.role));
+                  const verification = [...item.forwardLinks, ...item.backLinks].filter(link => VERIFICATION_ROLE.test(link.role));
+                  const downstream = item.backLinks.filter(link => !VERIFICATION_ROLE.test(link.role));
                   const linkCount = item.forwardLinks.length + item.backLinks.length;
-                  return <div key={item.workItemId} className={'model-coverage-wrap' + (!item.upstream && !item.moduleCount && !item.verification ? ' orphan' : '')}>
+                  return <div key={item.workItemId} className={'model-coverage-wrap' + (isCoverageOrphan(item) ? ' orphan' : '')}>
                     <div className="model-coverage-line">
                       <button className="model-coverage-row model-coverage-open" title={`${item.workItemId} ${item.title}`} onClick={() => onOpenItem(item.workItemId)}>
                         <span className="label"><i className="id">{item.outline ? item.outline + ' ' : ''}{item.workItemId}</i><i className="name">{item.title || '(无标题)'}</i></span>
@@ -285,38 +301,42 @@ export function ModelWorkbench({ target, right, top, onClose, onOpenItem, onAuto
                       {linkCount > 0 && <button className="model-coverage-links" aria-expanded={expanded} title={`查看 ${linkCount} 条链接的具体条目`} onClick={() => setExpandedCoverage(expanded ? null : item.workItemId)}>{linkCount} 链接</button>}
                     </div>
                     {expanded && <div className="model-coverage-detail">
-                      {upstream.length > 0 && <div className="mc-link-row"><b>上游</b>{upstream.map(link => <button key={'u' + link.workItemId + link.role} onClick={() => onOpenItem(link.workItemId)} title={link.role}>{link.workItemId}<small>{link.role}</small></button>)}</div>}
-                      {downstream.length > 0 && <div className="mc-link-row"><b>下游</b>{downstream.map(link => <button key={'d' + link.workItemId + link.role} onClick={() => onOpenItem(link.workItemId)} title={link.role}>{link.workItemId}<small>{link.role}</small></button>)}</div>}
-                      {verification.length > 0 && <div className="mc-link-row"><b>验证</b>{verification.map(link => <button key={'v' + link.workItemId + link.role} onClick={() => onOpenItem(link.workItemId)} title={link.role}>{link.workItemId}<small>{link.role}</small></button>)}</div>}
+                      {([['上游', upstream], ['下游', downstream], ['验证', verification]] as const).map(([label, links]) => links.length > 0 && <div className="mc-link-row" key={label}><b>{label}</b>{links.map((link, index) => <a key={index} href={projectWorkItemUrl(target, link.workItemId)} target="_blank" rel="noreferrer" title={link.role} onClick={event => { event.preventDefault(); onOpenItem(link.workItemId); }}>{link.workItemId} <small>{link.role}</small></a>)}</div>)}
                     </div>}
                   </div>;
                 })}
+              {coverageRows.length > coverageLimit && <button className="secondary" onClick={() => setCoverageLimit(n => n + 100)}>显示更多覆盖条目（{coverageLimit}/{coverageRows.length}）</button>}
             </>}
           </div>}
           {!coverageMode && trace && !trace.stale && <>
             {Object.entries(groupsByRoot).map(([rootId, groups]) => <div key={rootId} className="model-trace-root">
               <strong>{trace.roots.find(r => r.id === rootId)?.label ?? rootId}</strong>
-              {groups.map(group => <div key={group.moduleKey} className={'model-trace-row' + (group.missing ? ' missing' : '')}>
-                <button className="model-trace-module" aria-expanded={expanded === group.moduleKey} onClick={() => setExpanded(expanded === group.moduleKey ? null : group.moduleKey)}>
-                  <ChevronRight size={12} className={expanded === group.moduleKey ? 'open' : ''}/>
-                  <span>{group.moduleName}</span>
-                  <small>{kindLabels[group.kind]}</small>
-                  {staleByRoot.get(group.rootId)?.has(group.moduleKey) && <em className="model-stale" title="基准后模型侧有变化，关联需求可能过期">疑似过期</em>}
-                  <b>{group.items.length}</b>
-                </button>
-                {expanded === group.moduleKey && <div className="model-trace-items">
-                  {group.items.length ? group.items.map(item => <button key={item.workItemId} onClick={() => onOpenItem(item.workItemId)}><strong>{item.workItemId}</strong><span>{item.title || '未命名'}</span></button>) : <p className="model-muted">该模块暂无关联需求——可能是需求缺口，或相关需求尚未标注。</p>}
-                </div>}
-              </div>)}
+              {groups.map(group => {
+                const rowKey = `${rootId}:${group.moduleKey}`;
+                const isExpanded = expanded === rowKey;
+                return <div key={group.moduleKey} className={'model-trace-row' + (group.missing ? ' missing' : '')}>
+                  <button className="model-trace-module" aria-expanded={isExpanded} onClick={() => setExpanded(isExpanded ? null : rowKey)}>
+                    <ChevronRight size={12} className={isExpanded ? 'open' : ''}/>
+                    <span>{group.moduleName}</span>
+                    <small>{kindLabels[group.kind]}</small>
+                    {staleByRoot.get(group.rootId)?.has(group.moduleKey) && <em className="model-stale" title="基准后模型侧有变化，关联需求可能过期">疑似过期</em>}
+                    <b>{group.items.length}</b>
+                  </button>
+                  {isExpanded && <div className="model-trace-items">
+                    {group.items.length ? group.items.map(item => <button key={item.workItemId} onClick={() => onOpenItem(item.workItemId)}><strong>{item.workItemId}</strong><span>{item.title || '未命名'}</span></button>) : <p className="model-muted">该模块暂无关联需求。</p>}
+                    {group.markedHeadings?.map(item => <button key={item.workItemId} onClick={() => onOpenItem(item.workItemId)}><strong>{item.workItemId}</strong><span>已标注章节 · {item.title || '未命名'}</span></button>)}
+                  </div>}
+                </div>;
+              })}
             </div>)}
             <div className="model-trace-row unannotated">
               <button className="model-trace-module" aria-expanded={showUnannotated} onClick={() => setShowUnannotated(value => !value)}>
                 <ChevronRight size={12} className={showUnannotated ? 'open' : ''}/><span>未标注实现模块的需求</span><b>{trace.unannotated.length}</b>
               </button>
-              {showUnannotated && <div className="model-trace-items">{trace.unannotated.length ? trace.unannotated.slice(0, 200).map(item => <button key={item.workItemId} onClick={() => onOpenItem(item.workItemId)}><strong>{item.workItemId}</strong><span>{item.title || '未命名'}</span></button>) : <p className="model-muted">全部需求都已标注实现模块。</p>}</div>}
+              {showUnannotated && <div className="model-trace-items">{trace.unannotated.length ? trace.unannotated.slice(0, unannotatedLimit).map(item => <button key={item.workItemId} title={`${item.workItemId} ${item.title}`} onClick={() => onOpenItem(item.workItemId)}><strong>{item.workItemId}</strong><span>{item.title || '未命名'}</span></button>) : <p className="model-muted">{trace.total ? '全部需求都已标注实现模块。' : '当前索引中没有可关联的需求。'}</p>}{trace.unannotated.length > unannotatedLimit && <button className="secondary" onClick={() => setUnannotatedLimit(n => n + 100)}>显示更多未标注条目（{unannotatedLimit}/{trace.unannotated.length}）</button>}</div>}
             </div>
           </>}
-          {!roots.length && <p className="model-hint">绑定模型目录后，这里会展示按模块分组的需求清单、未标注需求和零需求模块（覆盖缺口）。</p>}
+          {!coverageMode && !roots.length && <p className="model-hint">绑定模型目录后，这里会展示按模块分组的需求清单、未标注需求和零需求模块（覆盖缺口）。</p>}
         </div>
       </div>
       <footer><span className="muted">备注存在各工作项自己的附件上，多人并发互不冲突；AI 会话自动获得模型路径概况，可直接说「审查 TMS_HPMode 与需求的一致性」。</span></footer>

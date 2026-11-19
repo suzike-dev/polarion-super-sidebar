@@ -2,6 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Boxes, ChevronDown, Search, X } from 'lucide-react';
 import { emptyModelNote, type ModelNote, type ModelRootsView, type Target } from '../../../packages/protocol/index';
 import { rpc } from '../lib/client';
+import { listenWorkbenchKeydown } from '../lib/workbench-keyboard';
 
 const errorText = (e: unknown) => (e as Error).message ?? String(e);
 
@@ -56,8 +57,8 @@ function ItemModules({ target, workItemId, onError, dense = false, toolbar = fal
       if (!saving) { setOpen(false); trigger.current?.focus(); }
     };
     document.addEventListener('pointerdown', outside, true);
-    document.addEventListener('keydown', escape, true);
-    return () => { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', escape, true); };
+    const removeKey = listenWorkbenchKeydown(document, escape);
+    return () => { document.removeEventListener('pointerdown', outside, true); removeKey(); };
   }, [toolbar, open, saving]);
   const togglePanel = () => {
     setNote(saved); setIssue(''); setSearch('');
@@ -69,7 +70,7 @@ function ItemModules({ target, workItemId, onError, dense = false, toolbar = fal
   const moduleLabel = (rootId: string, key: string) => roots.find(r => r.id === rootId)?.modules.find(m => m.key === key)?.name ?? key;
   const chips = note.marks.flatMap(mark => mark.modules.map(key => ({ rootId: mark.rootId, key, label: moduleLabel(mark.rootId, key), rootLabel: roots.find(r => r.id === mark.rootId)?.label })));
   // 徽标始终有：没加载到模块名时退回 key，保证工作台里一眼看出该需求绑定了几个模块。
-  const badgeChips = (badge ?? (loaded ? saved : null))?.marks.flatMap(mark => mark.modules.map(key => ({ key, label: moduleLabel(mark.rootId, key) }))) ?? [];
+  const badgeChips = (loaded && rootsView ? saved : badge)?.marks.flatMap(mark => mark.modules.map(key => ({ key, label: moduleLabel(mark.rootId, key) }))) ?? [];
   const toggle = (rootId: string, key: string) => setNote(current => {
     const mark = current.marks.find(m => m.rootId === rootId);
     if (!mark) return { ...current, marks: [...current.marks, { rootId, modules: [key] }] };
@@ -81,7 +82,7 @@ function ItemModules({ target, workItemId, onError, dense = false, toolbar = fal
     try {
       const result = await rpc<{ verified: boolean }>({ method: 'model.note.write', target, workItemId, note: value });
       if (!result.verified) throw Error('附件回读未通过');
-      setNote(value); setSaved(value); closePanel();
+      setNote(value); setSaved(value); setBadge(value); closePanel();
     }
     catch (error) { fail('模型备注保存失败：' + errorText(error)); }
     finally { setSaving(false); }

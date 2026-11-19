@@ -47,3 +47,15 @@ test('缺引擎时拒绝启动（避免 startRun 直接置 running 造成僵尸�
   assert.ok(['running', 'queued'].includes(meetingRun.status));
   assert.equal(store.get<{ runId?: string }>('meeting-record', meeting.meetingId)!.runId, meeting.runId);
 });
+
+test('meeting decisions preserve the source document and reopen a cleared record with its action', t => {
+  const store = openStore(t), meetings = new Meetings(store);
+  const id = crypto.randomUUID(), actionId = crypto.randomUUID();
+  store.put('meeting-record', id, { id, projectId: target.projectId, document: target.document, at: 1, status: 'open', digest: '纪要', actions: [{ id: actionId, title: '口头说明', priority: 'normal', status: 'open' }] });
+  const [record] = meetings.list({ ...target, document: 'Requirements/Other' });
+  assert.equal(record?.document, target.document);
+  assert.equal(meetings.decide(id, actionId, 'done').status, 'done');
+  const reopened = meetings.decide(id, actionId, 'open');
+  assert.equal(reopened.status, 'open'); assert.equal(reopened.actions[0]?.status, 'open');
+  assert.deepEqual(reopened, meetings.list(target)[0]);
+});

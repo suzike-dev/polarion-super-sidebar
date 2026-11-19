@@ -1,4 +1,4 @@
-import type {DocumentOutlineItem} from '../../../packages/protocol/index';
+import {isHeadingType, type DocumentOutlineItem} from '../../../packages/protocol/index.ts';
 /** 章节色相：功能卡三元组——绿 142 / 蓝灰 205 / 沙棕 30，粉彩章带。 */
 export const OUTLINE_HUES = [142, 205, 30] as const;
 /** 分组色相：章内三级子容器在三元组上偏移 +16°，保持家族一致。 */
@@ -16,9 +16,17 @@ const numeric = (value: string) => Number(value) || 0;
 const sectionTest = (items: readonly DocumentOutlineItem[]) => {
   const typeKnown = items.some(item => !!item.type);
   return typeKnown
-    ? (item: DocumentOutlineItem) => item.type === 'heading'
+    ? (item: DocumentOutlineItem) => isHeadingType(item.type)
     : (item: DocumentOutlineItem) => !/-\d+$/.test(item.outline || '');
 };
+
+export function requirementsInSection(items: readonly DocumentOutlineItem[], section: DocumentOutlineItem) {
+  const isSection = sectionTest(items);
+  return items.filter(item => {
+    const number = baseOutline(item.outline);
+    return section.outline && item.id !== section.id && !isSection(item) && (number === section.outline || number.startsWith(section.outline + '.'));
+  });
+}
 
 /**
  * 把平铺的工作项按 outline 序号还原成「章 → 分组 → 条目」。

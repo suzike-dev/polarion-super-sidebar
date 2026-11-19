@@ -16,9 +16,9 @@ function Segmented<T extends string>({label,value,options,onChange,disabled}:{la
   </div>;
 }
 
-function GuidelineEditor({guideline,disabled,onBack,onChange,onRemove,onPickFiles}:{
-  guideline:Guideline;disabled:boolean;onBack:()=>void;
-  onChange:(patch:Partial<Guideline>)=>void;onRemove:()=>void;onPickFiles:()=>void;
+function GuidelineEditor({guideline,disabled,filePathDraft,onFilePathDraft,onBack,onChange,onRemove,onPickFiles}:{
+  guideline:Guideline;disabled:boolean;filePathDraft:string;onFilePathDraft:(value:string)=>void;
+  onBack:()=>void;onChange:(patch:Partial<Guideline>)=>void;onRemove:()=>void;onPickFiles:()=>void;
 }){
   const files=guideline.files??[];
   return <div className="sp-detail">
@@ -35,16 +35,19 @@ function GuidelineEditor({guideline,disabled,onBack,onChange,onRemove,onPickFile
         <input className="sp-filenote" maxLength={80} placeholder="备注（例如：模板 v2）" aria-label="文件备注" value={file.label} disabled={disabled} onChange={event=>onChange({files:files.map((item,i)=>i===index?{...item,label:event.target.value}:item)})}/>
         <button type="button" className="sp-icon-btn danger" title="移除文件" disabled={disabled} onClick={()=>onChange({files:files.filter((_,i)=>i!==index)})}><X size={12}/></button>
       </div>)}
-      <ManualPath placeholder="手动添加文件绝对路径，回车确认" disabled={disabled||files.length>=MAX_GUIDELINE_FILES} onAdd={path=>onChange({files:[...files,{path,label:''}].slice(0,MAX_GUIDELINE_FILES)})}/>
+      <ManualPath placeholder="手动添加文件绝对路径，回车确认" disabled={disabled||files.length>=MAX_GUIDELINE_FILES} value={filePathDraft} onChange={onFilePathDraft} onAdd={path=>onChange({files:[...files,{path,label:''}].slice(0,MAX_GUIDELINE_FILES)})}/>
     </div>
   </div>;
 }
 
 /** 系统选择器不可用时的兜底：手动输入绝对路径。 */
-function ManualPath({placeholder,disabled,onAdd}:{placeholder:string;disabled:boolean;onAdd:(path:string)=>void}){
-  const [value,setValue]=useState('');
-  const commit=()=>{const path=value.trim();if(!path)return;onAdd(path);setValue('');};
-  return <div className="sp-manual"><input aria-label={placeholder} placeholder={placeholder} maxLength={1000} disabled={disabled} value={value} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'){event.preventDefault();commit();}}}/><button type="button" className="sp-btn" disabled={disabled||!value.trim()} onClick={commit}>添加</button></div>;
+function ManualPath({placeholder,disabled,value,onChange,onAdd}:{
+  placeholder:string;disabled:boolean;value:string;onChange:(value:string)=>void;onAdd:(path:string)=>void;
+}){
+  const commit=()=>{const path=value.trim();if(!path)return;onAdd(path);onChange('');};
+  return <div className="sp-manual"><input aria-label={placeholder} placeholder={placeholder} maxLength={1000} disabled={disabled} value={value} onChange={event=>onChange(event.target.value)} onKeyDown={event=>{
+    if(event.key==='Enter'&&!event.nativeEvent.isComposing&&event.nativeEvent.keyCode!==229){event.preventDefault();commit();}
+  }}/><button type="button" className="sp-btn" disabled={disabled||!value.trim()} onClick={commit}>添加</button></div>;
 }
 
 export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,target,loading,saving,error,initialTab='general',onConfig,onPaperWidth,onGuidelines,onSave,onClose,onPickFolder,onPickFiles,onQualityReview}:{
@@ -55,8 +58,13 @@ export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,targ
   onPickFolder:(current:string)=>Promise<string|null>;onPickFiles:(id:string)=>Promise<GuidelineFile[]>;onQualityReview?:()=>void;
 }){
   const [panelTab,setPanelTab]=useState<PanelTab>(initialTab);
+  const [visitedQuality,setVisitedQuality]=useState(initialTab==='quality');
+  const [qualityDirty,setQualityDirty]=useState(false);
+  const selectTab=(tab:PanelTab)=>{if(tab==='quality')setVisitedQuality(true);setPanelTab(tab);};
   const [kind,setKind]=useState<GuidelineKind>('send');
   const [openId,setOpenId]=useState<string|null>(null);
+  const [folderPathDraft,setFolderPathDraft]=useState('');
+  const [filePathDrafts,setFilePathDrafts]=useState(()=>new Map<string,string>());
   const [picking,setPicking]=useState(false);
   const [folderPicking,setFolderPicking]=useState(false);
   const list=guidelines??[];
@@ -73,7 +81,7 @@ export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,targ
     <header className="settings-heading sp-header"><div className="sp-title"><span className="sp-title-mark"><SlidersHorizontal size={15}/></span><div><h3>助手设置</h3><small>账号 · 默认行为 · 预设指令 · 存储</small></div></div><button className="icon" title="关闭设置，放弃未保存的调整" aria-label="关闭设置" disabled={saving} autoFocus onClick={onClose}><X size={15}/></button></header>
     {loading&&<p className="muted sp-loading" role="status">正在读取设置…</p>}
     {config&&<>
-      <nav className="sp-nav" role="tablist" aria-label="设置分类">{tabs.map(([key,label,Icon])=><button key={key} type="button" role="tab" aria-selected={panelTab===key} className={panelTab===key?'on':''} onClick={()=>setPanelTab(key)}><Icon size={13}/>{label}{key==='guidelines'&&list.length>0?<em>{list.length}</em>:null}</button>)}</nav>
+      <nav className="sp-nav" role="tablist" aria-label="设置分类">{tabs.map(([key,label,Icon])=><button key={key} type="button" role="tab" aria-selected={panelTab===key} className={panelTab===key?'on':''} onClick={()=>selectTab(key)}><Icon size={13}/>{label}{key==='guidelines'&&list.length>0?<em>{list.length}</em>:null}</button>)}</nav>
       <div className="sp-scroll">
         {panelTab==='general'&&<>
           <div className="sp-card"><div className="sp-card-head"><span className="sp-icon"><KeyRound size={14}/></span><div><h4>Polarion 账号</h4><p>用于读取与保存工作项正文；密码只保存在本机。</p></div></div><PolarionAccount onBusy={()=>{}} onConnected={()=>{}}/></div>
@@ -122,10 +130,12 @@ export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,targ
             </div>
           </div>
           <p className="sp-note">保存时自动迁移现有草稿；迁移失败保留原存储。仅本地草稿，不影响 Polarion 服务端。</p>
-          <ManualPath placeholder="手动输入文件夹绝对路径，回车确认" disabled={saving} onAdd={path=>onConfig({...config,draftsFolder:path})}/>
+          <ManualPath placeholder="手动输入文件夹绝对路径，回车确认" disabled={saving} value={folderPathDraft} onChange={setFolderPathDraft} onAdd={path=>onConfig({...config,draftsFolder:path})}/>
         </div>}
         {panelTab==='guidelines'&&<div className="sp-card sp-guide-card">
-          {open?<GuidelineEditor guideline={open} disabled={saving||picking} onBack={()=>setOpenId(null)} onChange={patchValue=>patch(open.id,patchValue)} onRemove={()=>remove(open.id)} onPickFiles={()=>void pickFiles(open.id)}/>:<>
+          {open?<GuidelineEditor guideline={open} disabled={saving||picking}
+            filePathDraft={filePathDrafts.get(open.id)??''} onFilePathDraft={value=>setFilePathDrafts(paths=>new Map(paths).set(open.id,value))}
+            onBack={()=>setOpenId(null)} onChange={patchValue=>patch(open.id,patchValue)} onRemove={()=>remove(open.id)} onPickFiles={()=>void pickFiles(open.id)}/>:<>
             <div className="sp-card-head"><span className="sp-icon"><Sparkles size={14}/></span><div><h4>预设指令</h4><p>「随发送附加」在输入框选中后随消息发送；「通用指令库」由助手按需求自动查阅。</p></div></div>
             <div className="sp-tabs" role="tablist">{(['send','library'] as const).map(key=><button key={key} type="button" role="tab" aria-selected={kind===key} className={kind===key?'on':''} onClick={()=>setKind(key)}>{key==='send'?<MessageSquare size={13}/>:<BookOpen size={13}/>}{key==='send'?'随发送附加':'通用指令库'}<em>{counts[key]}</em></button>)}</div>
             <div className="sp-list">
@@ -139,10 +149,10 @@ export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,targ
             <button type="button" className="sp-add-guide" disabled={saving} onClick={add}><Plus size={14}/>新增{kind==='send'?'随发送指令':'通用指令'}</button>
           </>}
         </div>}
-        {panelTab==='quality'&&target&&<QualityRulesCard target={target} onDeepCheck={onQualityReview}/>}
+        {visitedQuality&&target&&<QualityRulesCard target={target} hidden={panelTab!=='quality'} onDeepCheck={onQualityReview} onDirtyChange={setQualityDirty}/>}
       </div>
     </>}
     {error&&<p className="inline-error sp-error" role="alert">{error}</p>}
-    <footer className="settings-actions sp-footer"><button className="secondary" disabled={saving} onClick={onClose}>取消</button>{config&&<button className="primary" disabled={saving} onClick={onSave}>{saving?'正在保存…':'保存全部设置'}</button>}</footer>
+    <footer className="settings-actions sp-footer"><button className="secondary" disabled={saving} onClick={onClose}>取消</button>{config&&<button className="primary" disabled={saving} onClick={()=>{if(!target||!qualityDirty||window.confirm('保存助手设置后会关闭设置，并放弃尚未保存到项目的质量规则。继续吗？'))onSave();}}>{saving?'正在保存…':target&&qualityDirty?'保存助手设置':'保存全部设置'}</button>}</footer>
   </section>;
 }

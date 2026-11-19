@@ -1,48 +1,84 @@
-/* v0.14 先行版：行内质量体检。类名带 psb-quality-/psb-lint- 前缀，避免与既有选择器交叉。 */
-.psb-lint-warn{ text-decoration: underline wavy #a4593b; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: help; }
-.psb-lint-info{ text-decoration: underline dashed #6f8261; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: help; }
-.psb-quality-chip{ border: 1px solid var(--ui-line, #e1e6d8); background: var(--ui-surface, #fff); color: var(--ui-secondary, #4e584c); border-radius: 999px; padding: 1px 9px; font-size: 11px; cursor: pointer; }
-.psb-quality-chip:hover{ border-color: var(--ui-accent, #1e573c); color: var(--ui-accent-ink, #17452e); }
-.psb-quality-chip[aria-pressed=true]{ background: var(--ui-accent-soft, #edf2e3); color: var(--ui-accent-ink, #17452e); }
-.psb-quality-chip.has-warn{ border-color: #c99b7e; color: #a4593b; }
-.psb-quality-panel{ z-index: 1400; width: 332px; max-height: min(430px, 60vh); display: flex; flex-direction: column; background: var(--ui-surface, #fff); border: 1px solid var(--ui-line, #e1e6d8); box-shadow: 0 12px 36px #20272526; border-radius: 9px; overflow: hidden; color: var(--ui-ink, #242c24); }
-.psb-quality-panel header{ display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--ui-soft-line, #eef1e7); }
-.psb-quality-panel header span{ font-size: 11px; color: var(--ui-muted, #75806f); }
-.psb-quality-item{ border-bottom: 1px solid var(--ui-soft-line, #eef1e7); }
-.psb-quality-item:last-of-type{ border-bottom: 0; }
-.psb-quality-jump{ display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; width: 100%; text-align: left; border: 0; background: transparent; color: inherit; padding: 9px 12px 6px; cursor: pointer; }
-.psb-quality-jump:hover:not(:disabled){ background: var(--ui-subtle, #f6f8f1); }
-.psb-quality-jump:disabled{ cursor: default; }
-.psb-quality-jump i{ grid-row: span 3; font-style: normal; font-size: 10px; align-self: center; border-radius: 3px; padding: 1px 5px; background: var(--ui-accent-soft, #edf2e3); color: var(--ui-accent-ink, #17452e); }
-.psb-quality-item.warn .psb-quality-jump i{ background: #f7e8de; color: #a4593b; }
-.psb-quality-jump span{ font-size: 12px; font-weight: 600; }
-.psb-quality-jump small{ grid-column: 2; font-size: 11px; color: var(--ui-secondary, #4e584c); }
-.psb-quality-jump em{ grid-column: 2; font-style: normal; font-size: 11px; color: var(--ui-accent-ink, #17452e); }
-.psb-quality-fix{ display: block; margin: 0 12px 8px 12px; border: 1px solid var(--ui-line, #e1e6d8); background: #fff; color: var(--ui-accent-ink, #17452e); border-radius: 5px; padding: 4px 8px; font-size: 11px; cursor: pointer; }
-.psb-quality-fix:hover:not(:disabled){ border-color: var(--ui-accent, #1e573c); background: var(--ui-accent-soft, #edf2e3); }
-.psb-quality-fix:disabled{ opacity: .5; cursor: default; }
-.psb-quality-confirm{ display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 12px 8px 12px; padding: 6px 8px; background: var(--ui-accent-soft, #edf2e3); border-radius: 5px; font-size: 11px; color: var(--ui-accent-ink, #17452e); }
-.psb-quality-confirm span{ flex: 1 1 100%; }
-.psb-quality-confirm button{ border: 1px solid var(--ui-line, #e1e6d8); background: #fff; color: var(--ui-secondary, #4e584c); border-radius: 4px; padding: 3px 9px; font-size: 11px; cursor: pointer; }
-.psb-quality-confirm button.primary{ background: var(--ui-accent, #1e573c); border-color: var(--ui-accent, #1e573c); color: #fff; }
-.psb-quality-confirm button:disabled{ opacity: .5; cursor: default; }
-.psb-quality-panel footer{ margin-top: auto; padding: 7px 12px; font-size: 10px; background: var(--ui-subtle, #f6f8f1); color: var(--ui-muted, #75806f); }
-.psb-quality-empty{ padding: 12px; margin: 0; font-size: 11px; color: var(--ui-secondary, #4e584c); }
-.psb-quality-card{ z-index: 1500; width: 320px; pointer-events: none; background: var(--ui-surface, #fff); border: 1px solid var(--ui-line, #e1e6d8); box-shadow: 0 10px 28px #2027252e; border-radius: 8px; padding: 10px 12px; color: var(--ui-ink, #242c24); }
-.psb-quality-card header{ display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
-.psb-quality-card header span{ font-size: 10px; border-radius: 3px; padding: 1px 5px; background: var(--ui-accent-soft, #edf2e3); color: var(--ui-accent-ink, #17452e); }
-.psb-quality-card header span.warn{ background: #f7e8de; color: #a4593b; }
-.psb-quality-card header strong{ font-size: 12px; }
-.psb-quality-card p{ margin: 0 0 4px; font-size: 12px; color: var(--ui-secondary, #4e584c); }
-.psb-quality-card p.suggest{ color: var(--ui-accent-ink, #17452e); }
-.psb-quality-card footer{ font-size: 10px; color: var(--ui-muted, #75806f); }
+/* Inline marks and the status-bar trigger stay with the text editor. */
+.psb-lint-warn { text-decoration: underline wavy #a4593b 1px; text-underline-offset: 3px; cursor: help; }
+.psb-lint-info { text-decoration: underline dashed #6f8261 1px; text-underline-offset: 3px; cursor: help; }
+.psb-quality-chip {
+  flex: none; padding: 1px 9px; border: 1px solid var(--ui-line); border-radius: 999px;
+  background: var(--ui-surface); color: var(--ui-secondary); font-size: 12px; line-height: 1.4;
+}
+.psb-quality-chip.has-warn { color: #85472c; border-color: #c99b7e; }
+.psb-quality-chip:is(:hover, [aria-expanded=true]) { color: var(--ui-accent-ink); border-color: var(--ui-accent); background: var(--ui-accent-soft); }
+:host .rich-statusbar .psb-quality-chip:focus-visible { outline-offset: -2px; }
 
-.psb-quality-panel{overflow-y:auto;min-width:0;max-width:calc(100vw - 24px);transform:none}
-.psb-quality-panel:has(.psb-quality-confirm){width:min(640px,calc(100vw - 24px))}
-.psb-quality-diff{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%;max-height:min(220px,24vh);overflow:auto;overscroll-behavior:contain}
-.psb-quality-diff section{min-width:0}
-.psb-quality-diff p{white-space:pre-wrap;overflow-wrap:anywhere;margin:4px 0}
-.psb-quality-diff del{background:#f9dcd7}.psb-quality-diff ins{background:#d4efdd}
+/* Portaled beside the workbench, clear of its clipped, single-line status bar. */
+.psb-quality-panel, .psb-quality-card {
+  box-sizing: border-box; min-width: 0; color: var(--ui-ink); background: var(--ui-surface);
+  border: 1px solid #cad4c3; border-radius: var(--ui-radius-lg); box-shadow: var(--ui-modal-shadow);
+  font: 14px/1.6 var(--ui-font); white-space: normal; overflow-wrap: anywhere; text-align: start;
+}
+.psb-quality-panel {
+  position: fixed; z-index: 1400; pointer-events: auto; display: flex; flex-direction: column;
+  max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow: auto; overscroll-behavior: contain;
+}
+.psb-quality-heading {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 9px; flex: none;
+  padding: 10px 12px 10px 16px; border-bottom: 1px solid var(--ui-line); background: var(--ui-subtle);
+}
+.psb-quality-heading > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; margin-inline-end: auto; }
+.psb-quality-heading h2 { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.4; }
+.psb-quality-heading h2:focus { outline: none; }
+.psb-quality-heading span { color: var(--ui-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.psb-quality-panel button {
+  border: 1px solid var(--ui-line); border-radius: var(--ui-radius-sm); background: var(--ui-surface);
+  color: var(--ui-secondary); min-height: 30px; padding: 4px 10px; font: 500 13px/1.45 var(--ui-font);
+}
+.psb-quality-panel button:is(.psb-quality-fix, .psb-quality-deep) { color: var(--ui-accent-ink); background: var(--ui-accent-soft); border-color: #d7e3cf; }
+.psb-quality-panel button:hover:not(:disabled) { color: var(--ui-accent-ink); background: #e4eddd; border-color: #a5b89b; }
+.psb-quality-panel .psb-quality-close { display: grid; place-items: center; width: 30px; padding: 0; border-color: transparent; background: transparent; }
+.psb-quality-panel button:disabled { opacity: .55; cursor: default; }
+.psb-quality-list { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scroll-padding: 10px; }
+.psb-quality-list:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; }
+.psb-quality-list[hidden] { display: none; }
+.psb-quality-list ul { padding: 0; margin: 0; list-style: none; }
+.psb-quality-item { display: grid; gap: 7px; padding: 14px 16px; }
+.psb-quality-item + .psb-quality-item { border-top: 1px solid var(--ui-line); }
+.psb-quality-head { display: flex; align-items: flex-start; gap: 8px; }
+.psb-quality-head strong { min-width: 0; font-size: 14px; font-weight: 650; }
+.psb-quality-severity, .psb-quality-card header span {
+  flex: none; margin-top: 1px; padding: 1px 6px; border-radius: 4px;
+  background: var(--ui-accent-soft); color: var(--ui-accent-ink); font: 600 12px/1.5 var(--ui-font);
+}
+.psb-quality-item.warn .psb-quality-severity, .psb-quality-card header .warn { background: #f8e8dc; color: #85472c; }
+.psb-quality-msg, .psb-quality-sug, .psb-quality-head strong, .psb-quality-error, .psb-quality-diff p, .psb-quality-card p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.psb-quality-msg { margin: 0; color: var(--ui-secondary); }
+.psb-quality-sug { margin: 0; padding-inline-start: 9px; border-inline-start: 2px solid #a7c18e; color: var(--ui-accent-ink); }
+.psb-quality-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.psb-quality-error { margin: 8px 12px; padding: 8px 10px; border-radius: 5px; color: var(--ui-danger); background: var(--ui-danger-soft); }
+.psb-quality-empty { margin: 0; padding: 16px; color: var(--ui-secondary); }
+
+.psb-quality-confirm { display: flex; flex-direction: column; min-height: 0; }
+.psb-quality-preview { padding: 12px 16px 16px; }
+.psb-quality-scope { margin: 0 0 10px; font-weight: 600; }
+.psb-quality-diff { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; }
+.psb-quality-diff section { min-width: 0; border: 1px solid var(--ui-line); border-radius: 6px; }
+.psb-quality-diff h3 { padding: 5px 10px; margin: 0; border-radius: 6px 6px 0 0; background: var(--ui-subtle); font-size: 12px; color: var(--ui-secondary); }
+.psb-quality-diff p { margin: 0; padding: 8px 10px; }
+.psb-quality-diff del { background: #f9dcd7; color: #7a3428; }
+.psb-quality-diff ins { background: #d4efdd; color: #205738; }
+.psb-quality-confirm-footer { flex: none; display: grid; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--ui-line); }
+.psb-quality-confirm-footer p { margin: 0; color: #85472c; font-size: 13px; }
+.psb-quality-confirm-footer .psb-quality-actions { justify-content: flex-end; }
+.psb-quality-confirm-footer button.primary { color: #fff; background: var(--ui-accent); border-color: var(--ui-accent); }
+.psb-quality-confirm-footer button.primary:hover:not(:disabled) { color: #fff; background: var(--ui-accent-ink); }
+/* At high zoom, header, comparison and confirmation can scroll together. */
+.psb-quality-panel[data-short=true], .psb-quality-panel[data-short=true] .psb-quality-confirm { display: block; }
+.psb-quality-panel[data-short=true] .psb-quality-list { overflow: visible; }
+
+.psb-quality-card { z-index: 1399; width: min(320px, calc(100vw - 16px)); pointer-events: none; padding: 10px 12px; font-size: 13px; }
+.psb-quality-card header { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 5px; }
+.psb-quality-card header strong { min-width: 0; }
+.psb-quality-card p { margin: 0 0 4px; color: var(--ui-secondary); }
+.psb-quality-card .suggest { color: var(--ui-accent-ink); }
+.psb-quality-card footer { color: var(--ui-secondary); font-size: 12px; }
 
 /* 设置页·质量规则管理卡（QualityRulesCard）：复用 sp-card 骨架，仅补充自有行样式。 */
 .psb-qr-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--ui-secondary,#4e584c);padding:2px 0 8px}
@@ -91,4 +127,3 @@
 .psb-qr-edit{display:flex;flex-direction:column;gap:7px;margin-top:6px}
 .psb-qr-edit label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;color:var(--ui-muted,#95988c)}
 .psb-qr-edit textarea,.psb-qr-edit input{border:1px solid #e1e5d9;border-radius:6px;padding:6px 8px;font:11px/1.6 'Microsoft YaHei UI',sans-serif;color:#4a4d44;background:#fff}
-.psb-quality-deep{display:flex;justify-content:center;padding:4px 0 2px}

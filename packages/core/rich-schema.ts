@@ -1,5 +1,6 @@
 import { Extension, Mark, Node, mergeAttributes, getSchema, InputRule, wrappingInputRule, type JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
+import Code from '@tiptap/extension-code';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import TextAlign from '@tiptap/extension-text-align';
 import Subscript from '@tiptap/extension-subscript';
@@ -23,7 +24,7 @@ const PortablePresentation = Extension.create({
 const SourceAttributes = Extension.create({ name: 'sourceAttributes', addGlobalAttributes() { return [{ types: [...blockTypes, ...markTypes], attributes: {
   sid: { default: null, rendered: false, keepOnSplit: false },
   sourceStyle: { default: null, keepOnSplit: false, parseHTML: el => safeStyle(el.getAttribute('style') ?? ''), renderHTML: attrs => attrs.sourceStyle ? { style: safeStyle(attrs.sourceStyle) } : {} },
-} }, { types: ['paragraph', 'heading'], attributes: { lineHeight: { default: null, parseHTML: el => el.style.lineHeight || null, renderHTML: a => /^(1|1\.2|1\.5|1\.75|2)$/.test(a.lineHeight) ? { style: `line-height:${a.lineHeight}` } : {} } } }, { types: ['tableCell', 'tableHeader'], attributes: {
+} }, { types: ['paragraph'], attributes: { sourceHasAttributes: { default: false, rendered: false, keepOnSplit: false } } }, { types: ['paragraph', 'heading'], attributes: { lineHeight: { default: null, parseHTML: el => el.style.lineHeight || null, renderHTML: a => /^(1|1\.2|1\.5|1\.75|2)$/.test(a.lineHeight) ? { style: `line-height:${a.lineHeight}` } : {} } } }, { types: ['tableCell', 'tableHeader'], attributes: {
   fill: { default: null, parseHTML: el => el.style.backgroundColor || null, renderHTML: a => safeColor(a.fill) ? { style: `background-color:${safeColor(a.fill)}` } : {} },
   valign: { default: null, renderHTML: a => ['top', 'middle', 'bottom'].includes(a.valign) ? { style: `vertical-align:${a.valign}` } : {} },
   cellHeight: { default: null, renderHTML: a => Number(a.cellHeight) >= 24 && Number(a.cellHeight) <= 600 ? { style: `height:${Number(a.cellHeight)}px` } : {} },
@@ -72,28 +73,48 @@ function protectedNode(inline: boolean) { return Node.create({ name: inline ? 'p
   addAttributes() { return { sid: { default: null, rendered: false }, label: { default: '保留对象', rendered: false }, text: { default: '', rendered: false } }; },
   renderHTML({ node }) { const visible = node.attrs.text || (String(node.attrs.label).startsWith('图片') ? node.attrs.label : '受保护内容'); return [inline ? 'span' : 'div', { class: 'protected-object', contenteditable: 'false', title: `原始内容与身份保留 · ${node.attrs.label}` }, visible]; },
 }); }
-export function richExtensions() { return [StarterKit.configure({ link: { openOnClick: false, autolink: false }, trailingNode: false }), TaskList,TaskItem,PortablePresentation, SourceAttributes, SourceListItem, SourceText, SourceSpan, Paint, Container, Callout, Formula, FormulaInline, Details, DetailsSummary, RichImage, WorkItemRef, MarkdownInputs, MarkdownEnter, protectedNode(false), protectedNode(true), Table.configure({ resizable: true }), TableRow, TableCell, TableHeader, TextAlign.configure({ types: ['paragraph', 'heading'] }), Subscript, Superscript]; }
+// Native inline code also carries the original text and formatting anchors.
+const SourceCode = Code.extend({ excludes: 'code' });
+export function richExtensions() { return [StarterKit.configure({ code: false, link: { openOnClick: false, autolink: false }, trailingNode: false }), SourceCode,TaskList,TaskItem,PortablePresentation, SourceAttributes, SourceListItem, SourceText, SourceSpan, Paint, Container, Callout, Formula, FormulaInline, Details, DetailsSummary, RichImage, WorkItemRef, MarkdownInputs, MarkdownEnter, protectedNode(false), protectedNode(true), Table.configure({ resizable: true }), TableRow, TableCell, TableHeader, TextAlign.configure({ types: ['paragraph', 'heading'] }), Subscript, Superscript]; }
 export const richSchema = getSchema(richExtensions());
 
-/** 内联节点类型：tableCell/tableHeader/listItem 里只允许块级子节点的第一层。 */
-const INLINE_JSON_TYPES = new Set(['text', 'image', 'formulaInline', 'hardBreak']);
-/**
- * 结构净化（防御底线）：真实文档/AI 写入可能产生空 tableCell 或把内联内容直接挂在 cell 下，
- * ProseMirror nodeFromJSON 会抛 “Invalid content for node tableCell”。这里把非法 cell/listItem
- * 修正为合法形态（内联包进段落、空则补空段落），不改变合法内容。
- */
-export function sanitizeRichJSON(doc: JSONContent): JSONContent {
+type ParagraphSource = (parent: JSONContent, index: number, inline: JSONContent[]) => JSONContent['attrs'];
+
+/** Restore missing structural wrappers from old edits. Keep all children for the final schema and source checks. */
+export function sanitizeRichJSON(doc: JSONContent, paragraphSource?: ParagraphSource): JSONContent {
   const walk = (node: JSONContent): JSONContent => {
-    if (!node || typeof node !== 'object') return node;
-    const children = Array.isArray(node.content) ? node.content.map(walk) : node.content;
-    if ((node.type === 'tableCell' || node.type === 'tableHeader' || node.type === 'listItem') && Array.isArray(children)) {
-      const hasBlock = children.some(child => child?.type && !INLINE_JSON_TYPES.has(child.type));
-      if (!children.length || !hasBlock) {
-        const inline = children.filter(child => !!child?.type);
-        return { ...node, content: [{ type: 'paragraph', ...(inline.length ? { content: inline } : {}) }] };
+    if (!node || typeof node.type !== 'string' || !Object.hasOwn(richSchema.nodes, node.type)) throw new RangeError(`Unknown node type: ${node?.type}`);
+    if (node.content != null && !Array.isArray(node.content)) throw new RangeError('Invalid rich node content');
+    if (node.type === 'text' && node.content?.length) throw new RangeError('Unexpected children on a text node');
+    const original = node.content ?? [];
+    let children = original.map(walk);
+    const expression = richSchema.nodes[node.type]!.spec.content;
+    const item = expression === 'paragraph block*';
+    const details = node.type === 'details';
+    if (expression === 'block+' || item || details) {
+      const paragraph = (index: number, inline: JSONContent[] = []): JSONContent => {
+        const attrs = paragraphSource?.(node, index, inline);
+        return { type: 'paragraph', ...(attrs && { attrs }), ...(inline.length && { content: inline }) };
+      };
+      const isInline = (child: JSONContent) => richSchema.nodes[child.type!]!.isInline;
+      if (children.some(isInline)) {
+        const blocks: JSONContent[] = [];
+        let pos = 0;
+        while (pos < children.length) {
+          if (!isInline(children[pos]!)) { blocks.push(children[pos++]!); continue; }
+          const start = pos++;
+          while (pos < children.length && isInline(children[pos]!)) pos++;
+          blocks.push(paragraph(blocks.length, children.slice(start, pos)));
+        }
+        children = blocks;
       }
+      if (details && !children.length) children.push({ type: 'detailsSummary' });
+      if (details && children.length === 1 && children[0]!.type === 'detailsSummary') children.push(paragraph(1));
+      if (!children.length || (item && children[0]?.type !== 'paragraph')) children.unshift(paragraph(0));
+    } else if (!children.length && (expression === 'listItem+' || expression === 'taskItem+')) {
+      children.push({ type: expression.slice(0, -1), content: [{ type: 'paragraph' }] });
     }
-    return children === node.content ? node : { ...node, ...(children !== undefined ? { content: children } : {}) };
+    return children.length === original.length && children.every((child, index) => child === original[index]) ? node : { ...node, content: children };
   };
   return walk(doc);
 }

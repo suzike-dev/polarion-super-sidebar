@@ -54,7 +54,10 @@
 .variant-check input { margin: 2px 0 0; width: 13px; height: 13px; flex: none; }
 .variant-create-actions { display: flex; gap: 6px; }
 .variant-create-actions .primary { flex: 1; }
-.variant-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; }
+.variant-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.variant-list { padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.variant-title > div { min-width: 0; }
+.variant-hover strong, .variant-hover p, .variant-alert span { overflow-wrap: anywhere; }
 .variant-row { border: 1px solid #e8eae0; border-radius: 10px; background: #fff; padding: 9px 10px; display: flex; flex-direction: column; gap: 6px; flex: none; position: relative; }
 .variant-hover { display: none; position: absolute; left: 6px; right: 6px; top: calc(100% - 2px); z-index: 12; padding: 8px 10px; border: 1px solid #dcdfd2; border-radius: 8px; background: #fff; box-shadow: 0 10px 24px #2027251f, 0 2px 6px #2027250a; pointer-events: none; font-size: 10.5px; line-height: 1.5; color: #55584d; }
 .variant-row:hover .variant-hover, .variant-row:focus-within .variant-hover { display: block; }
@@ -97,5 +100,8 @@
 .variant-preview pre { margin: 0; max-height: 150px; overflow: auto; padding: 8px; border: 1px solid #e8eae0; border-radius: 7px; background: #fff; color: #55584d; font-family: inherit; font-size: 10.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; scrollbar-width: thin; }
 .variant-preview > footer { display: flex; gap: 6px; justify-content: flex-end; padding-top: 3px; }
 @media (max-width: 760px) {
-  .variant-panel { width: 100%; max-width: none; border-radius: 0; }
+  /* 窄窗里编辑器本身只占上半屏：抽屉若跟随编辑器定位会被压到两百多像素高，
+     按钮被裁掉。这里改为覆盖整个视口，正文、详细配置和底部动作都能滚动到。 */
+  .variant-panel { position: fixed; inset: 0; width: 100%; max-width: none; border-radius: 0; z-index: 70; box-shadow: none; }
+  .variant-row .variant-hover { position: static; margin-top: 2px; box-shadow: none; }
 }

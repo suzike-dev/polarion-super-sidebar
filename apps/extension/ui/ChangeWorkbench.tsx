@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AlertTriangle, CalendarClock, Check, ChevronRight, CircleDot, Copy, Download, ExternalLink, FileDiff, Link2, Loader2, Play, Plus, RefreshCw, Search, Send, Share2, Sparkles, Trash2, X} from 'lucide-react';
-import type {ChangeAiSummary, ChangeBlock, ChangeCompareOptions, ChangeJobView, ChangeRecord, ChangeRecordPreview, ChangeRecordSummary, ChangeSessionView, ChangeShareFeishuResult, ChangeWorkspace, FeishuGroup, FeishuGroupsView, Target} from '../../../packages/protocol/index';
+import type {ChangeAiSummary, ChangeBlock, ChangeCompareOptions, ChangeJobView, ChangeRecord, ChangeRecordPreview, ChangeRecordSummary, ChangeSessionView, ChangeShareFeishuResult, ChangeWorkspace, FeishuGroup, FeishuGroupsView, FeishuSendResult, Target} from '../../../packages/protocol/index';
 import {rpc} from '../lib/client';
 import {diffTextParts} from '../../../packages/core/text-diff';
 import {diffTable} from '../../../packages/core/table-diff';
@@ -8,8 +8,6 @@ import {friendlyRecordName, recordPreview} from '../../../packages/core/change-r
 import {AssistantMarkdown} from './AssistantMarkdown';
 import './change-workbench.css';
 
-/** 同一记录自动重试 AI 总结的最小间隔，避免反复打开时耗掉调用额度。 */
-const summaryAttempts = new Map<string, number>();
 const KIND_LABEL = {modified: '修改', added: '新增', removed: '删除', moved: '移动'} as const;
 
 type RecordHoverState = {
@@ -261,6 +259,8 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
   const panel = useRef<HTMLDivElement>(null);
   const detail = useRef<HTMLDivElement>(null);
   const summaryRequests = useRef(new Set<string>());
+  const createdJobs = useRef(new Set<string>());
+  const historyTrigger = useRef<HTMLButtonElement | null>(null);
   const selectSeq = useRef(0);
   const jobSeq = useRef(0);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -289,7 +289,6 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
   const generateSummary = useCallback(async (recordId: string, force = false) => {
     if (summaryRequests.current.has(recordId)) return;
     summaryRequests.current.add(recordId);
-    summaryAttempts.set(recordId, Date.now());
     setSummaryBusy(true); setSummaryError('');
     try {
       const value = await rpc<{summary: ChangeAiSummary; record: ChangeRecord}>({method: 'changes.record.summarize', recordId, force});
@@ -315,7 +314,7 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
     }
   }, []);
 
-  const openRecord = useCallback(async (recordId: string) => {
+  const openRecord = useCallback(async (recordId: string, createdHere = false) => {
     const seq = ++selectSeq.current;
     setSelectedId(recordId); setRecord(null); setSummaryError(''); setShare(null); setError('');
     try {
@@ -323,13 +322,10 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
       if (seq !== selectSeq.current || closed.current) return;
       hoverCache.current.set(recordId, recordPreview(value));
       setRecord(value);
-      const lastAttempt = summaryAttempts.get(recordId) ?? 0;
-      if (value.aiSummary.status !== 'ready' && Date.now() - lastAttempt > 5 * 60_000) {
-        summaryAttempts.set(recordId, Date.now());
-        void generateSummary(recordId);
-      }
+      // A summary writes the project record. Opening shared history is a read operation.
+      if (createdHere && value.aiSummary.status !== 'ready') void generateSummary(recordId);
     } catch (exception) {
-      if (seq === selectSeq.current && !closed.current) setError(changeError(exception));
+      if (seq === selectSeq.current && !closed.current) { setError(changeError(exception)); setSelectedId(null); }
     }
   }, [generateSummary]);
 
@@ -398,10 +394,12 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
       if (value.state === 'done') {
         setJob(null);
         await load(true);
-        if (value.recordId) await openRecord(value.recordId);
+        const createdHere = createdJobs.current.delete(jobId);
+        if (value.recordId) await openRecord(value.recordId, createdHere);
         return;
       }
       if (value.state === 'failed') {
+        createdJobs.current.delete(jobId);
         setJob(null);
         setError(changeError(value.error ?? 'CHANGE_OPERATION_FAILED'));
         await load(true);
@@ -472,6 +470,7 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
         setBusy(true); setError('');
         try {
           const value = await rpc<{jobId: string}>({method: 'changes.session.finish', sessionId: session.id});
+          createdJobs.current.add(value.jobId);
           void followJob(value.jobId);
         } catch (exception) { setError(changeError(exception)); }
         finally { setBusy(false); }
@@ -539,6 +538,7 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
     setManualOpen(false); setBusy(true); setError('');
     try {
       const value = await rpc<{jobId: string}>({method: 'changes.compare.create', target, beforeAt, afterAt});
+      createdJobs.current.add(value.jobId);
       void followJob(value.jobId);
     } catch (exception) {
       setError(changeError(exception));
@@ -645,8 +645,8 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
     }
     setFeishuTesting(group.id);
     try {
-      const value = await rpc<{results: {ok: boolean; error?: string}[]}>({method: 'changes.share.feishuTest', webhook, secret: group.secret, projectId: target.projectId});
-      setFeishuTested(state => ({...state, [group.id]: value.results[0] ?? {ok: false, error: '没有返回结果'}}));
+      const results = await rpc<FeishuSendResult[]>({method: 'changes.share.feishuTest', webhook, secret: group.secret, projectId: target.projectId});
+      setFeishuTested(state => ({...state, [group.id]: results[0] ?? {ok: false, error: '没有返回结果'}}));
     } catch (exception) {
       setFeishuTested(state => ({...state, [group.id]: {ok: false, error: exception instanceof Error ? exception.message : String(exception)}}));
     } finally { setFeishuTesting(''); }
@@ -809,7 +809,7 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
       </div>
       {share && <div className="cw-share-row"><Link2 size={13}/><code>{share.recordUrl}</code><button title="复制链接" onClick={() => void copy(share.recordUrl, '链接')}>{copied === '链接' ? <Check size={12}/> : <Copy size={12}/>}</button><button className="cw-share-copy" onClick={() => void copyFeishu()}>{copied === '飞书消息' ? '已复制' : '复制飞书消息'}</button><a href={share.recordUrl} target="_blank" rel="noopener noreferrer" title="打开分享页"><ExternalLink size={12}/></a><a href={share.recordUrl + '?download=1'} title="下载单文件 HTML"><Download size={12}/></a></div>}
       <section className="cw-summary-card">
-        <div className="cw-summary-head"><span className="cw-ai-mark"><Sparkles size={13}/></span><b>{value.aiSummary.status === 'ready' ? 'AI 变更总结' : '变更总结（自动）'}</b>{value.aiSummary.status === 'ready' && <span className="cw-ready">已生成</span>}{summaryBusy && <span className="cw-generating"><Loader2 size={11} className="cw-spin"/>生成中…</span>}<button className="cw-text-button" disabled={summaryBusy} onClick={() => void generateSummary(value.id, true)}>{value.aiSummary.status === 'ready' ? '重新生成' : '重试'}</button></div>
+        <div className="cw-summary-head"><span className="cw-ai-mark"><Sparkles size={13}/></span><b>{value.aiSummary.status === 'ready' ? 'AI 变更总结' : '变更总结（自动）'}</b>{value.aiSummary.status === 'ready' && <span className="cw-ready">已生成</span>}{summaryBusy && <span className="cw-generating"><Loader2 size={11} className="cw-spin"/>生成中…</span>}<button className="cw-text-button" disabled={summaryBusy} onClick={() => void generateSummary(value.id, true)}>{value.aiSummary.status === 'ready' ? '重新生成' : value.aiSummary.status === 'failed' ? '重试' : '生成 AI 总结'}</button></div>
         {value.aiSummary.status === 'ready' && value.aiSummary.text ? <AssistantMarkdown text={value.aiSummary.text} onWorkItem={canOpen ? onOpenItem : undefined}/> : <div className="cw-heuristic"><AssistantMarkdown text={value.heuristicSummary} onWorkItem={canOpen ? onOpenItem : undefined}/></div>}
         {summaryError && <div className="cw-inline-error"><AlertTriangle size={12}/>{summaryError}</div>}
         <div className="cw-note-editor">
@@ -841,8 +841,13 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
     </div>;
   };
 
-  return <div className="change-workbench" ref={panel} style={{right, top, '--cw-right': right + 'px'} as React.CSSProperties} role="dialog" aria-label="变更管理" onKeyDown={event => {
-    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (manualOpen) setManualOpen(false); else if (feishuOpen) setFeishuOpen(false); else onClose(); }
+  return <div className="change-workbench" ref={panel} style={{top, '--cw-right': right + 'px'} as React.CSSProperties} role="dialog" aria-label="变更管理" onKeyDown={event => {
+    if (event.key !== 'Escape' || event.nativeEvent.isComposing) return;
+    event.preventDefault(); event.stopPropagation();
+    if (confirmState) { if (!confirmBusy) setConfirmState(null); }
+    else if (manualOpen) setManualOpen(false);
+    else if (feishuOpen) setFeishuOpen(false);
+    else onClose();
   }}>
     <header className="cw-head">
       <span className="cw-mark"><FileDiff size={16}/></span>
@@ -856,7 +861,7 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
     </header>
     {error && <div className="cw-error" role="alert"><AlertTriangle size={13}/><span>{error}</span><button title="关闭提示" onClick={() => setError('')}><X size={12}/></button></div>}
     {notice && <div className="cw-notice"><span>{notice}</span><button title="关闭提示" onClick={() => setNotice('')}><X size={12}/></button></div>}
-    <div className="cw-body">
+    <div className={'cw-body' + (selectedId ? ' cw-reading' : '')}>
       <aside className="cw-side">
         {renderSession()}
         <div className="cw-side-head"><span>变更历史</span><button onClick={openManual} title="选择两个时间点补建变更记录"><CalendarClock size={12}/>补建</button></div>
@@ -870,14 +875,20 @@ export function ChangeWorkbench({target, initialRecordId, right, top, onClose, o
           {workspace && listRows.length === 0 && <div className="cw-side-state">{scope === 'project' ? '这个项目还没有变更记录。' : '这篇文档还没有变更记录。'}<br/>设定基准或按时间补建后，记录会写进当前项目。</div>}
           {!loading && listRows.length > 0 && filteredRows.length === 0 && <div className="cw-side-state">没有匹配的记录。</div>}
           {workspace?.proposalActivity?.filter(p => (scope === 'project' || p.target.document === target.document) && (!recordQuery.trim() || `${p.summary} ${p.workItemId ?? ''}`.toLowerCase().includes(recordQuery.trim().toLowerCase()))).map(p => <div key={p.id} className="cw-record"><span className="cw-record-main"><b>{p.summary}</b><small>{sourceLabel[p.source]} · {p.workItemId} · {p.savedToPolarion ? '正文已回读 · 项目记录待核对' : '本机操作记录'} · {stamp(p.appliedAt ?? 0)}</small></span></div>)}
-          {groupedRecords.map(([day, rows]) => <div className="cw-day" key={day}><div className="cw-day-head">{day}</div>{rows.map(row => <button key={row.id} className={'cw-record' + (selectedId === row.id ? ' selected' : '')} onClick={() => {setRecordHover(null); void openRecord(row.id);}} onPointerEnter={event => showRecordHover(row, event.currentTarget)} onPointerLeave={hideRecordHover}>
+          {groupedRecords.map(([day, rows]) => <div className="cw-day" key={day}><div className="cw-day-head">{day}</div>{rows.map(row => <button key={row.id} className={'cw-record' + (selectedId === row.id ? ' selected' : '')} onClick={event => {historyTrigger.current = event.currentTarget; hideRecordHover(); setRecordHover(null); void openRecord(row.id);}} onPointerEnter={event => showRecordHover(row, event.currentTarget)} onPointerLeave={hideRecordHover} onFocus={event => showRecordHover(row, event.currentTarget)} onBlur={hideRecordHover}>
             <span className="cw-record-time">{stamp(row.baselineAt).slice(11)}<br/>{stamp(row.endedAt).slice(11)}</span>
             <span className="cw-record-main"><b>{friendlyRecordName(row.headline, row.documentTitle, row.changedItems)}</b><small>{sourceLabel[row.source ?? 'manual']} · {scope === 'project' ? row.documentTitle + ' · ' : ''}{row.changedItems} 项 · 改 {row.modified} · 增 {row.added} · 删 {row.removed}</small></span>
             <ChevronRight size={13} className="cw-record-arrow"/>
           </button>)}</div>)}
         </div>
       </aside>
-      <main className="cw-main">{record ? renderRecord(record) : renderOverview()}</main>
+      <main className="cw-main">
+        {selectedId && <button className="cw-back-to-history" onClick={() => {
+          selectSeq.current++; setSelectedId(null); setRecord(null);
+          requestAnimationFrame(() => (historyTrigger.current?.isConnected ? historyTrigger.current : closeButton.current)?.focus());
+        }}>返回变更历史</button>}
+        {record ? renderRecord(record) : renderOverview()}
+      </main>
     </div>
     {feishuOpen && <div className="cw-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setFeishuOpen(false); }}>
       <section className="cw-modal cw-feishu-modal" role="dialog" aria-modal="true" aria-label="飞书推送群" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setFeishuOpen(false); } }}>

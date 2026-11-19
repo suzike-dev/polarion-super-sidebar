@@ -7,7 +7,7 @@ import {Boards} from './boards.ts';
 import {Variants} from './variants.ts';
 import {Changes} from './changes.ts';
 import {Credentials} from './credentials.ts';
-import {Workflows} from './workflows.ts';
+import {Workflows, localDay} from './workflows.ts';
 import {Model, scanModelRoot} from './model.ts';
 import {Coverage} from './coverage.ts';
 import {Rules} from './rules.ts';
@@ -24,8 +24,10 @@ import {Macros} from './macros.ts';
 import {sweepStalledRecords} from './stall-guard.ts';
 import {Snapshots} from './snapshots.ts';
 import {readExperience, writeExperience, clearExperience, conversationDigest, distillExperience, refineExperience} from './experience.ts';
-import { RequestSchema, PROTOCOL, TargetSchema, normalizeGuideline, type Reply, type Run, type Session, type SessionGroup, type DocumentQualityReport, type BriefConfig, type DashboardView, type TimelineView } from '../../packages/protocol/index.ts';
+import { RequestSchema, PROTOCOL, PROJECT_EVENT_LIMIT, TargetSchema, normalizeGuideline, isInboxPendingProposal, openReviewIssues, type Reply, type Run, type Session, type SessionGroup, type DocumentQualityReport, type BriefConfig, type DashboardView, type TimelineView } from '../../packages/protocol/index.ts';
 import { lintText } from '../../packages/core/requirement-lint.ts';
+import { RichDocument } from '../../packages/core/rich-document.ts';
+import { richSchema } from '../../packages/core/rich-schema.ts';
 export class Service {
   store: Store; drafts: Drafts; engines: Engines;
   capabilities: Capabilities;
@@ -52,7 +54,7 @@ export class Service {
     try {
       const request = RequestSchema.parse(input); id = request.id; const c = request.command; let value: unknown;
       switch (c.method) {
-        case 'health': value = { protocol: PROTOCOL, version: '0.13.0', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback' }; break;
+        case 'health': value = { protocol: PROTOCOL, version: '0.13.1', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback', scopedQualityRewrite: true }; break;
         case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;const capabilities=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);value={...capabilities,connected:!!runtime};break;}
         case 'engine.manage': value=await this.engines.manage(c.sessionId,c.action,c.server);break;
         case 'engine.context': this.store.require<Session>('session',c.sessionId);value=await this.engines.contextUsage.read(c.sessionId,c.refresh);break;
@@ -74,7 +76,12 @@ export class Service {
         case 'sessionGroups.create': { const name = c.name.trim(); if (!name) throw Error('GROUP_NAME_EMPTY'); const existing = this.store.get<SessionGroup>('session-group', name); value = existing ?? (() => { const g: SessionGroup = { name, createdAt: Date.now() }; this.store.put('session-group', name, g); return g; })(); break; }
         case 'sessionGroups.delete': { this.store.remove('session-group', c.name); for (const s of this.store.list<Session>('session')) if (s.group === c.name) this.store.put('session', s.id, { ...s, group: undefined }); value = { disbanded: c.name }; break; }
         case 'sessions.read': value = { session: this.store.require<Session>('session', c.sessionId), runs: this.store.list<Run>('run').filter(r => r.sessionId === c.sessionId).sort((a, b) => a.startedAt - b.startedAt).map(({ contexts, prompt, ...r }) => r), events: this.store.events(c.sessionId, c.after), workflow: this.workflows.viewOf(c.sessionId) }; break;
-        case 'runs.start': { const result = this.store.startRun(c.sessionId, c.requestId, c.prompt, c.contexts, c.target, c.attachments, c.permissionMode, c.delivery, c.guidelineId); if (result.created) { if (result.run.status === 'queued') { if (c.delivery === 'steer') this.engines.steer(c.sessionId, result.run.id); this.engines.pump(c.sessionId); } else void this.engines.execute(result.run); } value = result.run; break; }
+        case 'runs.start': value = this.launchRun(this.store.startRun(c.sessionId, c.requestId, c.prompt, c.contexts, c.target, c.attachments, c.permissionMode, c.delivery, c.guidelineId, undefined, c.autoSave, c.qualityRewrite)); break;
+        case 'runs.inspectQuality': {
+          const prompt = `只读深检 ${c.snapshot.workItemId}「${c.title}」。分析版本为${c.sourceLabel}。`;
+          value = this.launchRun(this.store.startRun(c.sessionId, c.requestId, prompt, [c.snapshot], c.snapshot.target, [], undefined, 'queue', undefined, undefined, false, 'inspect'));
+          break;
+        }
         case 'assets.begin': value = this.assets.begin(c.target,c.name,c.mime,c.size); break;
         case 'assets.chunk': value = this.assets.chunk(c.assetId,c.offset,c.data); break;
         case 'assets.finish': value = this.assets.finish(c.assetId); break;
@@ -90,13 +97,14 @@ export class Service {
         case 'boards.decide': value=new Boards(this.store,this.assets).decide(this.drafts.read(c.draftId),c.proposalId,c.action);break;
         case 'boards.create': {const d=this.drafts.read(c.draftId);value=new Boards(this.store,this.assets).create(d.target,d.workItemId,c.title,c.sourceId,c.previewId,c.parentSnapshotId);break;}
         case 'boards.open': {const d=this.drafts.read(c.draftId),boards=new Boards(this.store,this.assets);if(c.src.startsWith('polarion-asset:')){const record=boards.byPreview(c.src.slice(15));if(!record)throw Error('BOARD_SOURCE_MISSING');value=boards.owned(d,record.manifest.objectId,record.manifest.snapshotId);}else{if(!d.html.includes(c.src))throw Error('BOARD_REFERENCE_MISSING');if(!(this.drafts.remote instanceof Polarion))throw Error('BOARD_READER_UNAVAILABLE');const scope=this.drafts.scopeFor(d.target,d.workItemId);const result=await this.drafts.remote.call<any>({method:'board',target:d.target,workItemId:d.workItemId,src:c.src,...(scope?{variant:scope}:{})});value=boards.import(d.target,d.workItemId,result);}break;}
+        case 'runs.retryQualityInspection':
         case 'runs.retry': {
           const prior = this.store.require<Run>('run', c.runId);
+          if (c.method === 'runs.retryQualityInspection' && !prior.qualityInspection) throw Error('此任务没有只读深检快照，请从编辑器重新深检。');
           const attachments = (prior.attachments ?? []).filter(id => this.store.get('asset', id));
           const guidelineId = prior.guidelineId && this.store.get('guideline', prior.guidelineId) ? prior.guidelineId : undefined;
-          const result = this.store.startRun(prior.sessionId, c.requestId, prior.prompt, prior.contexts, prior.target, attachments, prior.permissionMode, 'queue', guidelineId);
-          if (result.created) { if (result.run.status === 'queued') this.engines.pump(prior.sessionId); else void this.engines.execute(result.run); }
-          value = result.run; break;
+          value = this.launchRun(this.store.startRun(prior.sessionId, c.requestId, prior.prompt, prior.contexts, prior.target, attachments, prior.permissionMode, 'queue', guidelineId, undefined, prior.autoSave, prior.qualityInspection ? 'inspect' : prior.qualityRewrite));
+          break;
         }
         case 'runs.cancel': this.engines.cancel(c.runId); value = { requested: true }; break;
         case 'runs.steer': value = this.engines.steerQueued(c.runId); break;
@@ -150,11 +158,15 @@ export class Service {
         case 'drafts.read': value = this.drafts.read(c.draftId); break;
         case 'drafts.rich.read': value = this.drafts.richRead(c.draftId); break;
         case 'drafts.rich.apply': value = this.drafts.richApply(c.draftId, c.editorId, c.expectedRevision, c.document); break;
-        case 'drafts.reconcile': value = await this.drafts.reconcile(c.draftId); break;
+        case 'drafts.reconcile': value = await this.drafts.reconcile(c.draftId, c.expectedRevision); break;
         case 'drafts.conflict.read': value=await this.drafts.conflictRead(c.draftId);break;
         case 'drafts.conflict.resolve': value=await this.drafts.resolveConflict(c.draftId,c.expectedRevision,c.remoteHash,c.remoteUpdated,c.strategy);break;
         case 'drafts.replaceText': value = this.drafts.replace(c.draftId, c.expectedRevision, c.nodeId, c.expectedText, c.text); break;
-        case 'drafts.save': { const saved = await this.drafts.save(c.draftId, c.expectedRevision, c.nativeState); this.events.record(saved.target.projectId, 'save', `${saved.workItemId} 保存到 Polarion`, { workItemId: saved.workItemId, detail: `修订 ${saved.revision}` }); value = saved; break; }
+        case 'drafts.save': {
+          const { wroteToPolarion, ...saved } = await this.drafts.save(c.draftId, c.expectedRevision, c.nativeState);
+          if (wroteToPolarion) this.events.record(saved.target.projectId, 'save', `${saved.workItemId} 保存到 Polarion`, { workItemId: saved.workItemId, detail: `修订 ${saved.revision}` });
+          value = saved; break;
+        }
         case 'variants.list': value = await this.variants.list(c.target, c.mainWorkItemId); break;
         case 'variants.roles': value = await this.variants.roles(c.target); break;
         case 'variants.create': value = await this.variants.create({target:c.target,mainWorkItemId:c.mainWorkItemId,label:c.label,title:c.title,copy:c.copy,role:c.role}); break;
@@ -205,6 +217,7 @@ export class Service {
         case 'impact.view': value = this.coverage.impact(c.target, c.workItemId); break;
         case 'rules.get': value = await this.rules.read(c.target, c.refresh); break;
         case 'rules.save': value = await this.rules.save(c.target, c.pack, c.expectedUpdated); break;
+        case 'quality.document.last': value = this.store.get<DocumentQualityReport>('quality-report', c.target.projectId) ?? null; break;
         case 'quality.document.check': {
           const report = await this.documentQuality(c.target, c.limit);
           this.store.put('quality-report', c.target.projectId, report);
@@ -266,21 +279,32 @@ export class Service {
     } catch (error) { return { protocol: 1, id, ok: false, error: safeError(error) }; }
   }
 
-  /** 整册体检：outline 逐条 peek + lint（RPC 与晨报共用）。 */
+  private launchRun({run, created}: ReturnType<Store['startRun']>) {
+    if (!created) return run;
+    if (run.status === 'queued') {
+      if (run.delivery === 'steer') this.engines.steer(run.sessionId, run.id);
+      this.engines.pump(run.sessionId);
+    } else void this.engines.execute(run);
+    return run;
+  }
+
+  /** 按大纲读取每条完整正文，包含尚未保存的本地修改。 */
   private async documentQuality(target: import('../../packages/protocol/index.ts').Target, limit: number): Promise<DocumentQualityReport> {
     if (!(this.drafts.remote instanceof Polarion) || !this.drafts.remote.outline) throw Error('POLARION_UNAVAILABLE');
     const outline = await this.drafts.remote.outline(target);
     const rules = await this.rules.read(target, false);
     const byRule = new Map<string, number>();
-    const report: DocumentQualityReport = { at: Date.now(), total: outline.items.length, checked: 0, clean: 0, items: [], byRule: [], ruleSource: rules.source };
+    const report: DocumentQualityReport = { document: target.document, at: Date.now(), total: outline.items.length, checked: 0, clean: 0, items: [], byRule: [], ruleSource: rules.source };
     for (const item of outline.items.slice(0, limit)) {
       report.checked++;
       try {
-        const peek = await this.drafts.peek(target, item.id);
-        const issues = lintText(`${peek.title}\n${peek.text}`, rules.pack).map(({ ruleId, severity, message, matchedText, suggestion }) => ({ ruleId, severity, message, matchedText, ...(suggestion ? { suggestion } : {}) }));
+        const body = await this.drafts.readOnly(target, item.id);
+        const doc = richSchema.nodeFromJSON(new RichDocument(body.html).document);
+        const text = doc.textBetween(0, doc.content.size, '\n', '\n');
+        const issues = lintText(`${body.title}\n${text}`, rules.pack).map(({ ruleId, severity, message, matchedText, suggestion }) => ({ ruleId, severity, message, matchedText, ...(suggestion ? { suggestion } : {}) }));
         if (!issues.length) report.clean++;
         for (const issue of issues) byRule.set(issue.ruleId, (byRule.get(issue.ruleId) ?? 0) + 1);
-        report.items.push({ workItemId: item.id, title: item.title, outline: item.outline, issues });
+        report.items.push({ workItemId: item.id, title: body.title || item.title, outline: item.outline, issues, ...(body.readOnlyReference ? { readOnlyReference: true } : {}) });
       } catch { report.items.push({ workItemId: item.id, title: item.title, outline: item.outline, issues: [], unreadable: true }); }
     }
     report.byRule = [...byRule.entries()].map(([ruleId, count]) => ({ ruleId, count })).sort((a, b) => b.count - a.count);
@@ -300,7 +324,7 @@ export class Service {
         if (view.baselineAt != null) checks.push({ label: root.label, ok: view.ok, changedFiles: view.changedFiles, findings: view.findings.length, modules: view.findings.filter(finding => finding.side !== 'requirement').map(finding => finding.moduleName) });
       } catch { /* 未绑定/不可读的根跳过 */ }
     }
-    const pendingProposals = this.proposals.list(target).filter(proposal => proposal.status === 'pending' && proposal.op.kind !== 'tool' && proposal.op.kind !== 'gate').length;
+    const pendingProposals = this.proposals.list(target).filter(isInboxPendingProposal).length;
     const qualitySummary = { checked: quality.checked, clean: quality.clean, findings: quality.checked - quality.clean, topRules: quality.byRule.slice(0, 4) };
     const card = buildMorningCard({ projectId: target.projectId, document: target.document, at: Date.now(), quality: qualitySummary, checks, pendingProposals });
     const digest = [
@@ -311,15 +335,24 @@ export class Service {
     return { card, digest, quality, checks };
   }
 
-  /** 显式发送晨报到项目飞书群（用户点击触发的外发动作）。 */
-  private async sendBrief(target: import('../../packages/protocol/index.ts').Target) {
+  /** 手动发送和每日定时都以接收端的逐群回执记录结果。 */
+  private async sendBrief(target: import('../../packages/protocol/index.ts').Target, scheduled = false) {
     const { card, digest } = await this.composeBrief(target);
-    const groupsView = await this.changes.feishuGroups(target).catch(() => null);
-    const groups = groupsView?.groups ?? [];
-    if (!groups.length) return { card, digest, sent: false, reason: '未配置飞书推送群（PSB-FEISHU）' };
+    const groups = (await this.changes.feishuGroups(target)).groups;
+    const label = scheduled ? '定时晨报' : '晨报';
+    if (!groups.length) {
+      const reason = '未配置飞书推送群（PSB-FEISHU）';
+      if (scheduled) this.events.record(target.projectId, 'brief', `${label}跳过：${reason}`);
+      return { card, digest, sent: false, reason };
+    }
     const results = await sendCardToGroups(groups, card);
-    this.events.record(target.projectId, 'brief', `晨报已发送（${results.filter(result => result.ok).length}/${results.length} 个群）`);
-    return { card, digest, sent: results.some(result => result.ok), results };
+    const failed = results.filter(result => !result.ok);
+    const delivered = results.length - failed.length;
+    const status = !failed.length ? '已发送' : delivered ? '部分发送成功' : '发送失败';
+    const summary = `${label}${status}（${delivered}/${results.length} 个群）`;
+    this.events.record(target.projectId, 'brief', summary);
+    const reason = failed.length ? `${summary}：${failed.map(group => `${group.label}（${group.error}）`).join('、')}` : undefined;
+    return { card, digest, sent: delivered > 0, results, reason };
   }
 
   /** 每日晨报定时：按项目配置（brief-config）到点触发；当天已发不重复。 */
@@ -336,15 +369,15 @@ export class Service {
     const coverage = this.coverage.view(target);
     const alerts = this.events.watch(target).alerts.filter(alert => alert.level === 'warn').length;
     return {
-      pendingProposals: this.proposals.list(target).filter(proposal => proposal.status === 'pending' && proposal.op.kind !== 'tool' && proposal.op.kind !== 'gate').length,
+      pendingProposals: this.proposals.list(target).filter(isInboxPendingProposal).length,
       alerts,
-      quality: quality && quality.checked ? { checked: quality.checked, findings: quality.checked - quality.clean, byRule: quality.byRule.slice(0, 5) } : null,
-      coverage: coverage.items.length ? { total: coverage.items.length, withModule: coverage.summary.withModule, withUpstream: coverage.summary.withUpstream, withVerification: coverage.summary.withVerification, orphans: coverage.summary.orphans } : null,
+      quality: quality ? { checked: quality.checked, findings: quality.checked - quality.clean, byRule: quality.byRule.slice(0, 5) } : null,
+      coverage: coverage.at || coverage.items.length ? { total: coverage.items.length, withModule: coverage.summary.withModule, withUpstream: coverage.summary.withUpstream, withVerification: coverage.summary.withVerification, orphans: coverage.summary.orphans } : null,
       workflows: this.workflows.defs(target.projectId).length,
-      events: this.events.list(target.projectId, 500).length,
+      events: this.events.list(target.projectId, PROJECT_EVENT_LIMIT).length,
       worksets: this.worksets.list(target.projectId).length,
       briefEnabled: (this.store.get<BriefConfig>('brief-config', target.projectId)?.enabled) ?? false,
-      reviewOpen: this.reviews.list(target).filter(review => review.status === 'open').reduce((count, review) => count + review.issues.filter(issue => issue.status === 'open').length, 0),
+      reviewOpen: this.reviews.list(target).reduce((count, review) => count + openReviewIssues(review).length, 0),
     };
   }
 
@@ -353,7 +386,7 @@ export class Service {
     const entries = this.events.list(target.projectId, 400)
       .filter(event => !workItemId || event.workItemId === workItemId)
       .map(event => ({ at: event.at, kind: event.kind, subject: event.subject, ...(event.workItemId ? { workItemId: event.workItemId } : {}), ...(event.detail ? { detail: event.detail } : {}) }));
-    return { scope: workItemId ? 'item' : 'document', ...(workItemId ? { workItemId } : {}), entries };
+    return { scope: workItemId ? 'item' : 'project', ...(workItemId ? { workItemId } : {}), entries };
   }
 
   /** 证据链 Markdown：需求摘要 + 模块（含疑似过期）+ 链接 + 巡检/事件史，供评审与交接引用。 */
@@ -388,20 +421,22 @@ export class Service {
     try {
       const now = new Date();
       const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const today = now.toISOString().slice(0, 10);
+      const today = localDay(now);
+      // 旧 Host 用 UTC 日期命名回执。升级当天仍承认本地今天已执行的那次投递。
+      const legacyDay = now.toISOString().slice(0, 10);
       const configs = this.store.list<BriefConfig & { id?: string; document?: string }>('brief-config').filter(config => config.enabled && config.id && config.document);
       for (const config of configs) {
         if (config.at !== hhmm) continue;
         const marker = `brief-sent:${config.id}:${today}`;
-        if (this.store.get('brief-sent', marker)) continue;
-        this.store.put('brief-sent', marker, { at: Date.now() });
+        const alreadyAttempted = [marker, `brief-sent:${config.id}:${legacyDay}`].some(key => {
+          const previous = this.store.get<{ at: number }>('brief-sent', key);
+          return previous && localDay(new Date(previous.at)) === today;
+        });
+        if (alreadyAttempted) continue;
+        this.store.put('brief-sent', marker, { at: now.getTime() });
         try {
           const target = TargetSchema.parse({ origin: 'https://polarion.pufafen.com', projectId: config.id, document: config.document });
-          const { card } = await this.composeBrief(target);
-          const groupsView = await this.changes.feishuGroups(target).catch(() => null);
-          const groups = groupsView?.groups ?? [];
-          if (groups.length) await sendCardToGroups(groups, card);
-          this.events.record(config.id!, 'brief', groups.length ? `定时晨报已发送（${groups.length} 个群）` : '定时晨报跳过：未配置飞书推送群');
+          await this.sendBrief(target, true);
         } catch (error) {
           this.events.record(config.id!, 'brief', `定时晨报失败：${error instanceof Error ? error.message : String(error)}`);
         }

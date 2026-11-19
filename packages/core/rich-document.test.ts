@@ -1,10 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RichDocument } from './rich-document.ts';
+import { richSchema } from './rich-schema.ts';
 import type { JSONContent } from '@tiptap/core';
 import {patchStyle,mergeSourceStyle,safeStyle} from './rich-style.ts';
 const visit = (j: JSONContent, fn: (j: JSONContent) => void) => { fn(j); j.content?.forEach(c => visit(c, fn)); };
 const source = '<div class="polarion-rte"><p style="color:#123456">Before&nbsp;<strong>bold</strong></p><table id="polarion_wiki macro name=table;params=uid=12" style="width:100%;border-collapse:collapse"><tbody><tr><td colspan="2" style="background-color:#eee"><p>A &amp; B</p><table><tbody><tr><td>nested</td></tr></tbody></table></td></tr><tr><td>x</td><td>y</td></tr></tbody></table><p><img src="attachment.png"><span id="polarion_wiki macro name=unknown;params=id=7">payload</span></p></div>';
+test('bounded text edits preserve entity spellings, Unicode and code carriers while escaping candidate text', () => {
+  const paragraph = '<h2 data-id="a">&#x1F699; &nbsp;&#65;。系统应&#x53CA;<i>时</i>响应。</h2>';
+  const original = '系统应及时响应。';
+  const base = new RichDocument(paragraph);
+  const offset = 1 + '🚙 \u00a0A。'.length;
+  assert.equal(base.replaceTextRange(offset, offset + original.length, original, '系统应<&响应。'), paragraph.replace('&#x53CA;<i>时', '&lt;<i>&amp;'));
+  const code = '<pre id="listing"><code class="language-text">&#65;\r\n系统应及时响应。<br><span id="polarion_wiki macro name=frozen">保持</span></code></pre>';
+  const source = new RichDocument(code), start = 1 + 'A\n'.length;
+  assert.equal(source.replaceTextRange(start, start + original.length, original, '系统应及时响应🚙。'), code.replace('响应。', '响应&#x1F699;。'));
+  assert.throws(() => source.replaceTextRange(start + original.length + 1, start + original.length + 3, '保持', '修改'), /无法.*安全对应/);
+});
 test('native table macro without semicolon is editable just like the parameterized form',()=>{
   const html='<table id="polarion_wiki macro name=table;params=uid=fixture"><tbody><tr><td>A</td></tr></tbody></table><table id="polarion_wiki macro name=table"><tbody><tr><td>B</td></tr></tbody></table>';
   const d=new RichDocument(html);assert.deepEqual(d.document.content!.map(n=>n.type),['table','table']);assert.equal(d.protectedIds.size,0);assert.equal(d.serialize(d.document),html);
@@ -43,6 +55,28 @@ test('unknown structural macros and empty tables remain protected rather than di
     const d=new RichDocument(html);assert.equal(d.document.content![0]!.type,'protectedBlock');assert.equal(d.serialize(d.document),html);
   }
 });
+test('native empty lists remain byte-exact and unsupported list or cell carriers stay protected during adjacent edits', () => {
+  const carriers = [
+    ['<ol class="empty"></ol>', 'orderedList'],
+    ['<ul data-sidebar-tasks="true"></ul>', 'taskList'],
+    ['<ul data-sidebar-tasks="true"><li data-extra="keep">legacy task</li></ul>', 'protectedBlock'],
+    ['<ol><li id="polarion_wiki macro name=fixture">opaque item</li></ol>', 'protectedBlock'],
+    ['<table><tr><td id="polarion_wiki macro name=fixture">opaque cell</td></tr></table>', 'protectedBlock'],
+  ];
+  for (const [source, type] of carriers) {
+    const html = source + '<p id="clause">before</p>';
+    const base = new RichDocument(html);
+    richSchema.nodeFromJSON(base.document).check();
+    assert.equal(base.document.content![0]!.type, type);
+    assert.equal(base.serialize(base.document), html);
+    const edited = structuredClone(base.document);
+    edited.content![1]!.content![0]!.text = 'after';
+    const saved = base.serialize(edited);
+    assert.equal(saved, html.replace('>before<', '>after<'));
+    richSchema.nodeFromJSON(new RichDocument(saved).document).check();
+  }
+});
+
 test('protected macros expose their visible text without changing serialization',()=>{
   const html='<div id="polarion_wiki macro name=s1-preserve;params=key=value">opaque fixture</div>';
   const d=new RichDocument(html);assert.equal(d.document.content![0]!.type,'protectedBlock');
@@ -113,6 +147,18 @@ test('callout uses a native table carrier and remains editable after save and re
   const html=d.serialize(j);assert.match(html,/data-sidebar-callout="warning"/);assert.match(html,/background-color:#fff7ed/);assert.match(html,/cellpadding="12"/);
   const reopened=new RichDocument(html),next=structuredClone(reopened.document);assert.equal(next.content![0]!.type,'callout');visit(next,n=>{if(n.text)n.text=n.text.replace('3 s','4 s');});
   const updated=reopened.serialize(next);assert.match(updated,/>阈值 25 °C &amp; 4 s</);assert.match(updated,/border-left:3px solid #c2410c/);assert.equal(new RichDocument(updated).document.content![0]!.type,'callout');
+});
+
+test('native inline code keeps its text source mark, entities and editable wrapper on reread', () => {
+  const source = `<p><code class='native-code'>a&#x20;  &amp; b</code> before</p>`;
+  const base = new RichDocument(source);
+  const edited = structuredClone(base.document);
+  const [literal, after] = edited.content![0]!.content!;
+  assert.deepEqual(literal!.marks?.map(mark => mark.type).sort(), ['code', 'sourceText']);
+  after!.text = ' after';
+  const saved = base.serialize(edited);
+  assert.equal(saved, source.replace(' before', ' after'));
+  richSchema.nodeFromJSON(new RichDocument(saved).document).check();
 });
 
 test('code block keeps whitespace and special characters through edits and reopening',()=>{

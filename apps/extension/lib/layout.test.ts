@@ -1,7 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { contentFingerprint, Layout, NativeState, outline, navigateHeading } from './layout.ts';
+import { contentFingerprint, Layout, NativeState, lockNativePanelInput, outline, navigateHeading } from './layout.ts';
+
+test('late completion releases only its own native input lock', () => {
+  const dom = new JSDOM('<div class="polarion-dle-MainDockPanel"></div>');
+  const previous = globalThis.document;
+  globalThis.document = dom.window.document;
+  try {
+    const panel = document.querySelector<HTMLElement>('.polarion-dle-MainDockPanel')!;
+    for (const initial of [false, true]) {
+      panel.inert = initial;
+      const first = lockNativePanelInput(), second = lockNativePanelInput();
+      first(); assert.equal(panel.inert, true);
+      second(); assert.equal(panel.inert, initial);
+    }
+  } finally { globalThis.document = previous; dom.window.close(); }
+});
 test('image helper attribute reordering and CSS serialization are clean; real formatting changes remain dirty',()=>{
  const doc=new JSDOM('<body><img title="diagram" src="/a.png" style="width:760px;max-width:100%;margin-left:auto;"></body>').window.document,before=contentFingerprint(doc.body),img=doc.querySelector('img')!;
  img.removeAttribute('title');img.setAttribute('style','width: 760px; max-width: 100%; margin-left: auto;');img.setAttribute('class','');img.setAttribute('title','diagram');
