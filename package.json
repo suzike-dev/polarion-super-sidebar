@@ -7,7 +7,7 @@
     "node": ">=24.22.2 <25"
   },
   "scripts": {
-    "test": "node --test packages/core/*.test.ts apps/host/*.test.ts apps/extension/lib/*.test.ts",
+    "test": "node scripts/test-all.mjs",
     "check:host": "tsc --noEmit",
     "check:extension": "tsc --noEmit -p apps/extension/tsconfig.json",
     "build:host": "node scripts/build-host.mjs",
