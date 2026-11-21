@@ -2,6 +2,11 @@ import { defineContentScript } from 'wxt/utils/define-content-script';
 import { browser } from 'wxt/browser';
 import { isDocumentRoute, parseChangeDeepLink, pendingChangeRecordId } from '../lib/change-deep-link.ts';
 import { selectedRangeWithin } from '../lib/experience-selection.ts';
+
+declare global {
+  // 只在本 content script 与侧边栏之间传递「最近聚焦的工作项」，页面卸载即失效，不落任何存储。
+  interface Window { __psbLastWorkItem?: string }
+}
 export default defineContentScript({
   matches: ['https://polarion.pufafen.com/polarion/*'], allFrames: true, matchAboutBlank: true, runAt: 'document_start',
   main(ctx) {
@@ -58,6 +63,7 @@ export default defineContentScript({
         const sidebar = document.querySelector('polarion-super-sidebar')?.shadowRoot;
         if (sidebar && selectedRangeWithin(sidebar)) return;
         const item = itemFor(selection.anchorNode); const surrounding = item?.element.textContent ?? ''; const index = surrounding.indexOf(text);
+        if (item?.id) (window as { __psbLastWorkItem?: string }).__psbLastWorkItem = item.id;
         void browser.runtime.sendMessage({ type: 'selection', context: { id: crypto.randomUUID(), text: text.slice(0, 60000), workItemId: item?.id, source: 'selection', capturedAt: Date.now(), prefix: index < 0 ? '' : surrounding.slice(Math.max(0, index - 100), index), suffix: index < 0 ? '' : surrounding.slice(index + text.length, index + text.length + 100) } }).catch(() => {});
       }, 160);
     });
@@ -112,6 +118,7 @@ export default defineContentScript({
     let hovered = ''; let hoverTimer = 0;
     const handleHover = (event: PointerEvent) => {
       const item = blockFor(event.target as Node); if (!item || hovered === item.id) return;
+      if (item.id) (window as { __psbLastWorkItem?: string }).__psbLastWorkItem = item.id;
       clearTimeout(hoverTimer); hovered = item.id;
       hoverTimer = ctx.setTimeout(() => {
         const rect = item.element.getBoundingClientRect();
@@ -119,5 +126,6 @@ export default defineContentScript({
       }, 350);
     };
     ctx.addEventListener(window, 'pointerover', handleHover, { capture: true });
+
   },
 });

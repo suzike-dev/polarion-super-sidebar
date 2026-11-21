@@ -1,11 +1,11 @@
 /* Inline marks and the status-bar trigger stay with the text editor. */
-.psb-lint-warn { text-decoration: underline wavy #a4593b 1px; text-underline-offset: 3px; cursor: help; }
+.psb-lint-warn { text-decoration: underline wavy var(--ui-danger) 1px; text-underline-offset: 3px; cursor: help; }
 .psb-lint-info { text-decoration: underline dashed #6f8261 1px; text-underline-offset: 3px; cursor: help; }
 .psb-quality-chip {
   flex: none; padding: 1px 9px; border: 1px solid var(--ui-line); border-radius: 999px;
   background: var(--ui-surface); color: var(--ui-secondary); font-size: 12px; line-height: 1.4;
 }
-.psb-quality-chip.has-warn { color: #85472c; border-color: #c99b7e; }
+.psb-quality-chip.has-warn { color: var(--ui-warning-ink); border-color: #c99b7e; }
 .psb-quality-chip:is(:hover, [aria-expanded=true]) { color: var(--ui-accent-ink); border-color: var(--ui-accent); background: var(--ui-accent-soft); }
 :host .rich-statusbar .psb-quality-chip:focus-visible { outline-offset: -2px; }
 
@@ -31,8 +31,8 @@
   border: 1px solid var(--ui-line); border-radius: var(--ui-radius-sm); background: var(--ui-surface);
   color: var(--ui-secondary); min-height: 30px; padding: 4px 10px; font: 500 13px/1.45 var(--ui-font);
 }
-.psb-quality-panel button:is(.psb-quality-fix, .psb-quality-deep) { color: var(--ui-accent-ink); background: var(--ui-accent-soft); border-color: #d7e3cf; }
-.psb-quality-panel button:hover:not(:disabled) { color: var(--ui-accent-ink); background: #e4eddd; border-color: #a5b89b; }
+.psb-quality-panel button:is(.psb-quality-fix, .psb-quality-deep) { color: var(--ui-accent-ink); background: var(--ui-accent-soft); border-color: var(--ui-line); }
+.psb-quality-panel button:hover:not(:disabled) { color: var(--ui-accent-ink); background: var(--ui-hover); border-color: #a5b89b; }
 .psb-quality-panel .psb-quality-close { display: grid; place-items: center; width: 30px; padding: 0; border-color: transparent; background: transparent; }
 .psb-quality-panel button:disabled { opacity: .55; cursor: default; }
 .psb-quality-list { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scroll-padding: 10px; }
@@ -47,7 +47,7 @@
   flex: none; margin-top: 1px; padding: 1px 6px; border-radius: 4px;
   background: var(--ui-accent-soft); color: var(--ui-accent-ink); font: 600 12px/1.5 var(--ui-font);
 }
-.psb-quality-item.warn .psb-quality-severity, .psb-quality-card header .warn { background: #f8e8dc; color: #85472c; }
+.psb-quality-item.warn .psb-quality-severity, .psb-quality-card header .warn { background: #f8e8dc; color: var(--ui-warning-ink); }
 .psb-quality-msg, .psb-quality-sug, .psb-quality-head strong, .psb-quality-error, .psb-quality-diff p, .psb-quality-card p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .psb-quality-msg { margin: 0; color: var(--ui-secondary); }
 .psb-quality-sug { margin: 0; padding-inline-start: 9px; border-inline-start: 2px solid #a7c18e; color: var(--ui-accent-ink); }
@@ -62,10 +62,10 @@
 .psb-quality-diff section { min-width: 0; border: 1px solid var(--ui-line); border-radius: 6px; }
 .psb-quality-diff h3 { padding: 5px 10px; margin: 0; border-radius: 6px 6px 0 0; background: var(--ui-subtle); font-size: 12px; color: var(--ui-secondary); }
 .psb-quality-diff p { margin: 0; padding: 8px 10px; }
-.psb-quality-diff del { background: #f9dcd7; color: #7a3428; }
-.psb-quality-diff ins { background: #d4efdd; color: #205738; }
+.psb-quality-diff del { background: color-mix(in srgb, var(--ui-danger) 30%, #fff); color: #7a3428; }
+.psb-quality-diff ins { background: var(--ui-hover); color: #205738; }
 .psb-quality-confirm-footer { flex: none; display: grid; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--ui-line); }
-.psb-quality-confirm-footer p { margin: 0; color: #85472c; font-size: 13px; }
+.psb-quality-confirm-footer p { margin: 0; color: var(--ui-warning-ink); font-size: 13px; }
 .psb-quality-confirm-footer .psb-quality-actions { justify-content: flex-end; }
 .psb-quality-confirm-footer button.primary { color: #fff; background: var(--ui-accent); border-color: var(--ui-accent); }
 .psb-quality-confirm-footer button.primary:hover:not(:disabled) { color: #fff; background: var(--ui-accent-ink); }
@@ -82,26 +82,26 @@
 
 /* 设置页·质量规则管理卡（QualityRulesCard）：复用 sp-card 骨架，仅补充自有行样式。 */
 .psb-qr-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--ui-secondary,#4e584c);padding:2px 0 8px}
-.psb-qr-source{border-radius:3px;padding:1px 6px;background:var(--ui-accent-soft,#edf2e3);color:var(--ui-accent-ink,#17452e)}
-.psb-qr-source.src-default{background:#f0f2ec;color:var(--ui-muted,#75806f)}
-.psb-qr-source.src-cache{background:#f7e8de;color:#a4593b}
-.psb-qr-meta a{color:var(--ui-accent,#1e573c)}
+.psb-qr-source{border-radius:3px;padding:1px 6px;background:var(--ui-accent-soft,var(--ui-hover));color:var(--ui-accent-ink,var(--ui-accent-ink))}
+.psb-qr-source.src-default{background:var(--ui-subtle);color:var(--ui-muted,#75806f)}
+.psb-qr-source.src-cache{background:#f7e8de;color:var(--ui-danger)}
+.psb-qr-meta a{color:var(--ui-accent,var(--ui-accent))}
 .psb-qr-head{display:block;margin:6px 0 4px}
 .psb-qr-head small{font-weight:400;color:var(--ui-muted,#75806f)}
 .psb-qr-rules{display:flex;flex-direction:column;gap:2px}
-.psb-qr-rule{display:grid;grid-template-columns:auto auto auto 1fr;align-items:center;gap:6px;padding:5px 2px;font-size:12px;border-bottom:1px solid var(--ui-soft-line,#eef1e7)}
+.psb-qr-rule{display:grid;grid-template-columns:auto auto auto 1fr;align-items:center;gap:6px;padding:5px 2px;font-size:12px;border-bottom:1px solid var(--ui-soft-line,var(--ui-hover))}
 .psb-qr-rule small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ui-muted,#75806f)}
 .psb-qr-rule strong{font-size:12px;font-weight:600}
 .psb-qr-warn,.psb-qr-info{font-size:10px;border-radius:3px;padding:1px 5px}
-.psb-qr-warn{background:#f7e8de;color:#a4593b}
-.psb-qr-info{background:var(--ui-accent-soft,#edf2e3);color:var(--ui-accent-ink,#17452e)}
-.psb-qr-words{grid-column:1/-1;font-size:11px;padding:3px 6px;border:1px solid var(--ui-line,#e1e6d8);border-radius:4px;min-width:0}
+.psb-qr-warn{background:#f7e8de;color:var(--ui-danger)}
+.psb-qr-info{background:var(--ui-accent-soft,var(--ui-hover));color:var(--ui-accent-ink,var(--ui-accent-ink))}
+.psb-qr-words{grid-column:1/-1;font-size:11px;padding:3px 6px;border:1px solid var(--ui-line,var(--ui-line));border-radius:4px;min-width:0}
 .psb-qr-glossary{display:flex;flex-direction:column;gap:4px}
 .psb-qr-term{display:grid;grid-template-columns:minmax(90px,140px) 1fr auto auto;align-items:center;gap:6px}
-.psb-qr-term input{font-size:12px;padding:4px 6px;border:1px solid var(--ui-line,#e1e6d8);border-radius:4px;min-width:0}
+.psb-qr-term input{font-size:12px;padding:4px 6px;border:1px solid var(--ui-line,var(--ui-line));border-radius:4px;min-width:0}
 .psb-qr-forbidden{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--ui-secondary,#4e584c);white-space:nowrap}
 .psb-qr-actions{display:flex;gap:6px;margin-top:10px}
-.psb-qr-actions .primary{background:var(--ui-accent,#1e573c);color:#fff;border-color:var(--ui-accent,#1e573c)}
+.psb-qr-actions .primary{background:var(--ui-accent,var(--ui-accent));color:#fff;border-color:var(--ui-accent,var(--ui-accent))}
 .psb-qr-actions .primary:disabled{opacity:.45}
 /* 规则中心 v3：开关 + 紧凑两行规则行。 */
 .psb-qr-group{margin-bottom:10px}
@@ -109,21 +109,21 @@
 .psb-qr-head small{font-size:10px;color:var(--ui-muted,#95988c);font-weight:400}
 .psb-qr-rules{display:flex;flex-direction:column;gap:2px}
 .psb-qr-rule{display:flex;align-items:flex-start;gap:9px;padding:7px 8px;border-radius:7px}
-.psb-qr-rule:hover{background:#f7f9f2}
+.psb-qr-rule:hover{background:var(--ui-subtle)}
 .psb-qr-rule.off{opacity:.55}
-.psb-qr-switch{position:relative;flex:none;width:30px;height:17px;border-radius:9px;border:1px solid #d5dbc9;background:#e9ece2;margin:2px 0 0;cursor:pointer;transition:background .15s,border-color .15s;padding:0}
+.psb-qr-switch{position:relative;flex:none;width:30px;height:17px;border-radius:9px;border:1px solid var(--ui-line);background:var(--ui-hover);margin:2px 0 0;cursor:pointer;transition:background .15s,border-color .15s;padding:0}
 .psb-qr-switch i{position:absolute;top:1px;left:1px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #24302426;transition:transform .15s}
-.psb-qr-switch.on{background:var(--ui-accent,#4f7d52);border-color:var(--ui-accent,#4f7d52)}
+.psb-qr-switch.on{background:var(--ui-accent,var(--ui-accent));border-color:var(--ui-accent,var(--ui-accent))}
 .psb-qr-switch.on i{transform:translateX(13px)}
 .psb-qr-switch:disabled{cursor:default;opacity:.6}
-.psb-qr-switch:focus-visible{outline:2px solid var(--ui-accent,#4f7d52);outline-offset:2px}
+.psb-qr-switch:focus-visible{outline:2px solid var(--ui-accent,var(--ui-accent));outline-offset:2px}
 .psb-qr-rule-body{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
 .psb-qr-rule-title{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .psb-qr-rule-title strong{font-size:11.5px;color:var(--ui-ink,#454641);font-weight:600}
 .psb-qr-rule-body small{font-size:10.5px;line-height:1.55;color:var(--ui-muted,#8b8f83)}
-.psb-qr-expand{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--ui-line,#e1e6d8);border-radius:9px;background:#fff;padding:1px 7px;font-size:9.5px;color:var(--ui-secondary,#6b7062);cursor:pointer}
+.psb-qr-expand{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--ui-line,var(--ui-line));border-radius:9px;background:#fff;padding:1px 7px;font-size:9.5px;color:var(--ui-secondary,#6b7062);cursor:pointer}
 .psb-qr-expand svg{transition:transform .12s ease}
 .psb-qr-expand svg.open{transform:rotate(180deg)}
 .psb-qr-edit{display:flex;flex-direction:column;gap:7px;margin-top:6px}
 .psb-qr-edit label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;color:var(--ui-muted,#95988c)}
-.psb-qr-edit textarea,.psb-qr-edit input{border:1px solid #e1e5d9;border-radius:6px;padding:6px 8px;font:11px/1.6 'Microsoft YaHei UI',sans-serif;color:#4a4d44;background:#fff}
+.psb-qr-edit textarea,.psb-qr-edit input{border:1px solid var(--ui-line);border-radius:6px;padding:6px 8px;font:11px/1.6 'Microsoft YaHei UI',sans-serif;color:#4a4d44;background:#fff}

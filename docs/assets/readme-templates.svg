@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-label="需求模板库：模板就是真实工作项">
+<defs>
+<style>
+.t{font-family:Microsoft YaHei, Noto Sans CJK SC, sans-serif;fill:#1b272e}
+.sub{font-family:Microsoft YaHei, Noto Sans CJK SC, sans-serif;fill:#7d8579;font-size:12px}
+.h{font-size:17px;font-weight:700}
+.card{fill:#ffffff;stroke:#dbe4d8;stroke-width:1}
+.mono{font-family:Consolas,'Microsoft YaHei UI',monospace}
+</style>
+<marker id="arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L9 3.5 L0 7" fill="#4f7d52"/></marker>
+<marker id="arrow-warn" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L9 3.5 L0 7" fill="#c98a2b"/></marker>
+</defs>
+<rect width="1200" height="700" fill="#f5f7f2"/>
+<text x="44" y="48" class="t h">需求模板库：模板就是真实工作项</text>
+<text x="44" y="70" class="sub">5 类必备模板存放在 library 项目的模板文档里；编辑模板等于编辑工作项，插入时按副本写入。示意使用虚构数据。</text>
+
+<rect x="44" y="96" width="352" height="470" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="66" y="124" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="13" fill="#2f4a34" font-weight="700" text-anchor="start">模板库（library 项目）</text>
+<text x="66" y="144" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#7d8579" font-weight="400" text-anchor="start">5 类必备 + 可扩展自定义类别</text>
+<rect x="60" y="160" width="320" height="50" rx="8" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="74" y="181" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#1b272e" font-weight="700" text-anchor="start">场景类</text><text x="74" y="198" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">介入 / 退出型功能</text>
+<rect x="300" y="175" width="38" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="308" y="189" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4f7d52" font-weight="600" text-anchor="start">内置</text><rect x="60" y="218" width="320" height="50" rx="8" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="74" y="239" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#1b272e" font-weight="700" text-anchor="start">计算类</text><text x="74" y="256" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">查表 / 公式计算</text>
+<rect x="300" y="233" width="38" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="308" y="247" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4f7d52" font-weight="600" text-anchor="start">内置</text><rect x="60" y="276" width="320" height="50" rx="8" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="74" y="297" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#1b272e" font-weight="700" text-anchor="start">算法类</text><text x="74" y="314" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">闭环 / 策略算法</text>
+<rect x="300" y="291" width="38" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="308" y="305" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4f7d52" font-weight="600" text-anchor="start">内置</text><rect x="60" y="334" width="320" height="50" rx="8" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="74" y="355" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#1b272e" font-weight="700" text-anchor="start">状态机类</text><text x="74" y="372" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">多状态跳转</text>
+<rect x="300" y="349" width="38" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="308" y="363" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4f7d52" font-weight="600" text-anchor="start">内置</text><rect x="60" y="392" width="320" height="50" rx="8" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="74" y="413" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#1b272e" font-weight="700" text-anchor="start">混合类</text><text x="74" y="430" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">复合逻辑</text>
+<rect x="300" y="407" width="38" height="20" rx="10" fill="#eef2e7" stroke="none" /><text x="308" y="421" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#4f7d52" font-weight="600" text-anchor="start">内置</text>
+<rect x="60" y="456" width="320" height="44" rx="8" fill="#f7faf5" stroke="#dbe4d8" />
+<text x="74" y="474" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#1b272e" font-weight="600" text-anchor="start">可新增自定义类别</text><text x="74" y="490" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">类别可扩展，如「诊断类」</text>
+
+<rect x="412" y="96" width="360" height="470" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="434" y="124" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="13" fill="#2f4a34" font-weight="700" text-anchor="start">插入模板：三步流程</text>
+<rect x="432" y="150" width="320" height="60" rx="8" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="446" y="174" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#1b272e" font-weight="700" text-anchor="start">① 在光标处新建工作项</text><text x="446" y="194" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">用 Polarion 原生方式，位置即光标处</text><rect x="432" y="224" width="320" height="60" rx="8" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="446" y="248" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#1b272e" font-weight="700" text-anchor="start">② 按原生 Save 保存</text><text x="446" y="268" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">获得正式编号后即可写入</text><rect x="432" y="298" width="320" height="60" rx="8" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="446" y="322" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#1b272e" font-weight="700" text-anchor="start">③ 选模板点「插入模板」</text><text x="446" y="342" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">正文立即生效，无需刷新</text>
+<path d="M560 210 L560 224" stroke="#4f7d52" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/><path d="M560 284 L560 298" stroke="#4f7d52" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+<rect x="432" y="384" width="320" height="76" rx="8" fill="#f7faf5" stroke="#dbe4d8" />
+<text x="446" y="406" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#1b272e" font-weight="700" text-anchor="start">光标自动识别</text>
+<text x="446" y="424" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">位置与目标条目自动带入；未识别时</text>
+<text x="446" y="440" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#7d8579" font-weight="400" text-anchor="start">橙色提示并允许手填条目标 ID。</text>
+<rect x="432" y="472" width="320" height="76" rx="8" fill="#fdf8f2" stroke="#e8d3b4" />
+<text x="446" y="494" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#c98a2b" font-weight="700" text-anchor="start">安全边界</text>
+<text x="446" y="512" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#4c5a4d" font-weight="400" text-anchor="start">目标正文非空白即拒绝写入；</text>
+<text x="446" y="528" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9.5" fill="#4c5a4d" font-weight="400" text-anchor="start">模板原件永不被改动（写入副本）。</text>
+
+<rect x="788" y="96" width="348" height="470" rx="10" fill="#ffffff" stroke="#dbe4d8" />
+<text x="810" y="124" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="13" fill="#2f4a34" font-weight="700" text-anchor="start">插入结果：与模板同构的正文</text>
+<rect x="806" y="140" width="312" height="30" rx="6" fill="#eef2e7" stroke="none" /><text x="818" y="160" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#2f4a34" font-weight="700" text-anchor="start">1. 功能描述</text>
+<rect x="806" y="178" width="312" height="52" rx="6" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="818" y="196" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9" fill="#1b272e" font-weight="400" text-anchor="start">功能 ID  FC-QUICKCOOL-01   ASIL  QM</text>
+<text x="818" y="214" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="9" fill="#7d8579" font-weight="400" text-anchor="start">需求来源  HMI 交互规范 / 整车定义</text>
+<rect x="806" y="238" width="312" height="76" rx="6" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="818" y="256" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#2f4a34" font-weight="700" text-anchor="start">2. 输入接口表</text>
+<text x="818" y="274" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="8.5" fill="#7d8579" font-weight="600" text-anchor="start">信号名称        信号值        数据类型</text><text x="818" y="290" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="8.5" fill="#4c5a4d" font-weight="400" text-anchor="start">ICCQuickCoolSwt  0x1: ON      uint8</text><text x="818" y="306" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="8.5" fill="#4c5a4d" font-weight="400" text-anchor="start">SC_AmbTemp_deg   -40~60 degC  sfloat</text>
+<rect x="806" y="322" width="312" height="60" rx="6" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="818" y="340" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#2f4a34" font-weight="700" text-anchor="start">3. 输出接口表</text>
+<text x="818" y="358" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="8.5" fill="#4c5a4d" font-weight="400" text-anchor="start">AcQuickCoolStsDisp   0x1: On   uint8</text>
+<rect x="806" y="390" width="312" height="76" rx="6" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="818" y="408" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#2f4a34" font-weight="700" text-anchor="start">4. 标定量表</text>
+<text x="818" y="426" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="8.5" fill="#b45309" font-weight="700" text-anchor="start">CTC_QuickCoolAmbMin_c   -5 degC</text>
+<text x="818" y="444" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="8.5" fill="#b45309" font-weight="700" text-anchor="start">CTC_QuickCoolSwtDly_c   200 ms</text>
+<rect x="806" y="474" width="312" height="76" rx="6" fill="#f7faf5" stroke="#dbe4d8" />
+<text x="818" y="492" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10" fill="#2f4a34" font-weight="700" text-anchor="start">5. 需求条目（EARS）</text>
+<text x="818" y="510" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="8.5" fill="#4c5a4d" font-weight="400" text-anchor="start">REQ-QC-01  WHEN 开关=ON … 系统应 …</text>
+<text x="818" y="526" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="8.5" fill="#4c5a4d" font-weight="400" text-anchor="start">REQ-QC-02  IF 环温 ≥ -5 ℃ … 应 …</text>
+
+<rect x="44" y="588" width="1112" height="78" rx="10" fill="#fbfcf8" stroke="#dbe4d8" />
+<text x="66" y="614" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="11" fill="#2f4a34" font-weight="700" text-anchor="start">与工作项同构</text>
+<text x="66" y="635" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">模板是 Polarion 里的真实工作项：打开编辑即进入副文本编辑工作台，保存走工作项保存链路（服务端回读校验）。</text>
+<text x="66" y="653" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="10.5" fill="#4c5a4d" font-weight="400" text-anchor="start">插入时实时读取模板当前正文：在设置里改完模板并保存，下一次插入立即生效；写入的是副本，模板原件不受影响。</text>
+
+</svg>

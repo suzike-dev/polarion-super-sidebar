@@ -11,7 +11,7 @@ export const EDITOR_TOOL_DESCRIPTIONS={
   get_editor_capabilities:'按需读取当前产品实际支持的富文本节点、marks、属性和值域、图片/画板边界与错误恢复路径。默认summary；复杂排版前选rich，图片选images。不读取正文、不保存。',
   open_work_item:'将本轮目标文档中已存在的工作项读入共享本地草稿；不是新建服务端工作项，不保存Polarion。已有draftId时优先直接读取该草稿。',
   create_work_item:'在当前项目新建一个服务端工作项（空正文）并打开本地草稿，随后用 edit_block/insert 或 update_rich_document 写入内容。标题必填；类型可省略（默认 task）。仅在用户明确要新建时使用。',
-  peek_work_item:'跨文档只读预览同项目其他工作项（标题+正文前 1200 字），用于参考关联需求；不产生草稿、不可编辑、不保存。',
+  peek_work_item:'跨文档只读预览同项目其他工作项（标题+正文前 2400 字），用于参考关联需求；不产生草稿、不可编辑、不保存。',
   model_trace:'查询/维护本项目的 Simulink 模型关联：overview 返回模型根目录与模块（.slx/字典/接口表路径）；requirements 按模块反查需求；note_read/note_write 读写工作项的实现模块备注。一致性审查与需求细化从这里取路径。',
   read_draft:'读取现有本地草稿的当前revision、文本节点nodeId/原文。小范围文字替换随后用replace_text；表格结构用list_tables/edit_table，其它复杂排版才read_rich_document。',
   replace_text:'精确修改一个本地文本节点：使用当前draftId、expectedRevision、nodeId和expectedText。保留未获授权修改的所有工程参数、单位和范围。返回仅摘要不回显全文。不保存Polarion。',

@@ -40,7 +40,7 @@ function ItemModules({ target, workItemId, onError, dense = false, toolbar = fal
     let cancelled = false;
     void (async () => {
       try {
-        const [roots, current] = await Promise.all([rpc<ModelRootsView>({ method: 'model.roots', target }), rpc<ModelNote>({ method: 'model.note.read', target, workItemId })]);
+        const [roots, current] = await Promise.all([rpc<ModelRootsView>({ method: 'model.roots.forNote', target }), rpc<ModelNote>({ method: 'model.note.read', target, workItemId })]);
         if (!cancelled) { setRootsView(roots); setNote(current); setSaved(current); setBadge(current); setLoaded(true); }
       } catch (error) { if (!cancelled) { setRootsView(null); setLoaded(true); fail('模型备注读取失败：' + errorText(error)); } }
     })();
@@ -99,7 +99,7 @@ function ItemModules({ target, workItemId, onError, dense = false, toolbar = fal
     {open && <div id={panelId} className="module-note-panel" role="dialog" aria-label="标注实现模块">
       {toolbar && <div className="module-note-title"><strong>实现模块</strong><span>{workItemId}</span><button className="icon" aria-label="关闭实现模块" disabled={saving} onClick={closePanel}><X size={15}/></button></div>}
       {!loaded && <p role="status">正在读取模型关联…</p>}
-      {loaded && !issue && !roots.length && <p>请先在「模型关联与追溯」中绑定项目模型目录。</p>}
+      {loaded && !issue && !roots.length && <p>请先在「模型关联与追溯」中绑定项目模型目录，或维护平台模块目录。</p>}
       {issue && <p className="inline-error" role="alert">{issue}</p>}
       {loaded && roots.length > 0 && <>
         <div className="module-note-search"><Search size={13}/><input aria-label="搜索模块" placeholder="搜索模块名…" value={search} onChange={event => setSearch(event.target.value)} autoFocus={toolbar} /></div>

@@ -1,14 +1,16 @@
 import React, {useMemo, useState} from 'react';
-import {ArrowLeft, BookOpen, Bot, ChevronRight, FileText, FolderOpen, KeyRound, MessageSquare, PanelTopOpen, Pencil, Plus, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, Type, X} from 'lucide-react';
+import {ArrowLeft, BookOpen, Bot, ChevronRight, FileStack, FileText, FolderOpen, KeyRound, MessageSquare, Palette, PanelTopOpen, Pencil, Plus, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, Type, X} from 'lucide-react';
+import {THEMES} from './themes';
 import type {Guideline, GuidelineFile, GuidelineKind, Target} from '../../../packages/protocol/index';
 import {MAX_GUIDELINE_FILES, SettingsSchema} from '../../../packages/protocol/index';
 import {PolarionAccount} from './PolarionAccount';
 import {AssistantMarkdown} from './AssistantMarkdown';
 import {QualityRulesCard} from './QualityRulesCard';
+import {TemplateLibrary} from './TemplateLibrary';
 import './settings-panel.css';
 
 type AssistantSettings = ReturnType<typeof SettingsSchema.parse>;
-type PanelTab = 'general' | 'appearance' | 'storage' | 'guidelines' | 'quality';
+type PanelTab = 'general' | 'appearance' | 'storage' | 'guidelines' | 'quality' | 'templates';
 
 function Segmented<T extends string>({label,value,options,onChange,disabled}:{label:string;value:T;options:{value:T;label:string;hint:string}[];onChange:(value:T)=>void;disabled?:boolean}){
   return <div className="sp-field"><span className="sp-label">{label}</span>
@@ -50,12 +52,12 @@ function ManualPath({placeholder,disabled,value,onChange,onAdd}:{
   }}/><button type="button" className="sp-btn" disabled={disabled||!value.trim()} onClick={commit}>添加</button></div>;
 }
 
-export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,target,loading,saving,error,initialTab='general',onConfig,onPaperWidth,onGuidelines,onSave,onClose,onPickFolder,onPickFiles,onQualityReview}:{
+export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,target,loading,saving,error,initialTab='general',onConfig,onPaperWidth,onGuidelines,onSave,onClose,onPickFolder,onPickFiles,onQualityReview,onOpenTemplate}:{
   config:AssistantSettings|null;defaultFontSize:number;paperWidth:'default'|'fill'|number;guidelines:Guideline[]|null;target?:Target|null;initialTab?:PanelTab;
   loading:boolean;saving:boolean;error:string;
   onConfig:(next:AssistantSettings)=>void;onPaperWidth:(next:'default'|'fill'|number)=>void;onGuidelines:(next:Guideline[])=>void;
   onSave:()=>void;onClose:()=>void;
-  onPickFolder:(current:string)=>Promise<string|null>;onPickFiles:(id:string)=>Promise<GuidelineFile[]>;onQualityReview?:()=>void;
+  onPickFolder:(current:string)=>Promise<string|null>;onPickFiles:(id:string)=>Promise<GuidelineFile[]>;onQualityReview?:()=>void;onOpenTemplate:(template:{id:string;title:string})=>void;
 }){
   const [panelTab,setPanelTab]=useState<PanelTab>(initialTab);
   const [visitedQuality,setVisitedQuality]=useState(initialTab==='quality');
@@ -76,7 +78,7 @@ export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,targ
   const remove=(id:string)=>{if(!window.confirm('删除这条指令？点击「保存全部设置」后生效。'))return;onGuidelines(list.filter(g=>g.id!==id));setOpenId(null);};
   const pickFiles=async(id:string)=>{setPicking(true);try{const files=await onPickFiles(id);if(files.length)patch(id,{files:[...(list.find(g=>g.id===id)?.files??[]),...files].slice(0,MAX_GUIDELINE_FILES)});}finally{setPicking(false);}};
   const pickFolder=async()=>{if(!config)return;setFolderPicking(true);try{const path=await onPickFolder(config.draftsFolder);if(path)onConfig({...config,draftsFolder:path});}finally{setFolderPicking(false);}};
-  const tabs:[PanelTab,string,React.ElementType][]=[['general','常规',Bot],['appearance','外观',Type],['storage','存储',FolderOpen],['guidelines','指令',Sparkles],['quality','质量规则',ShieldCheck]];
+  const tabs:[PanelTab,string,React.ElementType][]=[['general','常规',Bot],['appearance','外观',Type],['storage','存储',FolderOpen],['guidelines','指令',Sparkles],['quality','质量规则',ShieldCheck],['templates','模板库',FileStack]];
   return <section className="settings sp-panel" aria-label="助手设置" aria-busy={loading||saving} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(openId)setOpenId(null);else onClose();}}}>
     <header className="settings-heading sp-header"><div className="sp-title"><span className="sp-title-mark"><SlidersHorizontal size={15}/></span><div><h3>助手设置</h3><small>账号 · 默认行为 · 预设指令 · 存储</small></div></div><button className="icon" title="关闭设置，放弃未保存的调整" aria-label="关闭设置" disabled={saving} autoFocus onClick={onClose}><X size={15}/></button></header>
     {loading&&<p className="muted sp-loading" role="status">正在读取设置…</p>}
@@ -103,6 +105,20 @@ export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,targ
             <label className="sp-field"><span className="sp-label">变体链接角色 <small>变体工作项 → 主工作项的 Polarion 链接；留空时首次创建自动选择</small></span><input placeholder="例如 parent / relates_to" maxLength={120} disabled={saving} value={config.variantLinkRole} onChange={event=>onConfig({...config,variantLinkRole:event.target.value})}/></label>
           </div>
         </>}
+        {panelTab==='appearance'&&<div className="sp-card"><div className="sp-card-head"><span className="sp-icon"><Palette size={14}/></span><div><h4>界面主题</h4><p>侧栏与全部工作台统一切换；点击即时预览，「保存全部设置」后长期生效。</p></div></div>
+          <div className="sp-themes">
+            {THEMES.map(theme=><button key={theme.id} type="button" className={'sp-theme'+(config.theme===theme.id?' on':'')} title={theme.hint} disabled={saving} onClick={()=>onConfig({...config,theme:theme.id})}>
+              <span className="sp-theme-look" style={{'--t-surface':theme.swatch.surface,'--t-canvas':theme.swatch.canvas,'--t-line':theme.swatch.line,'--t-accent':theme.swatch.accent,'--t-accent-soft':theme.swatch.accentSoft,'--t-ink':theme.swatch.ink} as React.CSSProperties} aria-hidden="true">
+                <i className="t-side"/>
+                <i className="t-head"/>
+                <i className="t-line"/>
+                <i className="t-chip"/>
+              </span>
+              <strong>{theme.name}</strong>
+              <small>{theme.hint}</small>
+            </button>)}
+          </div>
+        </div>}
         {panelTab==='appearance'&&<div className="sp-card"><div className="sp-card-head"><span className="sp-icon"><Type size={14}/></span><div><h4>回答外观</h4><p>只影响 AI 回答，不改变需求正文。</p></div></div>
           <div className="sp-font">
             <div className="sp-font-scale">{[9,10,11,12,13,14,15,16,17,18].map(size=><button key={size} type="button" className={config.assistantFontSize===size?'on':''} disabled={saving} onClick={()=>onConfig({...config,assistantFontSize:size})}>{size}<small>px</small></button>)}</div>
@@ -150,6 +166,7 @@ export function SettingsPanel({config,defaultFontSize,paperWidth,guidelines,targ
           </>}
         </div>}
         {visitedQuality&&target&&<QualityRulesCard target={target} hidden={panelTab!=='quality'} onDeepCheck={onQualityReview} onDirtyChange={setQualityDirty}/>}
+        {target&&config&&<TemplateLibrary target={target} config={config} onConfig={onConfig} hidden={panelTab!=='templates'} onOpenTemplate={template=>void onOpenTemplate(template)}/>}
       </div>
     </>}
     {error&&<p className="inline-error sp-error" role="alert">{error}</p>}

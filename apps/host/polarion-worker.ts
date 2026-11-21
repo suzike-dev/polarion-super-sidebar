@@ -41,7 +41,7 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     if (request.method === 'create') {
       const target = TargetSchema.parse(request.target);
       try {
-        const result = await client.createWorkItem({ projectId: target.projectId, title: String(request.title), type: String(request.type), documentLocation: request.documentLocation ? String(request.documentLocation) : undefined });
+        const result = await client.createWorkItem({ projectId: target.projectId, title: String(request.title), type: String(request.type), documentLocation: request.documentLocation ? String(request.documentLocation) : undefined, ...(request.parentWorkItemId ? { parentWorkItemId: String(request.parentWorkItemId) } : {}) });
         if (!result.item?.id) throw Error('WORK_ITEM_CREATE_UNVERIFIED');
         reply(request.id,{item:result.item,verified:result.verified,verificationErrors:result.verification_errors??[]});
       } catch (error) {

@@ -1549,6 +1549,8 @@ export class PolarionSoapClient {
     description?: string | undefined;
     type: string;
     documentLocation?: string | undefined;
+    /** 锚点工作项：传了就创建在该条目之下（原生 outline 位置），不传追加到文档末尾。 */
+    parentWorkItemId?: string | undefined;
   }): Promise<WorkItemMutationResult> {
     await this.authenticate();
     const project = await this.getProjectReference(input.projectId);
@@ -1563,7 +1565,14 @@ export class PolarionSoapClient {
       const content = this.workItemContentXml({ ...input, projectUri: project.uri })
         .replace(/^<svc:content/, "<svc:workItem")
         .replace(/<\/svc:content>$/, "</svc:workItem>");
-      body = `<svc:moduleURI>${escapeXml(document.uri)}</svc:moduleURI><svc:parentWorkItemURI xsi:nil="true"/>${content}`;
+      // 锚点条目存在时把新条目的父节点指向它：Polarion 据此把它插在锚点之下（原生同款位置语义）。
+      let parentXml = '<svc:parentWorkItemURI xsi:nil="true"/>';
+      if (input.parentWorkItemId) {
+        const anchor = await this.getWorkItem(input.projectId, input.parentWorkItemId);
+        if (!anchor?.uri) throw new Error(`Anchor work item '${input.parentWorkItemId}' was not found.`);
+        parentXml = `<svc:parentWorkItemURI>${escapeXml(anchor.uri)}</svc:parentWorkItemURI>`;
+      }
+      body = `<svc:moduleURI>${escapeXml(document.uri)}</svc:moduleURI>${parentXml}${content}`;
     }
     const xml = await this.request(
       "TrackerWebService",

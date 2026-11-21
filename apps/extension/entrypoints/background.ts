@@ -78,6 +78,7 @@ export default defineBackground(() => {
     if (message?.type === 'preview' && target && sender.tab?.id) return sendTop(sender.tab.id, { type: 'preview', workItemId: String(message.workItemId).slice(0, 100), text: String(message.text).slice(0, 700), rect: message.rect });
     if (message?.type === 'edit-workitem' && target && sender.tab?.id) return sendTop(sender.tab.id, { type: 'edit-workitem', workItemId: String(message.workItemId).slice(0, 100) });
     if (message?.type === 'open-workitem' && target && sender.tab?.id) return sendTop(sender.tab.id, { type: 'open-workitem', workItemId: String(message.workItemId).slice(0, 100) });
+    if (message?.type === 'insert-template' && target && sender.tab?.id) return sendTop(sender.tab.id, { type: 'insert-template', workItemId: typeof message.workItemId === 'string' ? String(message.workItemId).slice(0, 100) : undefined });
     if (message?.type === 'rpc' && ((target && sender.frameId === 0) || sender.url?.startsWith(browser.runtime.getURL('/')))) {
       const request = RequestSchema.parse(message.request);
       // The extension is the only NM client; document scripts cannot directly send runtime messages.

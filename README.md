@@ -1,6 +1,6 @@
 # Polarion 超级侧边栏
 
-[![版本 0.13.1](https://img.shields.io/badge/Version-v0.13.1-1E573C?style=for-the-badge)](CHANGELOG.md)
+[![版本 0.13.3](https://img.shields.io/badge/Version-v0.13.3-1E573C?style=for-the-badge)](CHANGELOG.md)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-087EA4?style=for-the-badge&logo=react&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -11,9 +11,9 @@
 
 面向工程需求编写与评审的 Windows 浏览器扩展。需求总览把整份 LiveDoc 铺成章节矩阵；独立富文本窗口与 AI 侧栏并排工作；正文、工程表格和画板保留各自的编辑方式；Claude Code 使用本机已有配置、Skills 与 MCP。
 
-[安装与更新](#安装与更新) · [质量与闭环](#从发现到复验质量门禁与闭环) · [工作流与自动化](#工作流编排与自动化) · [驾驶舱与时间线](#驾驶舱命令面板与时间线) · [需求总览](#从需求全景开始) · [模型关联](#需求--simulink-模型绑定一次处处可用) · [富文本升级](#富文本升级markdown-输入公式与表格样式) · [变更管理](#变更管理把一次修改变成可回看的记录) · [变体](#同一需求多个变体) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
+[安装与更新](#安装与更新) · [需求模板库](#需求模板库模板就是真实工作项) · [质量与闭环](#从发现到复验质量门禁与闭环) · [工作流与自动化](#工作流编排与自动化) · [驾驶舱与时间线](#驾驶舱命令面板与时间线) · [需求总览](#从需求全景开始) · [模型关联](#需求--simulink-模型绑定一次处处可用) · [富文本升级](#富文本升级markdown-输入公式与表格样式) · [变更管理](#变更管理把一次修改变成可回看的记录) · [变体](#同一需求多个变体) · [保存机制](#保存机制) · [验收与边界](#验收与边界) · [版本记录](CHANGELOG.md) · [GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
-**0.13.1 · Windows。** 这一版精修了需求评审时几条常走的路径。从**驾驶舱**点数字可核对对应明细，从**阅读预览**进编辑器后可回到原列表继续处理。**工作流**的批量回执和运行轨迹可打开对应会话，**质量体检**的术语替换会先展示本条全文差异，再由你确认保存到 Polarion。
+**0.13.3 · Windows。** 这一版新增**需求模板库**：5 类必备模板（场景 / 计算 / 算法 / 状态机 / 混合）以真实工作项的形式存放在 library 项目，编辑体验与普通工作项完全一致；在正文光标处插入模板只需三步，写入的是副本，模板原件不变。同时修正了主题切换后侧栏品牌带的配色跟随。
 
 [![Polarion 超级侧边栏：让需求工程拥有 AI 协作侧翼（自绘功能卡）](docs/assets/readme-hero.png)](docs/assets/readme-hero.png)
 
@@ -107,6 +107,45 @@
 | 工作项与链接事实 | 模型工作台 | 基准（内容指纹）→ 巡检（模型侧变/需求侧变/两侧冲突）→ 疑似过期标记；AI 初关联对未标注需求生成第一版备注，人工修正 |
 
 [![功能示意：发现—判定—处置—复验的质量闭环与四道生命周期门禁，使用虚构数据](docs/assets/readme-quality.png)](docs/assets/readme-quality.png)
+
+## 需求模板库：模板就是真实工作项
+
+5 类必备模板**以真实工作项的形式**存放在 Polarion 的 `library` 项目（Document Library）模板文档中，所有项目通用。添加扩展后首次打开模板库即自动安装，幂等；后续软件更新只在新版本里丰富内置模板，不会覆盖你的本地修改。
+
+| 类别 | 适用场景 |
+|---|---|
+| 场景类 | 介入 / 退出型功能：开关、一键类、远程空调、模式请求等事件驱动场景 |
+| 计算类 | 查表 / 公式型计算：目标出风温度、风量、水流量、过冷过热度 |
+| 算法类 | 闭环 / 策略算法：PI / PID、MPC、前馈+反馈、仲裁打分等参数整定 |
+| 状态机类 | 多状态跳转：上下电、充电、热管理模式、故障分级 |
+| 混合类 | 复合逻辑：AUTO 空调、热源选择等同时涉及场景、计算与状态机的功能 |
+
+每份模板都按同一结构组织，方便逐条评审：
+
+1. **功能描述**（功能 ID / ASIL / 来源 / 优先级）
+2. **输入接口表**、**输出接口表**（信号值、数据类型、有效范围、周期、超时、替换值、信号源）
+3. **标定量表**（类型、默认值、范围、分辨率、单位、X/Y/V 轴定义、标定场合），正文中的标定量以琥珀色高亮并紧跟括号备注
+4. **需求条目**（EARS 句式、独立编号、逐条可验证）
+5. **功能定义 / 时序汇总 / 异常降级 / 验证准则（追溯矩阵）/ 开放问题**
+
+[![功能示意：5 类模板作为真实工作项、插入三步流程与写入结果，使用虚构数据](docs/assets/readme-templates.png)](docs/assets/readme-templates.png)
+
+*自绘示意，使用虚构数据；正文结构与变量命名对齐工程规范（模块前缀_对象_属性[Act|Des]_类型后缀）。*
+
+**在哪用、怎么用**
+
+| 入口 | 操作 |
+|---|---|
+| 设置 → 模板库 | 查看 5 类模板与使用时机；「打开编辑」进入副文本编辑工作台，「恢复标准」还原内置版；「新建模板」在模板库里新建一个工作项；可新增自定义类别 |
+| 正文顶部「插入模板」 | 插入到已有工作项：① 在光标处用原生方式新建工作项 → ② 按原生 Save 保存 → ③ 选模板点「插入模板」。位置与目标条目自动识别，正文立即生效，无需刷新 |
+| 设置 → 模板库「参考模板」开关 | 开启后，AI 新建工作项或改造已有需求时，按匹配类别的模板组织正文 |
+
+**几条硬规则**
+
+- 模板是工作项：编辑与保存走同一条链路（服务端回读校验），不存在第二套编辑器
+- 插入写的是**副本**：新条目编号按目标项目规则生成，名称可自定义或自动生成，模板原件永不被改动
+- 目标正文必须是空白：已有内容会拒绝写入，避免覆盖
+- 插入时实时读取模板当前正文：设置里改完保存，下一次插入立即生效
 
 ## 工作流编排与自动化
 
@@ -342,12 +381,12 @@ docs/                   规格、验证报告与自绘功能示意图
 
 ### 首次安装
 
-以下命令适用于 0.13.1 源码。按发布版安装时，先在 Releases 确认目标 tag 已发布，再克隆并切换版本。已有该版源码的开发工作区可直接从 `node scripts/setup-runtime.mjs` 开始。复现旧版请遵循对应 tag 自带的 README。[GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
+以下命令适用于 0.13.3 源码。按发布版安装时，先在 Releases 确认目标 tag 已发布，再克隆并切换版本。已有该版源码的开发工作区可直接从 `node scripts/setup-runtime.mjs` 开始。复现旧版请遵循对应 tag 自带的 README。[GitHub Releases](https://github.com/suzike-dev/polarion-super-sidebar/releases)
 
 ```powershell
 git clone https://github.com/suzike-dev/polarion-super-sidebar.git
 cd polarion-super-sidebar
-git switch --detach v0.13.1
+git switch --detach v0.13.3
 node scripts/setup-runtime.mjs
 $node = '.\.runtime\node-v24.22.2-win-x64\node.exe'
 $npmCli = Join-Path (Split-Path (Get-Command npm.cmd).Source) 'node_modules/npm/bin/npm-cli.js'
@@ -380,7 +419,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-polarion-w
 
 1. 在浏览器扩展管理页启用开发者模式，选择“加载已解压的扩展程序”。
 2. 加载仓库中的 `apps/extension/.output/chrome-mv3` 目录。
-3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension`（扩展）与 `version`（Host）均显示目标版本 0.13.1。
+3. 打开扩展页面 `chrome-extension://kmmphepmgnplcejfgiolhpfkgpcolcmp/diagnostics.html`，确认 Host 可连接，`extension`（扩展）与 `version`（Host）均显示目标版本 0.13.3。
 4. 打开已适配的 Polarion 文档，点击侧栏右上角设置，在“Polarion 账号”输入自己的用户名和密码，点击“保存并连接”。成功后即可打开编辑工作台，无需重启 Host。已用终端配置的账号可点“检查已保存的连接”。
 5. 首次写回使用有授权的测试工作项，核对服务端回读与原生正文显示。
 
@@ -440,7 +479,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-dev-host
 
 ## 验收与边界
 
-0.13.1 的自动检查和登录态交互复验结果以本版变更记录为准。下表保留截至 **0.13.0** 的历史实测范围，日期和计数均对应当时的版本。README 配图为自绘功能示意，真实页面截图仅保留在本地验收材料中。[变更记录](CHANGELOG.md)
+0.13.3 的自动检查和登录态交互复验结果以本版变更记录为准。下表保留截至 **0.13.0** 的历史实测范围，日期和计数均对应当时的版本。README 配图为自绘功能示意，真实页面截图仅保留在本地验收材料中。[变更记录](CHANGELOG.md)
 
 | 验证范围 | 已有结果 | 证据 |
 |---|---|---|

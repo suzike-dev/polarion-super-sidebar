@@ -24,6 +24,9 @@ const ModuleChoice = React.memo(function ModuleChoice({ module, added, onSelect 
 /** 模型关联工作台：绑定本地 Simulink 模型根目录（SVN 目录）、维护模块清单、追溯需求↔模块覆盖。 */
 export function ModelWorkbench({ target, right, top, initialOrphans = false, onClose, onOpenItem, onAutolink }: { target: Target; right: number; top: number; initialOrphans?: boolean; onClose: () => void; onOpenItem: (workItemId: string) => void; onAutolink: () => void }) {
   const [rootsView, setRootsView] = useState<ModelRootsView | null>(null);
+  const [platform, setPlatform] = useState<ModelModule[]>([]);
+  const [platformEditing, setPlatformEditing] = useState(false);
+  const [platformDraft, setPlatformDraft] = useState('');
   const [trace, setTrace] = useState<ModelTraceView | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -58,12 +61,13 @@ export function ModelWorkbench({ target, right, top, initialOrphans = false, onC
   const reload = useCallback(async () => {
     setError('');
     try {
-      const [rootsView, trace, baselineRows] = await Promise.all([
+      const [rootsView, trace, baselineRows, platformModules] = await Promise.all([
         rpc<ModelRootsView>({ method: 'model.roots', target }),
         rpc<ModelTraceView>({ method: 'model.trace.view', target }),
         rpc<ModelBaselineInfo[]>({ method: 'model.baseline.list', projectId: target.projectId }),
+        rpc<ModelModule[]>({ method: 'model.platform.get' }),
       ]);
-      setRootsView(rootsView); setTrace(trace); setBaselines(baselineRows);
+      setRootsView(rootsView); setTrace(trace); setBaselines(baselineRows); setPlatform(platformModules);
       // 已有基准的根打开即后台巡检一次：模块上直接给出「疑似过期」。
       for (const info of baselineRows) {
         const root = rootsView.roots.find(r => r.id === info.rootId);
@@ -163,6 +167,23 @@ export function ModelWorkbench({ target, right, top, initialOrphans = false, onC
     } catch (e) { setError(errorText(e)); }
     finally { setBusy(''); }
   };
+  /** 平台模块目录编辑：一行一个模块 `名称｜key｜类型`（key/类型可省略），保存到全局目录。 */
+  const platformOpen = () => { setPlatformDraft(platform.map(m => [m.name, m.key !== m.name ? m.key : '', m.kind !== 'module' ? kindLabels[m.kind] : ''].filter(Boolean).join('｜')).join('\n')); setPlatformEditing(true); };
+  const platformSave = async () => {
+    setError('');
+    try {
+      const kindMap: Record<string, ModelModule['kind']> = { '功能模块': 'module', '集成模型': 'integration', '库': 'library', '测试': 'test' };
+      const modules = platformDraft.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+        const [name, key, kind] = line.split('｜').map(part => part.trim());
+        if (!name) throw Error('每行至少要有模块名称');
+        return { key: key || name, name, kind: kindMap[kind ?? ''] ?? 'module' } as ModelModule;
+      });
+      setBusy('正在保存平台模块目录…');
+      setPlatform(await rpc<ModelModule[]>({ method: 'model.platform.save', modules }));
+      setPlatformEditing(false);
+    } catch (e) { setError('平台模块目录保存失败：' + errorText(e)); }
+    finally { setBusy(''); }
+  };
   const syncIndex = async () => {
     setError(''); setSyncing(true);
     try {
@@ -208,6 +229,24 @@ export function ModelWorkbench({ target, right, top, initialOrphans = false, onC
           {rootsView && !roots.length && <div className="model-empty">
             <p>还没有绑定模型目录。绑定后可为每个工作项标注「实现模块」，并按模块反查需求。</p>
             <p className="model-hint">典型路径：<code>D:\Work\SVN\&lt;项目&gt;\04_Software\04_ASW_Code\ModelandCode</code>（含十几个模块目录、每模块模型/字典/接口表）。扫描只读目录结构，不改动 SVN。</p>
+            <div className="model-platform">
+              <p className="model-hint" style={{ margin: '10px 0 6px', fontWeight: 600 }}>还没有模型？需求可以先关联平台固定模块。</p>
+              {!platformEditing ? <>
+                <p className="model-hint">{platform.length ? `平台模块目录已有 ${platform.length} 个模块，AI 初关联与手标注都会落到这套目录。` : '尚未维护平台模块目录：AI 初关联与手标注需要它。'}</p>
+                {platform.length > 0 && <div className="model-modules platform-modules">
+                  {platform.map(module => <div key={module.key} className={'model-modules-row' + (module.kind !== 'module' ? ' has-kind' : '')}><span className="name">{module.name}</span>{module.kind !== 'module' && <span className="kind">{kindLabels[module.kind]}</span>}</div>)}
+                </div>}
+                <button className="secondary" onClick={platformOpen}>维护平台模块目录</button>
+              </> : <>
+                <p className="model-hint">一行一个模块：<code>名称｜key｜类型</code>（key 和类型可省略）。类型：功能模块 / 集成模型 / 库 / 测试。</p>
+                <textarea className="platform-textarea" value={platformDraft} rows={Math.max(6, Math.min(14, platformDraft.split('\n').length + 1))} onChange={event => setPlatformDraft(event.target.value)} placeholder={'助力模式管理\nHighVolt｜高压采集\nTop｜顶层集成｜集成模型'}/>
+                <div className="model-edit-actions">
+                  <span>目录全局共用，各项目不配置模型路径时自动落到这套模块。</span>
+                  <button className="secondary" onClick={() => setPlatformEditing(false)}>取消</button>
+                  <button className="primary" disabled={!!busy} onClick={() => void platformSave()}>保存目录</button>
+                </div>
+              </>}
+            </div>
           </div>}
           {roots.map(root => {
             const baseline = baselines.find(info => info.rootId === root.id);
@@ -268,10 +307,10 @@ export function ModelWorkbench({ target, right, top, initialOrphans = false, onC
           <div className="model-section-head">
             <strong>需求 ↔ 模块追溯{trace && !trace.stale && <span>已标注 {trace.annotated}/{trace.total} · {new Date(trace.syncedAt).toLocaleString('zh-CN')}</span>}</strong>
             <button className={coverageMode ? 'active' : ''} title="覆盖矩阵：每条需求的上游链接 / 实现模块 / 验证链接三层色块与孤立条目" aria-pressed={coverageMode} onClick={() => { if (coverageMode) setTraceRequested(true); setCoverageMode(value => !value); }}><Grid3x3 size={13}/>覆盖视图</button>
-            <button disabled={syncing || !roots.length} title="AI 逐条读取未标注需求正文，自动写第一版实现模块备注；结果在会话里汇总，人工再修正" onClick={onAutolink}><Sparkles size={13}/>AI 初关联</button>
-            <button disabled={syncing || !roots.length} title="同步当前文档工作项的模块备注附件，重建追溯索引" onClick={() => void syncIndex()}><RefreshCw size={13} className={syncing ? 'spin' : ''}/>{syncing ? '同步中…' : '同步需求备注'}</button>
+            <button disabled={syncing} title="AI 先通览全部模块再逐条读需求，双向匹配后写第一版实现模块备注；未配置模型目录时按平台模块目录关联" onClick={onAutolink}><Sparkles size={13}/>AI 初关联</button>
+            <button disabled={syncing} title="同步当前文档工作项的模块备注附件，重建追溯索引" onClick={() => void syncIndex()}><RefreshCw size={13} className={syncing ? 'spin' : ''}/>{syncing ? '同步中…' : '同步需求备注'}</button>
           </div>
-          {trace?.stale && roots.length > 0 && !coverageMode && <p className="model-hint">还没有同步过：点击「同步需求备注」扫描当前文档工作项的模块备注附件，构建追溯索引（默认只收当前文档，不混入其他空间的条目）。</p>}
+          {trace?.stale && (roots.length > 0 || platform.length > 0) && !coverageMode && <p className="model-hint">还没有同步过：点击「同步需求备注」扫描当前文档工作项的模块备注附件，构建追溯索引（默认只收当前文档，不混入其他空间的条目）。</p>}
           {coverageMode && <div className="model-coverage">
             <div className="model-coverage-bar">
               {coverage && coverage.items.length > 0 && <span>上游 {coverage.summary.withUpstream}/{coverage.items.length} · 模块 {coverage.summary.withModule}/{coverage.items.length} · 验证 {coverage.summary.withVerification}/{coverage.items.length} · 孤立 {coverage.summary.orphans}{coverage.partial ? ' · 部分分页受限' : ''} · {new Date(coverage.at).toLocaleString('zh-CN')}</span>}
@@ -336,7 +375,7 @@ export function ModelWorkbench({ target, right, top, initialOrphans = false, onC
               {showUnannotated && <div className="model-trace-items">{trace.unannotated.length ? trace.unannotated.slice(0, unannotatedLimit).map(item => <button key={item.workItemId} title={`${item.workItemId} ${item.title}`} onClick={() => onOpenItem(item.workItemId)}><strong>{item.workItemId}</strong><span>{item.title || '未命名'}</span></button>) : <p className="model-muted">{trace.total ? '全部需求都已标注实现模块。' : '当前索引中没有可关联的需求。'}</p>}{trace.unannotated.length > unannotatedLimit && <button className="secondary" onClick={() => setUnannotatedLimit(n => n + 100)}>显示更多未标注条目（{unannotatedLimit}/{trace.unannotated.length}）</button>}</div>}
             </div>
           </>}
-          {!coverageMode && !roots.length && <p className="model-hint">绑定模型目录后，这里会展示按模块分组的需求清单、未标注需求和零需求模块（覆盖缺口）。</p>}
+          {!coverageMode && !roots.length && !platform.length && <p className="model-hint">绑定模型目录后，这里会展示按模块分组的需求清单、未标注需求和零需求模块（覆盖缺口）。</p>}
         </div>
       </div>
       <footer><span className="muted">备注存在各工作项自己的附件上，多人并发互不冲突；AI 会话自动获得模型路径概况，可直接说「审查 TMS_HPMode 与需求的一致性」。</span></footer>

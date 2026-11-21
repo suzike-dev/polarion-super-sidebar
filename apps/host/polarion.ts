@@ -60,7 +60,7 @@ export interface Remote {
   search?(target: Target, query: string, limit: number): Promise<{ workItemId: string; title: string }[]>;
   save(draft: Draft, scope?: VariantScope, overwrite?: boolean): Promise<RemoteItem>;
   image?(target: Target, workItemId: string, src: string, scope?: VariantScope): Promise<unknown>;
-  create?(target: Target, title: string, type: string): Promise<RemoteItem>;
+  create?(target: Target, title: string, type: string, parentWorkItemId?: string): Promise<RemoteItem>;
   peek?(target: Target, workItemId: string): Promise<ProjectItemPreview>;
   link?(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string): Promise<{verified:boolean}>;
   unlink?(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string): Promise<{verified:boolean}>;
@@ -155,9 +155,10 @@ export class Polarion implements Remote {
     requireResolvedWorkItem(target.projectId, workItemId, { ...item, id: item?.workItemId });
     return item;
   }
-  create(target: Target, title: string, type: string) {
+  create(target: Target, title: string, type: string, parentWorkItemId?: string) {
     // 新需求要落进当前 LiveDoc；不传 documentLocation 会生成游离工作项，后续保存会被 WORK_ITEM_DOCUMENT_MISMATCH 拒绝。
-    return this.call<{ item: RemoteItem; verified: boolean; verificationErrors: string[] }>({ method: 'create', target, title, type, documentLocation: target.document }).then(value => value.item);
+    // parentWorkItemId：锚点条目，新条目创建在它之下（原生同款位置语义）。
+    return this.call<{ item: RemoteItem; verified: boolean; verificationErrors: string[] }>({ method: 'create', target, title, type, documentLocation: target.document, ...(parentWorkItemId ? { parentWorkItemId } : {}) }).then(value => value.item);
   }
   link(target: Target, sourceWorkItemId: string, targetWorkItemId: string, role: string) {
     return this.call<{ verified: boolean }>({ method: 'link', target, sourceWorkItemId, targetWorkItemId, role });
@@ -305,7 +306,7 @@ export class Drafts {
     const value = this.previewSource(requested, workItemId, prior).then<WorkItemPreview>(({ target, local, item, readOnlyReference }) => {
       if (!item && !local) throw Error('NOT_FOUND');
       const nodes = item ? new LosslessHtml(item.description ?? '').nodes : this.read(local!.id).nodes;
-      const text = nodes.map(n => n.text?.trim()).filter(Boolean).join('\n').slice(0, 1200);
+      const text = nodes.map(n => n.text?.trim()).filter(Boolean).join('\n').slice(0, 2400);
       return { target, workItemId, text, readOnlyReference, title: item?.title ?? local?.title ?? '', source: item ? 'remote' : 'draft', ...(!item && { state: local!.state, revision: local!.revision }) };
     });
     // A later full read can invalidate this hover while it is still in flight.
@@ -416,6 +417,16 @@ export class Drafts {
     const html = range.model.replaceTextRange(range.from, range.to, range.text, editableText);
     return this.checkpointHtml(range.draft, html);
   }
+  /** 整篇替换草稿 HTML（需求模板实例化等系统性写入）：经 RichDocument 解析与规范化后 checkpoint，
+   * 与编辑会话无关（模板实例化时编辑器尚未打开）；后续 richRead 解析的字节与本次写入一致。 */
+  replaceHtml(id: string, html: string) {
+    if (this.saving.has(id)) throw Error('DRAFT_SAVING');
+    const draft = this.read(id);
+    const model = new RichDocument(html);
+    const canonical = model.serialize(model.document, { recoverStructure: true });
+    new RichDocument(canonical);
+    return this.checkpointHtml(draft, canonical);
+  }
   format(id:string,expectedRevision:number,format:TextFormat,selection?:string){
     if(this.read(id).revision!==expectedRevision)throw Error('STALE_DRAFT');
     const rich=this.richRead(id),changed=formatDocument(rich.document,format,selection);
@@ -473,9 +484,9 @@ export class Drafts {
     return { draft: { draftId: next.id, workItemId: next.workItemId, revision: next.revision, state: next.state, savedToPolarion: false }, changes: applied.changes };
   }
   /** 新建服务端工作项（空正文）并开本地草稿；正文仍只写草稿，由保存流程写入。 */
-  async create(target: Target, title: string, type?: string) {
+  async create(target: Target, title: string, type?: string, parentWorkItemId?: string) {
     if (!this.remote.create) throw Error('CREATE_WORK_ITEM_UNSUPPORTED');
-    const item = await this.remote.create(target, title.trim().slice(0, 160), (type ?? '').trim() || 'task');
+    const item = await this.remote.create(target, title.trim().slice(0, 160), (type ?? '').trim() || 'task', parentWorkItemId);
     const draft: Draft = { id: crypto.randomUUID(), target, workItemId: item.id, title: item.title, baseHtml: item.description ?? '', html: item.description ?? '', baseUpdated: item.updated ?? '', revision: 0, state: 'clean' };
     this.store.put('draft', draft.id, draft);
     return this.read(draft.id);

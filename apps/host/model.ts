@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { gzipSync, gunzipSync } from 'fflate';
 import { Store } from './store.ts';
 import { Drafts, Polarion } from './polarion.ts';
-import { isHeadingType, ModelNoteSchema, ModelRootSchema, type ModelBaselineInfo, type ModelCheckFinding, type ModelCheckView, type ModelFileChange, type ModelIndexedItem, type ModelIndexView, type ModelModule, type ModelNote, type ModelRoot, type ModelRootsView, type ModelScanView, type ModelTraceGroup, type ModelTraceView, type Target } from '../../packages/protocol/index.ts';
+import { isHeadingType, ModelModuleSchema, ModelNoteSchema, ModelRootSchema, type ModelBaselineInfo, type ModelCheckFinding, type ModelCheckView, type ModelFileChange, type ModelIndexedItem, type ModelIndexView, type ModelModule, type ModelNote, type ModelRoot, type ModelRootsView, type ModelScanView, type ModelTraceGroup, type ModelTraceView, type Target } from '../../packages/protocol/index.ts';
 
 /** Simulink 模型关联：项目级配置（PSB-MODEL 工作项 + sidebar-model.roots.json 附件）+ 工作项级备注（sidebar-model.json）。 */
 const TITLE = 'PSB-MODEL';
@@ -20,6 +20,16 @@ type PatrolBaseline = {
 
 const gzipJson = (value: unknown) => Buffer.from(gzipSync(new TextEncoder().encode(JSON.stringify(value)))).toString('base64');
 const gunzipJson = <T>(base64: string): T => JSON.parse(new TextDecoder().decode(gunzipSync(Buffer.from(base64, 'base64'))));
+
+/** 平台模块目录：跨项目共用的固定模块清单。需求先于模型的项目（未配置模型根目录）也能把需求落到这套目录上。 */
+export const PLATFORM_ROOT_ID = '00000000-0000-4000-8000-000000000001';
+const PLATFORM_CATALOG_KEY = 'model-platform-catalog';
+export function platformRoot(store: Store): ModelRoot | null {
+  const catalog = store.get<{ modules: ModelModule[] }>(PLATFORM_CATALOG_KEY, 'global');
+  const modules = (catalog?.modules ?? []).filter(module => !module.excluded);
+  if (!modules.length) return null;
+  return ModelRootSchema.parse({ id: PLATFORM_ROOT_ID, label: '平台模块', modules });
+}
 
 const SKIP_DIRS = new Set(['.svn', '.git', 'node_modules', '_work', 'build', 'bin', 'codegen', 'slprj', 'derivedwork', 'work']);
 
@@ -105,17 +115,22 @@ export function modelContextDigest(store: Store, projectId: string): string {
   const cached = store.get<{ roots: ModelRoot[] }>('model-roots', projectId);
   const index = cachedModelIndex(store, projectId);
   const roots = cached?.roots ?? [];
-  if (!roots.length) return '';
   const lines: string[] = [];
-  for (const root of roots) {
+  const digestRoot = (root: ModelRoot, platformMode: boolean) => {
     const modules = root.modules.filter(m => !m.excluded);
-    if (!modules.length) continue;
-    lines.push(`${root.label}：${root.path}${root.projectFile ? `（Simulink 工程 ${root.projectFile}）` : ''}${root.dictionaries.length ? `（公共字典 ${root.dictionaries.join(', ')}）` : ''}`);
+    if (!modules.length) return;
+    lines.push(`${root.label}：${platformMode ? '（平台固定模块目录，本项目未配置模型根目录）' : `${root.path}${root.projectFile ? `（Simulink 工程 ${root.projectFile}）` : ''}${root.dictionaries.length ? `（公共字典 ${root.dictionaries.join(', ')}）` : ''}`}`);
     for (const module of modules.slice(0, 40)) {
       const count = index?.items.filter(item => item.marks.some(mark => mark.rootId === root.id && mark.modules.includes(module.key))).length ?? 0;
       lines.push(`  - ${module.name}（${module.key}${module.dictionary ? ` · 字典 ${module.dictionary}` : ''}${module.interface ? ` · 接口表 ${module.interface}` : ''}${module.kind !== 'module' ? ` · ${module.kind}` : ''}）· 已关联需求 ${count} 条`);
     }
     if (modules.length > 40) lines.push(`  …共 ${modules.length} 个模块，完整清单用 model_trace(action="overview") 查询`);
+  };
+  if (roots.length) {
+    for (const root of roots) digestRoot(root, false);
+  } else {
+    const platform = platformRoot(store);
+    if (platform) digestRoot(platform, true);
   }
   if (index) lines.push(`需求覆盖：已标注 ${index.annotated}/${index.total}（索引 ${new Date(index.syncedAt).toLocaleString('zh-CN')}）`);
   return lines.join('\n');
@@ -124,6 +139,20 @@ export function modelContextDigest(store: Store, projectId: string): string {
 export class Model {
   private store: Store; private drafts: Drafts;
   constructor(store: Store, drafts: Drafts) { this.store = store; this.drafts = drafts; }
+  /** 平台模块目录：全局一份，跨项目共用；项目未配置模型根目录时，AI 初关联与手标注落到这套目录。 */
+  platformCatalog(): ModelModule[] {
+    const catalog = this.store.get<{ modules: ModelModule[] }>(PLATFORM_CATALOG_KEY, 'global');
+    return catalog?.modules ?? [];
+  }
+  savePlatformCatalog(modules: ModelModule[]): ModelModule[] {
+    // 以 key 去重、规范化 kind/excluded，保证提示词与 UI 多选都以 key 为准。
+    const byKey = new Map<string, ModelModule>();
+    for (const module of modules) byKey.set(module.key, ModelModuleSchema.parse({ ...module, dir: '', model: '', dictionary: null, interface: null, kind: module.kind || 'module' }));
+    const clean = [...byKey.values()];
+    this.store.put(PLATFORM_CATALOG_KEY, 'global', { modules: clean });
+    return clean;
+  }
+
   private remote(): Polarion { if (!(this.drafts.remote instanceof Polarion)) throw Error('POLARION_UNAVAILABLE'); return this.drafts.remote; }
   private typeCandidates(): string[] {
     const configured = this.store.settings().changeRecordType.trim();
@@ -158,6 +187,14 @@ export class Model {
     } catch { /* Polarion 暂不可达：退回本机缓存 */ }
     const cached = this.store.get<{ roots: ModelRoot[]; workItemId?: string; updated?: string }>('model-roots', target.projectId);
     return cached ? { roots: cached.roots, source: 'cache', workItemId: cached.workItemId, updated: cached.updated } : { roots: [], source: 'empty' };
+  }
+
+  /** 标注视图：配置根目录为空时，追加平台模块目录作为兜底根，工作项备注照常标注。 */
+  async viewRoots(target: Target): Promise<ModelRootsView> {
+    const view = await this.roots(target);
+    if (view.roots.length) return view;
+    const platform = platformRoot(this.store);
+    return platform ? { ...view, roots: [platform] } : view;
   }
 
   bindLocal(target: Target, rootId: string, localPath: string) {
@@ -229,13 +266,14 @@ export class Model {
     return view;
   }
 
-  /** 追溯视图：roots（缓存）+ 索引（缓存）→ 模块分组、未标注清单、零需求模块。 */
+  /** 追溯视图：roots（缓存）+ 索引（缓存）→ 模块分组、未标注清单、零需求模块。
+   * 项目未配置模型根目录时，平台模块目录作为兜底根参与分组（有平台标注时即使有配置根也显示）。 */
   async traceView(target: Target): Promise<ModelTraceView> {
     const rootsView = await this.roots(target);
     const index = cachedModelIndex(this.store, target.projectId);
     const items = index?.items ?? [];
     const groups: ModelTraceGroup[] = [];
-    for (const root of rootsView.roots) {
+    const pushGroups = (root: ModelRoot) => {
       for (const module of root.modules) {
         if (module.excluded) continue;
         const linked = (item: ModelIndexedItem) => item.marks.some(mark => mark.rootId === root.id && mark.modules.includes(module.key));
@@ -243,9 +281,18 @@ export class Model {
         const markedHeadings = index?.markedHeadings?.filter(linked);
         groups.push({ rootId: root.id, rootLabel: root.label, moduleKey: module.key, moduleName: module.name, kind: module.kind, items: matched, missing: matched.length === 0, ...(markedHeadings?.length ? { markedHeadings } : {}) });
       }
+    };
+    for (const root of rootsView.roots) pushGroups(root);
+    if (!rootsView.roots.length || items.some(item => item.marks.some(mark => mark.rootId === PLATFORM_ROOT_ID))) {
+      const platform = platformRoot(this.store);
+      if (platform) {
+        pushGroups(platform);
+        rootsView.roots = [...rootsView.roots, platform];
+      }
     }
     return { roots: rootsView.roots, groups, unannotated: items.filter(item => !item.marks.length), total: index?.total ?? 0, annotated: index?.annotated ?? 0, syncedAt: index?.syncedAt ?? 0, stale: !index };
   }
+
 
   // ---- 一致性巡检：内容指纹基准 + 双侧变更检测。 ----
 
@@ -304,31 +351,38 @@ export class Model {
       .filter(row => typeof row.id === 'string' && row.id.startsWith(prefix))
       .map(row => ({ rootId: row.rootId, rootLabel: row.label, at: row.at, files: Object.keys(row.files).length, items: row.items.length }));
   }
-  /** AI 初关联提示词：未标注工作项 × 模块清单交给会话 Agent，逐条读正文写第一版实现模块备注，供人工修正。 */
-  autolinkPrompt(target: Target): { prompt: string; count: number } {
+  /** AI 初关联提示词：先了解全部模块、再逐条读全部需求，双向匹配后写第一版实现模块备注，供人工修正。 */
+  autolinkPrompt(target: Target): { prompt: string; count: number; mode: 'models' | 'platform' } {
     const cached = this.store.get<ModelRootsView>('model-roots', target.projectId);
     const roots = (cached?.roots ?? []).filter(root => root.path);
+    const platform = platformRoot(this.store);
     const index = cachedModelIndex(this.store, target.projectId);
-    if (!roots.length) throw Error('MODEL_AUTOLINK_NEEDS_ROOT：请先绑定本机模型目录并保存配置。');
-    if (!index) throw Error('MODEL_AUTOLINK_NEEDS_INDEX：请先点击「同步需求备注」构建需求索引。');
+    if (!roots.length && !platform) throw Error('MODEL_AUTOLINK_NEEDS_ROOT：请先绑定本机模型目录，或在模型关联工作台维护平台模块目录。');
+    if (!index) throw Error('MODEL_AUTOLINK_NEEDS_INDEX：请先点「同步需求备注」构建需求索引。');
     if (!index.total) throw Error('MODEL_AUTOLINK_NO_REQUIREMENTS：当前索引中没有可关联的需求。');
     const pending = index.items.filter(item => !item.marks.length);
-    if (!pending.length) throw Error('MODEL_AUTOLINK_ALL_ANNOTATED：全部工作项已有实现模块备注，无需初关联。');
-    const moduleLines = roots.flatMap(root => root.modules.filter(module => !module.excluded).map(module =>
+    if (!pending.length) throw Error('MODEL_AUTOLINK_ALL_ANNOTATED：全部工作项上已有实现模块备注，无需初关联。');
+    const usePlatform = !roots.length && !!platform;
+    const moduleRoots = usePlatform ? [platform!] : roots;
+    const moduleLines = moduleRoots.flatMap(root => root.modules.filter(module => !module.excluded).map(module =>
       `- rootId=${root.id}｜${root.label}｜${module.name}（key=${module.key}${module.dictionary ? `｜字典 ${module.dictionary}` : ''}${module.interface ? `｜接口表 ${module.interface}` : ''}${module.kind !== 'module' ? `｜${module.kind}` : ''}）`));
     const itemLines = pending.slice(0, 400).map(item => `- ${item.workItemId}｜${item.title || '(无标题)'}｜${item.type}`);
     const prompt = [
       '【模型初关联】为本项目需求与 Simulink 模块建立第一版实现关联，结果供人工逐条修正。',
+      '流程（先了解模型，再读需求，最后才关联；不许跳步）:',
+      '阶段一 · 了解模型侧：先用 mcp__polarion_drafts__model_trace 的 action=overview 通览全部模块（路径/字典/接口表/类型/已有标注分布），对照下方模块清单逐个归纳「该模块负责什么」；',
+      '对标注较多或职责不明的模块，再用 action=requirements 查看已关联需求样例加深理解，直到形成完整的「模块职责表」才进入下一阶段。',
+      '阶段二 · 读需求侧：用 peek_work_item 逐条读取下方全部待关联工作项的标题与正文，不要只看标题；每条提取：要求什么功能、涉及什么信号/接口/参数、约束是什么。',
+      '阶段三 · 双向匹配：把每条需求与模块职责表对照，证据要来自两侧（需求侧功能词/信号名/接口名 ↔ 模块侧职责/字典/接口表/已有标注）；一条需求可关联多个模块。',
       '规则：',
-      '1. 用 peek_work_item 逐条读取下方工作项的标题与正文，优先按正文里的信号名、接口名、功能词与模块名/字典/接口表匹配；仅标题相似而正文没有证据时不要关联。',
-      '2. 只处理清单里的工作项（都还没有备注）；其他已有备注的一律不动。',
-      '3. 每条结论用 mcp__polarion_drafts__model_trace 的 action=note_write 写入，marks 形如 [{rootId:"…",modules:["key"]}]——rootId 和 key 必须严格来自下方模块清单，禁止编造。',
-      '4. 把握不足的条目宁可不写，列入“待人工确认”并给一句理由。',
-      '5. 全部处理后输出汇总：已关联（工作项→模块→一句依据）、待人工确认（理由）、未关联；提醒用户回到模型关联工作台点「同步需求备注」刷新矩阵，再逐条修正。',
-      `模块清单（${moduleLines.length} 个）：`, ...moduleLines,
+      '1. 只处理清单里的工作项（都还没有备注）；其他已有备注的一律不动。',
+      '2. 每条结论用 mcp__polarion_drafts__model_trace 的 action=note_write 写入，marks 形如 [{rootId:"…",modules:["key"]}]——rootId 和 key 必须严格来自下方模块清单，禁止编造。',
+      '3. 仅标题相似而正文没有证据时不要关联；把握不足宁可不写，列入「待人工确认」并给一句理由。',
+      '4. 全部处理后输出汇总：已关联（工作项→模块→一句依据）、待人工确认（理由）、未关联；提醒用户回到模型关联工作台点「同步需求备注」刷新矩阵，再逐条修正。',
+      `模块清单（${moduleLines.length} 个）${usePlatform ? '（项目未配置模型根目录，本次按平台模块目录关联）' : ''}：`, ...moduleLines,
       `待关联工作项（${Math.min(pending.length, 400)}/${pending.length} 条）：`, ...itemLines,
     ].join('\n');
-    return { prompt, count: Math.min(pending.length, 400) };
+    return { prompt, count: Math.min(pending.length, 400), mode: usePlatform ? 'platform' : 'models' };
   }
   /**
    * 巡检：重扫本机文件指纹，对比基准 → 模型侧变化；对比需求修订时间 → 需求侧变化；

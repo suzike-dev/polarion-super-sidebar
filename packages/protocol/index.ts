@@ -136,10 +136,47 @@ export type WorkflowHistoryItem = {
   sessionId?: string; workItemId?: string;
   note?: string; error?: string; steps: WorkflowHistoryStep[];
 };
+/* ------------------------------------------------------------------ */
+/* 需求模板库：内置 5 类必备模板（场景/计算/算法/状态机/混合）+ 个人自定义。*/
+/* 软件默认 = 代码内置基线（packages/core/requirement-templates.ts）；    */
+/* 个人生效 = 本机 Host 覆盖/自定义（req-template）。                   */
+/* ------------------------------------------------------------------ */
+/** 模板类别：内置 5 类之外允许用户新增类型（key 唯一，label 展示）。 */
+export const TemplateCategorySchema = z.string().trim().min(1).max(40).regex(/^[\w\u4e00-\u9fff-]+$/, '类别只允许中文、字母、数字、下划线与连字符');
+export type TemplateCategory = z.infer<typeof TemplateCategorySchema>;
+/** 类别记录：label=展示名，hint=使用时机说明（模板库与 AI 注入共用）。 */
+export const TemplateCategoryRecordSchema = z.object({
+  key: TemplateCategorySchema,
+  label: z.string().trim().min(1).max(40),
+  hint: z.string().trim().max(500).default(''),
+  /** builtin=true 的类别不可删除。 */
+  builtin: z.boolean().default(false),
+});
+export type TemplateCategoryRecord = z.infer<typeof TemplateCategoryRecordSchema>;
+export const RequirementTemplateSchema = z.object({
+  /** 内置模板 id 固定（req-tpl-*）；自定义模板为 uuid。 */
+  id: z.string().min(1).max(60),
+  category: TemplateCategorySchema,
+  name: z.string().trim().min(1).max(80),
+  /** 该模板在什么情况下使用（模板库悬浮页展示）。 */
+  usageNote: z.string().trim().max(500).default(''),
+  /** builtin=代码内置基线或其个人覆盖；custom=个人自定义。 */
+  origin: z.enum(['builtin', 'custom']),
+  /** 本地记录版本：覆盖内置时=内置基线 version；自定义模板从 1 递增。 */
+  version: z.number().int().min(1).max(999),
+  /** 本地已覆盖内置基线（UI 显示「已自定义」徽标与「恢复标准」操作）。 */
+  overridden: z.boolean().default(false),
+  html: z.string().min(1).max(200000),
+  updatedAt: z.number(),
+});
+export type RequirementTemplate = z.infer<typeof RequirementTemplateSchema>;
+
 export const SettingsSchema = z.object({
   defaultEngine: z.enum(['claude', 'codex']), claudeModel: z.string().max(120),
   codexModel: z.literal('gpt-6.1-sol'),
   assistantFontSize: z.number().int().min(9).max(18).default(13),
+  /** 界面主题：全部浮层与侧栏统一切换（CSS 令牌组覆盖）；默认深林绿保留。 */
+  theme: z.enum(['forest', 'porcelain', 'paper', 'bamboo', 'autumn', 'sky', 'tangerine', 'rouge', 'indigo', 'lotus']).default('forest'),
   defaultPermissionMode: PermissionModeSchema.default(DEFAULT_PERMISSION_MODE),
   defaultTurnDelivery: TurnDeliverySchema.default(DEFAULT_TURN_DELIVERY),
   draftsFolder: z.string().max(1000).default(''),
@@ -149,6 +186,8 @@ export const SettingsSchema = z.object({
   changeRecordType: z.string().max(120).default(''),
   /** AI 修改后自动保存：开启时每轮结束把本轮改过的脏草稿写入 Polarion 并回读；关闭时只落本地草稿由用户手动保存。 */
   agentAutoSave: z.boolean().default(false),
+  /** 参考模板（设置→模板库胶囊开关）：开启后 AI 新建/改造工作项时自动按匹配类别的需求模板组织正文。 */
+  useRequirementTemplates: z.boolean().default(false),
 });
 /** 变体工作项：项目级独立工作项，通过 Polarion 链接归属到一个主工作项。 */
 export const VariantSchema = z.object({
@@ -325,7 +364,7 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('sessionGroups.create'), name: z.string().min(1).max(40) }),
   z.object({ method: z.literal('sessionGroups.delete'), name: z.string().min(1).max(40) }),
   z.object({ method: z.literal('sessions.read'), sessionId: id, after: z.number().int().nonnegative().default(0) }),
-  z.object({ method: z.literal('runs.start'), qualityRewrite: QualityRewriteSchema.optional(), autoSave: z.literal(false).optional(), permissionMode:PermissionModeSchema.default(DEFAULT_PERMISSION_MODE), delivery:TurnDeliverySchema.default(DEFAULT_TURN_DELIVERY), guidelineId:z.string().uuid().optional(), sessionId: id, requestId: id, target: TargetSchema, prompt: z.string().min(1).max(40000), contexts: z.array(ContextSchema).max(12), attachments: z.array(id).max(12).default([]) }),
+  z.object({ method: z.literal('runs.start'), qualityRewrite: QualityRewriteSchema.optional(), autoSave: z.literal(false).optional(), permissionMode:PermissionModeSchema.default(DEFAULT_PERMISSION_MODE), delivery:TurnDeliverySchema.default(DEFAULT_TURN_DELIVERY), guidelineId:z.string().uuid().optional(), useRequirementTemplates: z.boolean().optional(), sessionId: id, requestId: id, target: TargetSchema, prompt: z.string().min(1).max(40000), contexts: z.array(ContextSchema).max(12), attachments: z.array(id).max(12).default([]) }),
   // A distinct method makes older Hosts reject inspection instead of starting an unrestricted run.
   z.object({ method: z.literal('runs.inspectQuality'), sessionId: id, requestId: id, title: z.string().max(4000), sourceLabel: z.string().trim().min(1).max(300),
     snapshot: ContextSchema.extend({ workItemId: z.string().min(1).max(100), source: z.literal('editor'), pinned: z.literal(false) }) }),
@@ -429,6 +468,13 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('workflows.schedule'), id: z.string().uuid(), scheduleAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$|^.?$/).max(5), target: TargetSchema.optional() }),
   /** 批量运行：对多个工作项各开一个会话按同一流程执行（上限 10 条）。 */
   z.object({ method: z.literal('workflows.runBatch'), target: TargetSchema, defId: z.string().uuid(), workItemIds: z.array(z.string().min(1).max(100)).min(1).max(10), permissionMode: PermissionModeSchema.default(DEFAULT_PERMISSION_MODE), note: z.string().max(2000).default('') }),
+  /* 需求模板库：模板=Polarion 真实工作项（library 项目「需求模板库」文档，安装时幂等创建）。 */
+  z.object({ method: z.literal('templates.list'), target: TargetSchema }),
+  z.object({ method: z.literal('templates.read'), target: TargetSchema, templateId: z.string().min(1).max(100) }),
+  z.object({ method: z.literal('templates.reset'), target: TargetSchema, templateId: z.string().min(1).max(100) }),
+  z.object({ method: z.literal('templates.createCustom'), target: TargetSchema, title: z.string().trim().min(1).max(200), category: z.string().trim().min(1).max(40), html: z.string().min(1).max(200000) }),
+  z.object({ method: z.literal('templates.instantiate'), target: TargetSchema, templateId: z.string().min(1).max(100), title: z.string().trim().min(1).max(500), anchorWorkItemId: z.string().min(1).max(100).optional() }),
+  z.object({ method: z.literal('templates.apply'), target: TargetSchema, workItemId: z.string().min(1).max(100), templateId: z.string().min(1).max(100) }),
   /* Simulink 模型关联：配置在 PSB-MODEL 项目工作项；备注在各工作项自己的附件。 */
   z.object({ method: z.literal('model.roots'), target: TargetSchema }),
   z.object({ method: z.literal('model.roots.save'), target: TargetSchema, roots: z.array(ModelRootSchema).max(10), expectedUpdated: z.string().nullable().optional() }),
@@ -437,6 +483,11 @@ export const CommandSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('model.roots.scan'), path: z.string().trim().min(1).max(1000) }),
   z.object({ method: z.literal('model.note.read'), target: TargetSchema, workItemId: z.string().min(1).max(100) }),
   z.object({ method: z.literal('model.note.write'), target: TargetSchema, workItemId: z.string().min(1).max(100), note: ModelNoteSchema }),
+  /** 平台模块目录：全局固定模块清单，需求先于模型的项目用它做 AI 初关联与手标注。 */
+  z.object({ method: z.literal('model.platform.get') }),
+  z.object({ method: z.literal('model.platform.save'), modules: z.array(ModelModuleSchema).max(500) }),
+  /** 标注视图根目录：配置根为空时返回平台模块目录兜底根（ModuleNotePanel 用）。 */
+  z.object({ method: z.literal('model.roots.forNote'), target: TargetSchema }),
   /** 批量同步：查询项目工作项的模块备注附件，构建本机追溯索引。query 缺省查全部非 PSB 项。 */
   z.object({ method: z.literal('model.index.sync'), target: TargetSchema, query: z.string().trim().max(300).default('') }),
   /** 追溯视图：roots + 索引 → 模块分组、未标注清单、零需求模块（读缓存，不触发同步）。 */
@@ -702,7 +753,7 @@ export type Run = {
   qualityRewrite?: QualityRewrite;
   /** false 表示本轮草稿留待审阅，省略时遵循全局设置。 */
   autoSave?: false;
-  permissionMode?:PermissionMode; delivery?:TurnDelivery; guidelineId?:string; id: string; sessionId: string; requestId: string; target: Target; prompt: string; contexts: Context[]; attachments?: string[]; status: 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'interrupted'; startedAt: number; endedAt?: number; error?: string; /** 工作流步骤轮的标识：徽标与队列展示用；planGoal 表示这轮是动态工作流的目标拆解。 */ workflow?: { workflowRunId: string; defName: string; stepIndex: number; stepTotal: number; stepTitle: string; planGoal?: string; reviewId?: string; meetingId?: string } };
+  permissionMode?:PermissionMode; delivery?:TurnDelivery; guidelineId?:string; /** 用户开启「参考模板」：本轮提示词注入需求模板库。 */ useRequirementTemplates?: boolean; id: string; sessionId: string; requestId: string; target: Target; prompt: string; contexts: Context[]; attachments?: string[]; status: 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'interrupted'; startedAt: number; endedAt?: number; error?: string; /** 工作流步骤轮的标识：徽标与队列展示用；planGoal 表示这轮是动态工作流的目标拆解。 */ workflow?: { workflowRunId: string; defName: string; stepIndex: number; stepTotal: number; stepTitle: string; planGoal?: string; reviewId?: string; meetingId?: string } };
 /** 本地经验沉淀文件视图：text 为空表示尚未沉淀。 */
 export type ExperienceView = { text: string; path: string; updatedAt: number };
 /** 经验共编消息：用户修改意图 / AI 一句话说明；完整对话由扩展端持有，Host 不落状态。 */

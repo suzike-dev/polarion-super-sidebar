@@ -10,9 +10,9 @@ import {applyWorkItemPick, matchWorkItemQuery, splitWorkItems} from '../lib/work
 import {documentWorkItems, filterWorkItems} from '../lib/document-items';
 import {selectedRangeWithin} from '../lib/experience-selection';
 import {AssistantMarkdown} from './AssistantMarkdown';
-import { PanelRightOpen, Plus, ArrowUp, Square, Pin, X, ListTree, MessageSquare, SlidersHorizontal, FileText, History, ChevronRight, ChevronDown, ChevronUp, Check, ExternalLink, GripVertical, TerminalSquare, Paperclip, AlertCircle, Search, PenLine, ListChecks, Quote, RotateCcw, LayoutGrid, Archive, ArchiveRestore, Trash2, FolderPlus, FileDiff, Lightbulb, CornerDownRight, Workflow, Play, Boxes, Inbox, Gauge } from 'lucide-react';
+import { PanelRightOpen, Plus, ArrowUp, Square, Pin, X, ListTree, MessageSquare, SlidersHorizontal, FileStack, FileText, History, ChevronRight, ChevronDown, ChevronUp, Check, ExternalLink, GripVertical, TerminalSquare, Paperclip, AlertCircle, Search, PenLine, ListChecks, Quote, RotateCcw, LayoutGrid, Archive, ArchiveRestore, Trash2, FolderPlus, FileDiff, Lightbulb, CornerDownRight, Workflow, Play, Boxes, Inbox, Gauge } from 'lucide-react';
 import { WorkspaceHeader } from './WorkspaceHeader';
-import type { Context, Draft, Guideline, Run, RunEvent, Session, SessionGroup, Target, EngineCapabilities, Asset, PermissionMode, ExperienceView, Macro, WorkflowDef, WorkflowRunView } from '../../../packages/protocol/index';
+import type { Context, Draft, Guideline, RequirementTemplate, Run, RunEvent, Session, SessionGroup, Target, EngineCapabilities, Asset, PermissionMode, ExperienceView, Macro, WorkflowDef, WorkflowRunView } from '../../../packages/protocol/index';
 import { routeFromUrl, sameTarget, DEFAULT_PERMISSION_MODE, SettingsSchema } from '../../../packages/protocol/index';
 import type {BoardGenerationRequest} from '../../host/boards';
 import type { SourceNode } from '../../../packages/core/lossless-html';
@@ -21,6 +21,7 @@ import {consumeSave} from '../lib/save-continuation';
 import {listenWorkbenchKeydown} from '../lib/workbench-keyboard';
 import {polarionFeedback} from '../lib/polarion-feedback';
 import {SettingsPanel} from './SettingsPanel';
+import {type ThemeId} from './themes';
 import {WorkItemReader, ReaderNotice, type ReaderAction, type WorkItemView} from './WorkItemReader';
 import {ExperienceDialog} from './ExperienceDialog';
 import {WorkflowPanel} from './WorkflowPanel';
@@ -31,6 +32,23 @@ import {ProposalInbox, type InboxView} from './ProposalInbox';
 import {ReviewPanel} from './ReviewPanel';
 import {DashboardPanel, type DashboardDestination} from './DashboardPanel';
 import {CommandPalette, type PaletteCommand} from './CommandPalette';
+import {TemplatePicker} from './TemplatePicker';
+
+/** 模板浮层的错误边界：渲染异常只隔离模板功能并显示错误，不拖垮整个侧边栏。 */
+class TemplateErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: string }> {
+  override state = { error: '' };
+  static getDerivedStateFromError(error: unknown) { return { error: error instanceof Error ? error.message : String(error) }; }
+  override render() {
+    if (this.state.error) return <div className="tpl-layer" role="alert" onClick={() => this.setState({ error: '' })}>
+      <div className="tpl-dialog" style={{ height: 'auto', minHeight: '180px' }}>
+        <header className="tpl-dialog-head"><strong>模板功能出错</strong><span style={{ flex: 1 }} /></header>
+        <div className="tpl-dialog-body"><p className="inline-error">{this.state.error}</p><p className="tpl-note">点击任意位置关闭。请把上面的错误信息反馈给开发。</p></div>
+      </div>
+    </div>;
+    return this.props.children;
+  }
+  override componentDidCatch(error: unknown) { console.error('[template]', error); }
+}
 // 大浮层用 memo 隔离：会话事件流（任务运行中 ~700ms 一批）与 2s 轮询的 setState 不应整树 reconcile 总览/变更工作台。
 const MemoizedOverview = React.memo(RequirementsOverview);
 type WorkspaceDestination = DashboardDestination | 'dashboard' | 'overview' | 'quality' | 'review' | 'model' | 'inbox' | 'feed' | 'meeting' | 'timeline' | 'changes' | 'composer';
@@ -95,7 +113,7 @@ export function App() {
   const [saveNotice,setSaveNotice]=useState('');
   const [requestedBoard,setRequestedBoard]=useState<BoardGenerationRequest|null>(null);
   const [restoredEditorScroll,setRestoredEditorScroll]=useState<number|undefined>();
-  useEffect(()=>{if(!saveNotice)return;const timer=setTimeout(()=>setSaveNotice(''),10000);return()=>clearTimeout(timer);},[saveNotice]);
+  useEffect(()=>{if(!saveNotice)return;const timer=setTimeout(()=>setSaveNotice(''),15000);return()=>clearTimeout(timer);},[saveNotice]);
   useEffect(()=>{if(!target)return;let disposed=false;const key='save-receipt:'+JSON.stringify(target);void browser.storage.local.get(key).then(async value=>{const receipt=value[key] as {workItemId:string;at:number}|undefined;if(!disposed&&receipt&&Date.now()-receipt.at<120000)setSaveNotice(receipt.workItemId+' 已保存到 Polarion。');if(receipt)await browser.storage.local.remove(key);});return()=>{disposed=true;};},[target]);
   const [contexts, setContexts] = useState<Context[]>([]); const [pinnedOutline, setPinnedOutline] = useState(false);
   const [headings, setHeadings] = useState<ReturnType<typeof outline>>([]); const [sessions, setSessions] = useState<Session[]>([]);
@@ -103,6 +121,7 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null); const [eventHistory, setEventHistory] = useState(emptyEventHistory); const {events, byRun} = eventHistory; const [loadingHistory, setLoadingHistory] = useState(false); const [runs, setRuns] = useState<Run[]>([]);
   const [history, setHistory] = useState(false); const [settings, setSettings] = useState(false); const [config, setConfig] = useState<AssistantSettings | null>(null);
   const [assistantFontSize,setAssistantFontSize]=useState(DEFAULT_ASSISTANT_FONT_SIZE);
+  const [activeTheme,setActiveTheme]=useState<ThemeId>('forest');
   const [settingsLoading,setSettingsLoading]=useState(false),[settingsSaving,setSettingsSaving]=useState(false),[settingsError,setSettingsError]=useState('');
   const [settingsTab,setSettingsTab]=useState<'general'|'appearance'|'storage'|'guidelines'>('general');
   const settingsRequest=useRef(0),settingsVersion=useRef(0),settingsSaveBusy=useRef(false),settingsTrigger=useRef<HTMLElement|null>(null);
@@ -116,6 +135,11 @@ export function App() {
   const [behaviorDefaultsVersion,setBehaviorDefaultsVersion]=useState(0);
   const [guidelines,setGuidelines]=useState<Guideline[]>([]);
   const [guidelineId,setGuidelineId]=useState('');
+  // 需求模板库：「参考模板」胶囊开关在设置→模板库里（settings.useRequirementTemplates）；
+  // 模板建项入口在模板库卡片与命令面板，不占输入框。
+  const [showTemplatePicker,setShowTemplatePicker]=useState<{ workItemId?: string } | null>(null);
+  // 光标/选区/悬停定位：优先顶层文档，其次 Polarion 正文 iframe（同源），最后回退最近上下文。
+  const contextsRef = useRef(contexts); contextsRef.current = contexts;
   const [guidelineDrafts,setGuidelineDrafts]=useState<Guideline[]|null>(null);
   // 动态工作流：定义列表（项目隔离）、管理面板开关、当前会话的运行实例视图。
   const [workflowDefs,setWorkflowDefs]=useState<WorkflowDef[]>([]);
@@ -246,6 +270,7 @@ export function App() {
     latestDraftRevision.current = Math.max(latestDraftRevision.current, draft.revision, sharedRevision);
   }
   const draftOpenRequest=useRef(0);
+    useEffect(()=>{const onInsertTemplate=(event:Event)=>{const detail=(event as CustomEvent<{workItemId?:string}>).detail??{};const page=routeFromUrl(location.href);if(!page){setError('插入模板需要文档上下文，请先打开一个文档页面。');return;}setShowTemplatePicker({workItemId:detail.workItemId});};window.addEventListener('polarion-sidebar-insert-template',onInsertTemplate);return()=>window.removeEventListener('polarion-sidebar-insert-template',onInsertTemplate);},[]);
   useEffect(()=>{if(draft?.state==='dirty')setSaveNotice('');},[draft?.state,draft?.revision]);
   const [editorAI,setEditorAI]=useState(true);const prepareAI=useRef<(()=>Promise<void>)|null>(null);const priorTab=useRef('ai');
   useEffect(()=>{if(!(draft?editorAI:open))closeSettings();},[draft?.id,editorAI,open,closeSettings]);
@@ -271,7 +296,7 @@ export function App() {
   const outlineVisible=(draft?editorAI:open)&&(tab==='outline'||pinnedOutline);
   const targetRef = useRef(target); targetRef.current = target;
   const routeEpoch=useRef(0);
-  const updateCurrentDraft=useCallback((updated:DraftView)=>{const page=routeFromUrl(location.href);setDraft(current=>current?.id===updated.id&&updated.revision>=current.revision&&sameTarget(current.target,updated.target)&&!!page&&sameTarget(updated.target,page)&&!!targetRef.current&&sameTarget(updated.target,targetRef.current)?updated:current);},[]);
+  const updateCurrentDraft=useCallback((updated:DraftView)=>{const page=routeFromUrl(location.href);const templateDraft=updated.target.projectId==='library'&&updated.workItemId.startsWith('WI-');setDraft(current=>current?.id===updated.id&&updated.revision>=current.revision&&sameTarget(current.target,updated.target)&&(templateDraft||(!!page&&sameTarget(updated.target,page)&&!!targetRef.current&&sameTarget(updated.target,targetRef.current)))?updated:current);},[]);
   // 变体接入/撤销后，主草稿已在服务端验证写入；同步本地视图并刷新原生正文。
   const variantChanged=useCallback(async(saved:DraftView,notice:string)=>{
     if(!draftRef.current||draftRef.current.id!==saved.id)return;
@@ -345,6 +370,7 @@ export function App() {
       if (message.type === 'preview' && message.workItemId) schedulePreview(String(message.workItemId), message.rect, String(message.text ?? ''));
       if (message.type === 'edit-workitem' && message.workItemId) void editDraftRef.current(String(message.workItemId));
       if (message.type === 'open-workitem' && message.workItemId) void openReaderRef.current?.(message.workItemId);
+      if (message.type === 'insert-template') setShowTemplatePicker({ workItemId: message.workItemId ? String(message.workItemId) : undefined });
     };
     const frameMessage = (event: MessageEvent) => {
       if (event.origin !== location.origin) return;
@@ -355,6 +381,52 @@ export function App() {
     browser.runtime.onMessage.addListener(listener);
     return () => { browser.runtime.onMessage.removeListener(listener); window.removeEventListener('message', frameMessage); };
   }, []);
+  /** 解析光标/选区所在工作项：顶层选区 → 顶层焦点 → 正文 iframe 选区/焦点 → 最近上下文。 */
+  const cursorWorkItem = useCallback((): string | undefined => {
+    const fromNode = (node: Node | null): string | undefined => {
+      let el: Element | null = node instanceof Element ? node : (node?.parentElement ?? null);
+      while (el) {
+        const byId = el.id?.match(/module-workitem;params=id=([^;|]+)/);
+        if (byId) return byId[1];
+        const byData = el.getAttribute?.('data-item-id');
+        if (byData) return byData.trim();
+        el = el.parentElement;
+      }
+      return undefined;
+    };
+    const fromSelection = (doc: Document | null | undefined) => { try { return fromNode(doc?.getSelection()?.anchorNode ?? null); } catch { return undefined; } };
+    const fromFocus = (doc: Document | null | undefined) => { try { return fromNode(doc?.activeElement ?? null); } catch { return undefined; } };
+    const hit = fromSelection(document) ?? fromFocus(document);
+    if (hit) return hit;
+    // Polarion 正文渲染在 iframe 中（同源），光标在那里的选区/焦点才是常态。
+    for (const frame of Array.from(document.querySelectorAll('iframe'))) {
+      let doc: Document | null = null;
+      try { doc = frame.contentDocument; } catch { continue; }
+      if (!doc) continue;
+      const v = fromSelection(doc) ?? fromFocus(doc);
+      if (v) return v;
+    }
+    return contextsRef.current?.at(-1)?.workItemId ?? (window as typeof window & { __psbLastWorkItem?: string }).__psbLastWorkItem;
+  }, []);
+  // 原生文档页「插入模板」浮动按钮：由侧边栏自己注入（同一执行环境，点击直接打开选择浮窗）。
+  // 焦点所在条目优先，其次取捕获脚本记录的最近悬停/选区条目。
+  useEffect(() => {
+    if (!target) return;
+    const ID = 'psb-insert-template-btn';
+    let button = document.getElementById(ID) as HTMLButtonElement | null;
+    if (!button) {
+      button = document.createElement('button');
+      button.id = ID;
+      button.type = 'button';
+      button.textContent = '插入模板';
+      button.title = '从需求模板库插入模板正文（内置 5 类 + 自定义）';
+      button.style.cssText = 'position:fixed;top:8px;left:calc(50% - 60px);z-index:99750;padding:5px 14px;font-size:12px;border-radius:999px;border:1px solid rgba(34,84,63,.4);background:#22543f;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(9,20,15,.25);';
+      document.documentElement.appendChild(button);
+    }
+    const onClick = () => setShowTemplatePicker({ workItemId: cursorWorkItem() });
+    button.addEventListener('click', onClick);
+    return () => { button?.removeEventListener('click', onClick); button?.remove(); };
+  }, [target?.projectId, target?.document]);
   // Resizing changes pane geometry only; document scans must not run for every pointer move.
   useEffect(()=>{syncLayout();},[open,width,target,syncLayout]);
   useEffect(() => {
@@ -722,7 +794,7 @@ export function App() {
     if(settings){closeSettings();return;}
     settingsTrigger.current=trigger;setSettingsTab(tab);setSettings(true);setSettingsLoading(true);setSettingsError('');setConfig(null);
     const ticket=++settingsRequest.current;
-    try {const next=SettingsSchema.parse(await rpc({method:'settings.read'}));if(ticket===settingsRequest.current){settingsVersion.current++;setAssistantFontSize(next.assistantFontSize);setDraftsFolderNote(next.draftsFolder.trim());setConfig(next);const rows=await rpc<Guideline[]>({method:'guidelines.list'});if(ticket===settingsRequest.current){persistedGuidelineIds.current=new Set(rows.map(g=>g.id));deletedGuidelines.current=[];setGuidelines(rows);setGuidelineDrafts(structuredClone(rows));}}}
+    try {const next=SettingsSchema.parse(await rpc({method:'settings.read'}));if(ticket===settingsRequest.current){settingsVersion.current++;setAssistantFontSize(next.assistantFontSize);setActiveTheme(next.theme);setDraftsFolderNote(next.draftsFolder.trim());setConfig(next);const rows=await rpc<Guideline[]>({method:'guidelines.list'});if(ticket===settingsRequest.current){persistedGuidelineIds.current=new Set(rows.map(g=>g.id));deletedGuidelines.current=[];setGuidelines(rows);setGuidelineDrafts(structuredClone(rows));}}}
     catch(e){if(ticket===settingsRequest.current)setSettingsError('读取设置失败：'+errorText(e));}
     finally{if(ticket===settingsRequest.current)setSettingsLoading(false);}
   };
@@ -766,7 +838,7 @@ export function App() {
       deletedGuidelines.current=[];
       const rows=await rpc<Guideline[]>({method:'guidelines.list'});
       persistedGuidelineIds.current=new Set(rows.map(g=>g.id));setGuidelines(rows);setGuidelineDrafts(structuredClone(rows));
-      setAssistantFontSize(saved.assistantFontSize);setDraftsFolderNote(saved.draftsFolder.trim());behaviorDefaults.current={permissionMode:saved.defaultPermissionMode};setBehaviorDefaultsVersion(v=>v+1);
+      setAssistantFontSize(saved.assistantFontSize);setActiveTheme(saved.theme);setDraftsFolderNote(saved.draftsFolder.trim());behaviorDefaults.current={permissionMode:saved.defaultPermissionMode};setBehaviorDefaultsVersion(v=>v+1);
       settingsSaveBusy.current=false;closeSettings();
     }
     catch(e){setSettingsError('保存失败，当前调整尚未确认保存：'+errorText(e));}
@@ -914,7 +986,26 @@ export function App() {
     setReaderAction({ kind: 'edit', workItemId });
     void openDraft(workItemId, ++readerRequest.current);
   };
-  const openDiagram=useCallback(async(draftId:string,requestId:string)=>{const ticket=++draftOpenRequest.current;try{await prepareAI.current?.();if(ticket!==draftOpenRequest.current)return;const value=await rpc<{draft:DraftView;request:BoardGenerationRequest}>({method:'boards.generation.open',draftId,requestId});if(ticket!==draftOpenRequest.current)return;if(!targetRef.current||!sameTarget(value.draft.target,targetRef.current))throw Error('此草案属于另一个文档，请先回到来源文档。');if(!draft)priorTab.current=tab;setPanelsBehindEditor(true);setDraft(value.draft);setRequestedBoard(value.request);setEditorAI(true);setTab('ai');}catch(e){if(ticket===draftOpenRequest.current)setError(errorText(e));}},[draft,tab,overview]);
+    /** 打开模板工作项：模板=Polarion 真实工作项（library 项目），与正常工作项同一套编辑与保存链路。
+   * 使用 library target 打开（模板内容归属模板库项目）；关闭/保存全部走原生逻辑，无任何特殊分支。 */
+  const openTemplateWorkItem=async(template:{id:string;title:string})=>{
+    const page=routeFromUrl(location.href);
+    if(!page)throw Error('请先打开一个文档页面，再编辑模板。');
+    const ticket=++draftOpenRequest.current;
+    try {
+      const libraryTarget={origin:page.origin,projectId:'library',document:'_default/Software Requirements Specification'};
+      const opened=await rpc<{ id: string }>({method:'drafts.open',target:libraryTarget,workItemId:template.id});
+      if(ticket!==draftOpenRequest.current)return;
+      const view=await rpc<RichReply>({method:'drafts.rich.read',draftId:opened.id});
+      if(ticket!==draftOpenRequest.current)return;
+      initialRich.current=view;
+      if(draft)priorTab.current=tab;
+      setPanelsBehindEditor(true);
+      setDraft(view.draft);
+      setRestoredEditorScroll(undefined);
+    }catch(e){if(ticket===draftOpenRequest.current)setError(errorText(e));}
+  };
+    const openDiagram=useCallback(async(draftId:string,requestId:string)=>{const ticket=++draftOpenRequest.current;try{await prepareAI.current?.();if(ticket!==draftOpenRequest.current)return;const value=await rpc<{draft:DraftView;request:BoardGenerationRequest}>({method:'boards.generation.open',draftId,requestId});if(ticket!==draftOpenRequest.current)return;if(!targetRef.current||!sameTarget(value.draft.target,targetRef.current))throw Error('此草案属于另一个文档，请先回到来源文档。');if(!draft)priorTab.current=tab;setPanelsBehindEditor(true);setDraft(value.draft);setRequestedBoard(value.request);setEditorAI(true);setTab('ai');}catch(e){if(ticket===draftOpenRequest.current)setError(errorText(e));}},[draft,tab,overview]);
   const answerPermission = useCallback(async (runId: string, id: string, allow: boolean, scope: 'once' | 'run' = 'once') => { try { await rpc({ method: 'permissions.answer', runId, permissionId: id, allow, scope }); } catch (e) { setError(errorText(e)); } }, []);
   const retryTurn = useCallback(async (run: Run) => { try { await rpc({ method: run.qualityInspection ? 'runs.retryQualityInspection' : 'runs.retry', runId: run.id, requestId: crypto.randomUUID() }); window.dispatchEvent(new Event('polarion-sidebar-run-started')); } catch (e) { setError(errorText(e)); } }, []);
   const quoteAnswer = useCallback((text: string) => { const excerpt = text.trim().slice(0, 800); if (!excerpt) return; const quoted = excerpt.split('\n').map(line => '> ' + line).join('\n'); setInput(previous => (previous.trim() ? previous.trimEnd() + '\n\n' : '') + quoted + '\n\n'); composerInput.current?.focus(); }, []);
@@ -972,7 +1063,7 @@ export function App() {
   const readerNotice = readerAction && <ReaderNotice action={readerAction}
     onRetry={() => readerAction.kind === 'edit' ? readInEditor(readerAction.workItemId) : void openReader(readerAction.workItemId)}
     onDismiss={() => { readerRequest.current++; setReaderAction(null); }}/>;
-  return <div className={'workspace-root'+(floatingBand?' floating-band':'')+(overview?' overview-open':'')+(changes?' changes-open':'')} style={{'--assistant-width':width+'px','--assistant-font-size':(settings&&config?config.assistantFontSize:assistantFontSize)+'px'} as React.CSSProperties}>
+  return <div className={'workspace-root'+(floatingBand?' floating-band':'')+(overview?' overview-open':'')+(changes?' changes-open':'')} data-theme={(settings&&config?config.theme:activeTheme)} style={{'--assistant-width':width+'px','--assistant-font-size':(settings&&config?config.assistantFontSize:assistantFontSize)+'px'} as React.CSSProperties}>
     {!open && <button className="reopen" onClick={() => setOpen(true)} title="展开 Polarion 助手"><PanelRightOpen size={18}/><span>助手</span>{active && <i className="running-dot"/>}</button>}
     {(draft?editorAI:open) && <aside className={'workspace '+(draft&&editorAI?'floating-assistant':'')} style={{ width, top: geometry.top }} aria-label={draft&&editorAI?'编辑工作台 AI 协作':'Polarion 超级侧边栏'}>
       <div className="resize-grip" onPointerDown={event => event.currentTarget.setPointerCapture(event.pointerId)} onPointerMove={event => {
@@ -997,8 +1088,9 @@ export function App() {
       <nav className="tabs" aria-label="工作区模式">{[['outline','大纲',ListTree],['ai','AI 助手',MessageSquare],['properties','属性',SlidersHorizontal]].map(([key,label,Icon]: any) => <button key={key} className={tab === key ? 'selected' : ''} onClick={() => setTab(key)}><Icon size={15}/>{label}</button>)}</nav>
       {geometry.overlay && <div className="compact-note">窄屏浮层模式 · 收起助手可查看完整正文</div>}
       {error && <div className="error" role="alert"><span>{error}{error.includes('凭据')&&!settings&&<button className="secondary" onClick={e=>void toggleSettings(e.currentTarget)}>配置 Polarion 账号</button>}</span><button className="icon" title="关闭提示" onClick={() => setError('')}><X size={14}/></button></div>}
+      {showTemplatePicker&&target&&<TemplateErrorBoundary><TemplatePicker target={target} workItemId={showTemplatePicker.workItemId} onClose={()=>setShowTemplatePicker(null)} onApplied={async result=>{setShowTemplatePicker(null);try{const native=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:result.workItemId,phase:'refresh',expectedHtml:result.html,expectedTitle:result.title});setSaveNotice(native?.ok?(native.degraded?result.workItemId+' 已写入模板正文；原生显示可能稍后更新。':result.workItemId+' 已写入模板正文，原生条目已即时更新。'):result.workItemId+' 已写入模板正文（服务端已保存）；原生页面显示未同步，可手动刷新查看。');}catch{if(true)setSaveNotice(result.workItemId+' 已写入模板正文（服务端已保存）；原生页面显示未同步，可手动刷新查看。');}}} onNotify={(message,kind)=>{if(kind==='error')setError(errorText(message));else setSaveNotice(message);}} /></TemplateErrorBoundary>}
       {saveNotice&&<div className="save-notice" role="status"><Check size={15}/><span>{saveNotice}</span><button className="icon" title="关闭保存结果" onClick={()=>setSaveNotice('')}><X size={14}/></button></div>}
-      {settings && <SettingsPanel config={config} defaultFontSize={DEFAULT_ASSISTANT_FONT_SIZE} paperWidth={paperWidth} guidelines={guidelineDrafts} target={target} onQualityReview={() => openDestination('review')} loading={settingsLoading} saving={settingsSaving} error={settingsError} initialTab={settingsTab}
+      {settings && <SettingsPanel config={config} defaultFontSize={DEFAULT_ASSISTANT_FONT_SIZE} paperWidth={paperWidth} guidelines={guidelineDrafts} target={target} onQualityReview={() => openDestination('review')} onOpenTemplate={template=>{setSettings(false);void openTemplateWorkItem(template);}} loading={settingsLoading} saving={settingsSaving} error={settingsError} initialTab={settingsTab}
         onConfig={next=>setConfig(next)} onPaperWidth={next=>setPaperWidth(next)} onGuidelines={next=>{const alive=new Set(next.map(g=>g.id));for(const id of persistedGuidelineIds.current)if(!alive.has(id)&&!deletedGuidelines.current.includes(id))deletedGuidelines.current.push(id);setGuidelineDrafts(next);}}
         onSave={()=>void saveSettings()} onClose={closeSettings}
         onPickFolder={async current=>{try{const value=await rpc<{path:string|null}>({method:'dialog.pickFolder',title:'选择共享草稿存储文件夹',defaultPath:current});return value.path;}catch(e){setSettingsError('打开文件夹选择器失败：'+errorText(e));return null;}}}
@@ -1160,7 +1252,7 @@ export function App() {
       if (editorStillCurrent()) { setEditorAI(true); setTab('ai'); }
       window.dispatchEvent(new Event('polarion-sidebar-run-started'));
       return run;
-    }} requestedBoard={requestedBoard} onBoardOpened={()=>setRequestedBoard(null)} initialScrollTop={restoredEditorScroll} onUpdate={updateCurrentDraft} onClose={() => {draftOpenRequest.current++;setContexts(list=>list.filter(c=>!c.text.startsWith('BOARD_GENERATION_CONTEXT\n')&&!c.text.startsWith('画板对象协作上下文')));setDraft(null);setRestoredEditorScroll(undefined);prepareAI.current=null;setTab(priorTab.current);}} aiOpen={editorAI} onToggleAI={()=>{setEditorAI(v=>!v);setTab('ai');}} onShowAI={()=>{setEditorAI(true);setTab('ai');}} onClearBoardContext={()=>setContexts(list=>list.filter(c=>!(c.workItemId===draft.workItemId&&(c.text.startsWith('BOARD_GENERATION_CONTEXT\n')||c.text.startsWith('画板对象协作上下文')))))} onPrepareAI={handler=>{prepareAI.current=handler;}} remoteRevision={latestDraftRevision.current} onError={e => setError(errorText(e))} prepareNativeSave={async()=>{if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');const snapshot=native.current.captureVerification();const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:draft.workItemId,phase:'check'});if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');if(!result?.ok){
+    }} requestedBoard={requestedBoard} onBoardOpened={()=>setRequestedBoard(null)} initialScrollTop={restoredEditorScroll} onUpdate={updateCurrentDraft} onClose={() => {draftOpenRequest.current++;setContexts(list=>list.filter(c=>!c.text.startsWith('BOARD_GENERATION_CONTEXT\n')&&!c.text.startsWith('画板对象协作上下文')));setDraft(null);setRestoredEditorScroll(undefined);prepareAI.current=null;setTab(priorTab.current);}} aiOpen={editorAI} onToggleAI={()=>{setEditorAI(v=>!v);setTab('ai');}} onShowAI={()=>{setEditorAI(true);setTab('ai');}} onClearBoardContext={()=>setContexts(list=>list.filter(c=>!(c.workItemId===draft.workItemId&&(c.text.startsWith('BOARD_GENERATION_CONTEXT\n')||c.text.startsWith('画板对象协作上下文')))))} onPrepareAI={handler=>{prepareAI.current=handler;}} remoteRevision={latestDraftRevision.current} onError={e => setError(errorText(e))} prepareNativeSave={async()=>{if(draft.target.projectId==='library')return 'clean' as const;if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');const snapshot=native.current.captureVerification();const result=await browser.runtime.sendMessage({type:'native-workitem-refresh',workItemId:draft.workItemId,phase:'check'});if(!editorStillCurrent())throw Error('NATIVE_DOCUMENT_CHANGED');if(!result?.ok){
           const code=result?.error??'NATIVE_REFRESH_UNSUPPORTED';
           // Only an actual unsaved native input can lose work. A page that does
           // not show this item, or an unsupported adapter, must not block save.
@@ -1173,6 +1265,8 @@ export function App() {
       const current = () => editorStillCurrent() && saved.id === draft.id && saved.workItemId === draft.workItemId &&
         sameTarget(saved.target, draft.target) && latestDraftRevision.current <= saved.revision;
       if (!current()) return 'stale';
+      // library 模板工作项不在当前原生文档里显示：跳过原生刷新（保存已由服务端回读验证）。
+      if (saved.target.projectId === 'library') { setSaveNotice('模板已保存到模板库（library 项目），插入需求时以副本使用。'); return 'stale'; }
       if (saved.variantOf) return 'variant';
       const state = native.current.state();
       if (state !== 'clean') throw Error(state === 'dirty' ? 'NATIVE_EDITOR_DIRTY' : 'NATIVE_EDITOR_UNKNOWN');

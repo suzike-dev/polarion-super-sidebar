@@ -15,19 +15,19 @@
 .assistant-message blockquote p:last-child { margin-bottom: 0; }
 .assistant-message a { color: var(--ui-accent); text-decoration: underline; text-underline-offset: 3px; }
 .assistant-message hr { border: 0; border-top: 1px solid var(--ui-line); margin: 18px 0; }
-.assistant-message :not(pre) > code { font-family: var(--ui-mono); font-size: max(9px, .92em); background: #f3f4f1; color: #40454a; padding: 1px 5px; border: 1px solid var(--ui-soft-line); border-radius: var(--ui-radius-xs); word-break: break-word; }
+.assistant-message :not(pre) > code { font-family: var(--ui-mono); font-size: max(9px, .92em); background: var(--ui-subtle); color: #40454a; padding: 1px 5px; border: 1px solid var(--ui-soft-line); border-radius: var(--ui-radius-xs); word-break: break-word; }
 .answer-table { overflow-x: auto; max-width: 100%; overscroll-behavior-x: contain; }
 .answer-code-wrap { position: relative; margin: 12px 0; }
 .answer-code { border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); background: var(--ui-subtle); max-width: 100%; overflow: hidden; margin: 0; }
-.answer-code > summary { padding: 8px 12px; font-size: 12px; font-weight: 550; color: var(--ui-secondary); cursor: pointer; background: #f3f4f1; }
+.answer-code > summary { padding: 8px 12px; font-size: 12px; font-weight: 550; color: var(--ui-secondary); cursor: pointer; background: var(--ui-subtle); }
 .answer-code > summary:hover { background: var(--ui-subtle); }
-.answer-code pre { margin: 0; padding: 12px; max-height: 360px; overflow: auto; background: #fbfbfa; color: #3f4449; border: 0; font: 12px/1.7 var(--ui-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.answer-code pre { margin: 0; padding: 12px; max-height: 360px; overflow: auto; background: var(--ui-subtle); color: #3f4449; border: 0; font: 12px/1.7 var(--ui-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .answer-code pre code { font: inherit; white-space: inherit; background: none; color: inherit; }
-.answer-code-wrap > .copy-content { position: absolute; right: 6px; top: 5px; background: #f3f4f1; }
+.answer-code-wrap > .copy-content { position: absolute; right: 6px; top: 5px; background: var(--ui-subtle); }
 
 /* 执行过程：运行中浅青底，结束后中性；步骤点只表达状态。 */
 .activity-card { border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); background: var(--ui-surface); margin: 8px 0 14px; padding: 10px 12px; color: var(--ui-secondary); font-size: 12px; }
-.activity-card.is-live { border-color: #bcd0ca; background: #f7fbfa; }
+.activity-card.is-live { border-color: #bcd0ca; background: var(--ui-subtle); }
 .activity-heading { display: flex; gap: 8px; align-items: center; color: var(--ui-secondary); }
 .activity-heading strong { font-size: 12.5px; font-weight: 600; color: var(--ui-ink); flex: 1; min-width: 0; line-height: 1.5; }
 .activity-heading > span { display: flex; gap: 4px; align-items: center; font-size: 11px; white-space: nowrap; color: var(--ui-muted); font-variant-numeric: tabular-nums; }
@@ -53,7 +53,7 @@ li[data-status='failed'] .step-dot { background: var(--ui-danger); }
 /* 输入条控件与权限提示：形态由紧凑层决定，这里只给令牌化外观。 */
 .composer-footer .permission-select { font-size: 11px; font-family: inherit; color: var(--ui-secondary); border: 1px solid var(--ui-line); border-radius: var(--ui-radius-sm); background: var(--ui-subtle); padding: 4px 6px; cursor: pointer; }
 .composer-footer .permission-select:hover:not(:disabled) { border-color: #c3cbc4; background: var(--ui-surface); }
-.composer-footer .permission-select[data-mode='full'] { color: var(--ui-warning); background: #fdf7ea; border-color: #ecdcbe; }
+.composer-footer .permission-select[data-mode='full'] { color: var(--ui-warning); background: var(--ui-warning-soft); border-color: #ecdcbe; }
 .permission-mode-help { font-size: 11px; color: var(--ui-muted); line-height: 1.5; margin: 7px 2px 0; }
 .permission { font-size: 12.5px; line-height: 1.65; }
 .permission > strong { font-size: 13px; color: var(--ui-ink); }
@@ -76,8 +76,8 @@ li[data-status='failed'] .step-icon { color: var(--ui-danger); }
 .permission { background: var(--ui-surface); border: 1px solid #ecdfc7; border-left: 3px solid var(--ui-warning); border-radius: var(--ui-radius-md); padding: 10px 12px; margin: 10px 0; }
 .permission-head { display: flex; align-items: center; gap: 6px; color: var(--ui-warning); }
 .permission-head strong { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--ui-ink); }
-.permission-head code { font-family: var(--ui-mono); font-size: 10.5px; color: var(--ui-secondary); background: #f3f4f1; border: 1px solid var(--ui-soft-line); border-radius: var(--ui-radius-xs); padding: 1px 5px; }
-.permission-command { margin: 8px 0 0; padding: 8px 10px; background: #fbfaf7; border: 1px solid #f0e6d2; border-radius: var(--ui-radius-sm); font: 11px/1.6 var(--ui-mono); color: #4a4c48; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 78px; overflow: auto; }
+.permission-head code { font-family: var(--ui-mono); font-size: 10.5px; color: var(--ui-secondary); background: var(--ui-subtle); border: 1px solid var(--ui-soft-line); border-radius: var(--ui-radius-xs); padding: 1px 5px; }
+.permission-command { margin: 8px 0 0; padding: 8px 10px; background: var(--ui-warning-soft); border: 1px solid #f0e6d2; border-radius: var(--ui-radius-sm); font: 11px/1.6 var(--ui-mono); color: #4a4c48; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 78px; overflow: auto; }
 .permission-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
 .permission-foot > span { font-size: 10.5px; color: var(--ui-muted); }
 .permission-foot > div { display: flex; gap: 6px; }
@@ -99,9 +99,9 @@ li[data-status='failed'] .step-icon { color: var(--ui-danger); }
 .context-card.pinned { border-left: 2px solid var(--ui-accent); }
 .context-card > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 7px; color: var(--ui-secondary); padding: 5px 8px; }
 .context-card > summary::-webkit-details-marker { display: none; }
-.context-card > summary:hover { background: #f1f2ef; }
+.context-card > summary:hover { background: var(--ui-subtle); }
 .context-card .ctx-icon { width: 18px; height: 18px; border-radius: var(--ui-radius-xs); display: grid; place-items: center; background: var(--ui-surface); border: 1px solid var(--ui-soft-line); color: var(--ui-muted); flex: none; }
-.context-card.pinned .ctx-icon { color: var(--ui-accent); border-color: #d3e0dc; }
+.context-card.pinned .ctx-icon { color: var(--ui-accent); border-color: var(--ui-line); }
 .context-card .ctx-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 7px; }
 .context-card .ctx-main strong { font-size: 11.5px; font-weight: 600; color: var(--ui-ink); white-space: nowrap; }
 .context-card .ctx-main small { font-size: 10.5px; color: var(--ui-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -131,14 +131,14 @@ li[data-status='failed'] .step-icon { color: var(--ui-danger); }
 .composer-wrap .drop-hint svg { color: var(--ui-accent); }
 
 /* 工作项引用：行内可点击 chip，链接到编辑工作台。 */
-.workitem-ref { display: inline; font: inherit; color: var(--ui-accent); background: var(--ui-accent-soft); border: 1px solid #d9e6e2; border-radius: var(--ui-radius-xs); padding: 0 4px; cursor: pointer; text-decoration: none; white-space: nowrap; }
-.workitem-ref:hover { background: #e1ece9; border-color: #c3d6d0; color: var(--ui-accent-ink); }
+.workitem-ref { display: inline; font: inherit; color: var(--ui-accent); background: var(--ui-accent-soft); border: 1px solid var(--ui-line); border-radius: var(--ui-radius-xs); padding: 0 4px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.workitem-ref:hover { background: var(--ui-hover); border-color: #c3d6d0; color: var(--ui-accent-ink); }
 
 /* 表格工具条：外层相对定位，横向滚动只发生在内层，复制按钮保持可见。 */
 .answer-table-wrap { position: relative; margin: 12px 0; }
 .answer-table-wrap > .answer-table { margin: 0; }
 .table-copy { position: absolute; top: 5px; right: 7px; z-index: 4; padding: 3px 8px; border-radius: var(--ui-radius-sm); border: 1px solid var(--ui-line); background: #fffffff2; color: var(--ui-secondary); font-size: 10.5px; opacity: .35; transition: opacity var(--ui-fast) var(--ui-ease), background var(--ui-fast) var(--ui-ease), color var(--ui-fast) var(--ui-ease); box-shadow: 0 1px 2px #2027250d; }
 .answer-table-wrap:hover .table-copy, .answer-table-wrap:focus-within .table-copy { opacity: 1; }
-.table-copy:hover { background: var(--ui-accent-soft); color: var(--ui-accent-ink); border-color: #cfdcd8; }
+.table-copy:hover { background: var(--ui-accent-soft); color: var(--ui-accent-ink); border-color: var(--ui-line); }
 .table-copy.copied { opacity: 1; background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; }
 @media (prefers-reduced-motion: reduce) { .table-copy { transition: none; } }

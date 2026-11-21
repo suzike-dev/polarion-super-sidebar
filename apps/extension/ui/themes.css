@@ -1,0 +1,48 @@
+/* 界面主题：全部令牌组覆盖，挂在 .workspace-root[data-theme=…] 上统一生效。
+   每套主题完整定义文字层级与面的对比度：正文/次级文字对 surface ≥4.5:1，弱化文字 ≥3:1，
+   按钮白字对 accent ≥4.5:1，青柠药丸与语义色保持全局一致，避免任何场景下文字发浅或不可读。 */
+.workspace-root[data-theme=porcelain] {
+  --ui-ink: #1f2622; --ui-secondary: #454f49; --ui-muted: #6b766e; --ui-line: #e2e6e3; --ui-soft-line: #edf0ee;
+  --ui-surface: #ffffff; --ui-subtle: #f5f7f6; --ui-canvas: #eff1f0;
+  --ui-accent: #1e573c; --ui-accent-soft: #e9f0ec; --ui-accent-ink: #164a33; --ui-hover: #ebf0ec; --ui-hover-press: #dde6e0;
+}
+.workspace-root[data-theme=paper] {
+  --ui-ink: #2b2620; --ui-secondary: #4f483d; --ui-muted: #77705f; --ui-line: #e6e1d2; --ui-soft-line: #efebe0;
+  --ui-surface: #fffdf8; --ui-subtle: #f8f4ea; --ui-canvas: #f3efe2;
+  --ui-accent: #34544a; --ui-accent-soft: #e9edda; --ui-accent-ink: #274239; --ui-hover: #edeadd; --ui-hover-press: #e0ddca;
+}
+.workspace-root[data-theme=bamboo] {
+  --ui-ink: #1c2f22; --ui-secondary: #3e5a45; --ui-muted: #647d66; --ui-line: #d8e6d6; --ui-soft-line: #e8f0e6;
+  --ui-surface: #fbfdf9; --ui-subtle: #eff7ee; --ui-canvas: #e6f2e4;
+  --ui-accent: #23684a; --ui-accent-soft: #e2f1e6; --ui-accent-ink: #1a5238; --ui-hover: #e3efdf; --ui-hover-press: #d3e6cd;
+}
+.workspace-root[data-theme=autumn] {
+  --ui-ink: #33290f; --ui-secondary: #5c4c22; --ui-muted: #7d6f46; --ui-line: #e7dfc2; --ui-soft-line: #f0e9d3;
+  --ui-surface: #fffef7; --ui-subtle: #faf5e3; --ui-canvas: #f4ecd2;
+  --ui-accent: #8a5a1a; --ui-accent-soft: #f5ecd7; --ui-accent-ink: #6d4310; --ui-hover: #f0e8d0; --ui-hover-press: #e6dcb8;
+}
+.workspace-root[data-theme=sky] {
+  --ui-ink: #17262e; --ui-secondary: #37505c; --ui-muted: #5e7480; --ui-line: #d3e2ec; --ui-soft-line: #e6eff4;
+  --ui-surface: #fbfdfe; --ui-subtle: #eef5f8; --ui-canvas: #e3eef5;
+  --ui-accent: #26698c; --ui-accent-soft: #e3f0f6; --ui-accent-ink: #1d5471; --ui-hover: #e2eef4; --ui-hover-press: #d0e2ec;
+}
+.workspace-root[data-theme=tangerine] {
+  --ui-ink: #312415; --ui-secondary: #5e4a2e; --ui-muted: #83705a; --ui-line: #ead9c4; --ui-soft-line: #f2e6d7;
+  --ui-surface: #fffdf9; --ui-subtle: #faf1e5; --ui-canvas: #f6e8d6;
+  --ui-accent: #964d16; --ui-accent-soft: #f7e9d9; --ui-accent-ink: #7a3f12; --ui-hover: #f3e6d4; --ui-hover-press: #eadbc2;
+}
+.workspace-root[data-theme=rouge] {
+  --ui-ink: #2e1d20; --ui-secondary: #5c3d42; --ui-muted: #7d626a; --ui-line: #e7d4d4; --ui-soft-line: #f0e3e3;
+  --ui-surface: #fffafa; --ui-subtle: #f8eeee; --ui-canvas: #f3e4e4;
+  --ui-accent: #a03d48; --ui-accent-soft: #f7e6e9; --ui-accent-ink: #832f3a; --ui-hover: #f2e4e5; --ui-hover-press: #e6d3d5;
+}
+.workspace-root[data-theme=indigo] {
+  --ui-ink: #1d2732; --ui-secondary: #3d4c5c; --ui-muted: #647483; --ui-line: #d5dee6; --ui-soft-line: #e8eef2;
+  --ui-surface: #f9fbfc; --ui-subtle: #eef2f5; --ui-canvas: #e4eaf0;
+  --ui-accent: #34526e; --ui-accent-soft: #e5edf4; --ui-accent-ink: #284257; --ui-hover: #e6eef4; --ui-hover-press: #d8e3ec;
+}
+.workspace-root[data-theme=lotus] {
+  --ui-ink: #291e2a; --ui-secondary: #4d3d52; --ui-muted: #746576; --ui-line: #e5d6e3; --ui-soft-line: #f0e6ee;
+  --ui-surface: #fefbfd; --ui-subtle: #f7eff6; --ui-canvas: #efe4ee;
+  --ui-accent: #7d4a78; --ui-accent-soft: #f2e6f1; --ui-accent-ink: #663a62; --ui-hover: #f1e6ef; --ui-hover-press: #e4d5e2;
+}

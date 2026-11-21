@@ -6,8 +6,8 @@ import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { Store } from './store.ts';
 import { Drafts, Polarion, type ChangeRemoteRow, type ChangeWriteInput } from './polarion.ts';
-import { Model, scanModelRoot, modelContextDigest } from './model.ts';
-import { ModelRootSchema, type ModelIndexView, type ModelRoot, type Target } from '../../packages/protocol/index.ts';
+import { Model, PLATFORM_ROOT_ID, platformRoot, scanModelRoot, modelContextDigest } from './model.ts';
+import { ModelModuleSchema, ModelRootSchema, type ModelIndexView, type ModelModule, type ModelRoot, type Target } from '../../packages/protocol/index.ts';
 
 function tempDir(t: TestContext, prefix: string) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -389,4 +389,52 @@ test('baseline/check：模型侧变化 → 关联需求疑似过期；需求侧�
   const reset = await model.baselineSet(target, rootId);
   assert.equal(reset.ok, true);
   assert.equal(reset.findings.length, 0);
+});
+
+test('平台模块目录：无根目录项目把需求关联到平台固定模块，追溯与摘要一致', async t => {
+  const remote = new SharedAttachment();
+  const model = client(t, remote);
+  const mod = (key: string, name: string, kind: ModelModule['kind'] = 'module') => ModelModuleSchema.parse({ key, name, kind });
+  // 未配置根目录也未维护目录 → 可读引导；维护后按平台模式出提示词。
+  assert.throws(() => model.autolinkPrompt(target), /MODEL_AUTOLINK_NEEDS_ROOT/);
+  assert.throws(() => model.autolinkPrompt(target), /平台模块目录/);
+  model.savePlatformCatalog([mod('助力模式', '助力模式'), mod('HighVolt', '高压采集'), mod('Top', '顶层集成', 'integration')]);
+  assert.equal(platformRoot(model['store'])!.id, PLATFORM_ROOT_ID);
+  assert.throws(() => model.autolinkPrompt(target), /MODEL_AUTOLINK_NEEDS_INDEX/);
+  const index: ModelIndexView = {
+    total: 3, annotated: 2, syncedAt: Date.now(), query: '',
+    items: [
+      { workItemId: 'SPE-1', title: '助力模式判定', type: 'Requirement', updated: 'v1', marks: [{ rootId: PLATFORM_ROOT_ID, modules: ['助力模式'] }], links: [] },
+      { workItemId: 'SPE-2', title: '高压采集需求', type: 'Requirement', updated: 'v1', marks: [{ rootId: PLATFORM_ROOT_ID, modules: ['HighVolt'] }], links: [] },
+      { workItemId: 'SPE-3', title: 'CAN 信号诊断', type: 'Requirement', updated: 'v1', marks: [], links: [] },
+    ],
+  };
+  model['store'].put('model-index', target.projectId, index);
+  const { prompt, count, mode } = model.autolinkPrompt(target);
+  assert.equal(count, 1);
+  assert.equal(mode, 'platform');
+  assert.ok(prompt.includes('rootId=' + PLATFORM_ROOT_ID));
+  assert.ok(prompt.includes('key=助力模式'));
+  assert.ok(prompt.includes('阶段一 · 了解模型侧'));
+  assert.ok(prompt.includes('peek_work_item'));
+  assert.ok(prompt.includes('action=note_write'));
+  assert.ok(!prompt.includes('SPE-1｜')); // 已标注项不进待关联清单
+  // 追溯分组按平台根输出；会话摘要与标注视图都落到平台目录。
+  const trace = await model.traceView(target);
+  assert.deepEqual(trace.roots.map(root => root.id), [PLATFORM_ROOT_ID]);
+  const group = trace.groups.find(group => group.moduleKey === '助力模式')!;
+  assert.deepEqual(group.items.map(item => item.workItemId), ['SPE-1']);
+  assert.match(modelContextDigest(model['store'], target.projectId), /平台固定模块目录/);
+  const noteView = await model.viewRoots(target);
+  assert.equal(noteView.roots[0]!.label, '平台模块');
+  // 已有配置根且索引无平台标注时不叠加平台分组；索引里真有平台标注时仍显示。
+  await model.rootsSave(target, [scannedRoot(makeRoot(t))], null);
+  const scannedId = (await model.roots(target)).roots[0]!.id;
+  model['store'].put('model-index', target.projectId, { ...index, items: [index.items[2]!] });
+  const withRoots = await model.traceView(target);
+  assert.ok(withRoots.groups.every(group => group.rootId !== PLATFORM_ROOT_ID));
+  model['store'].put('model-index', target.projectId, { ...index, items: [index.items[2]!, { workItemId: 'SPE-9', title: '平台遗留标注', type: 'Requirement', updated: 'v1', marks: [{ rootId: PLATFORM_ROOT_ID, modules: ['HighVolt'] }], links: [] }] });
+  const mixed = await model.traceView(target);
+  assert.ok(mixed.groups.some(group => group.rootId === PLATFORM_ROOT_ID));
+  assert.ok(scannedId !== PLATFORM_ROOT_ID);
 });

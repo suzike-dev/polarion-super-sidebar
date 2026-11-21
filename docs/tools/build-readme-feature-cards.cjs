@@ -197,7 +197,66 @@ ${txt(66, 635, '体检按有发现的工作项计数，含正文读取失败的�
 ${txt(66, 653, '覆盖缺口表示至少缺一项，孤立条目表示上游链接、实现模块和验证链接三项都空。', 10.5, C.sub)}
 `);
 
-const assets = [['readme-quality.svg', quality], ['readme-trace.svg', trace], ['readme-workflow.svg', workflow], ['readme-cockpit.svg', cockpit]];
+
+/* 8) 需求模板库：模板即真实工作项 */
+const templates = svg('需求模板库：模板就是真实工作项', '5 类必备模板存放在 library 项目的模板文档里；编辑模板等于编辑工作项，插入时按副本写入。示意使用虚构数据。', `
+${box(44, 96, 352, 470)}
+${txt(66, 124, '模板库（library 项目）', 13, C.accent, 700)}
+${txt(66, 144, '5 类必备 + 可扩展自定义类别', 10, C.muted)}
+${[['场景类', '介入 / 退出型功能', '内置'], ['计算类', '查表 / 公式计算', '内置'], ['算法类', '闭环 / 策略算法', '内置'], ['状态机类', '多状态跳转', '内置'], ['混合类', '复合逻辑', '内置']].map((row, i) => {
+  const y = 160 + i * 58;
+  return `${box(60, y, 320, 50, '#fbfcf8', C.line, 8)}
+${txt(74, y + 21, row[0], 11, C.ink, 700)}${txt(74, y + 38, row[1], 9.5, C.muted)}
+${pill(300, y + 15, row[2], C.soft, C.accent2)}`;
+}).join('')}
+${box(60, 456, 320, 44, '#f7faf5', C.line, 8)}
+${txt(74, 474, '可新增自定义类别', 10.5, C.ink, 600)}${txt(74, 490, '类别可扩展，如「诊断类」', 9.5, C.muted)}
+
+${box(412, 96, 360, 470)}
+${txt(434, 124, '插入模板：三步流程', 13, C.accent, 700)}
+${['① 在光标处新建工作项', '② 按原生 Save 保存', '③ 选模板点「插入模板」'].map((s, i) => {
+  const y = 150 + i * 74;
+  return `${box(432, y, 320, 60, '#fbfcf8', C.line, 8)}
+${txt(446, y + 24, s, 11, C.ink, 700)}${txt(446, y + 44, ['用 Polarion 原生方式，位置即光标处', '获得正式编号后即可写入', '正文立即生效，无需刷新'][i], 9.5, C.muted)}`;
+}).join('')}
+${arrow(560, 210, 560, 224)}${arrow(560, 284, 560, 298)}
+${box(432, 384, 320, 76, '#f7faf5', C.line, 8)}
+${txt(446, 406, '光标自动识别', 11, C.ink, 700)}
+${txt(446, 424, '位置与目标条目自动带入；未识别时', 9.5, C.muted)}
+${txt(446, 440, '橙色提示并允许手填条目标 ID。', 9.5, C.muted)}
+${box(432, 472, 320, 76, '#fdf8f2', '#e8d3b4', 8)}
+${txt(446, 494, '安全边界', 11, C.warn, 700)}
+${txt(446, 512, '目标正文非空白即拒绝写入；', 9.5, C.sub)}
+${txt(446, 528, '模板原件永不被改动（写入副本）。', 9.5, C.sub)}
+
+${box(788, 96, 348, 470)}
+${txt(810, 124, '插入结果：与模板同构的正文', 13, C.accent, 700)}
+${box(806, 140, 312, 30, C.soft, 'none', 6)}${txt(818, 160, '1. 功能描述', 10.5, C.accent, 700)}
+${box(806, 178, 312, 52, '#fbfcf8', C.line, 6)}
+${txt(818, 196, '功能 ID  FC-QUICKCOOL-01   ASIL  QM', 9, C.ink)}
+${txt(818, 214, '需求来源  HMI 交互规范 / 整车定义', 9, C.muted)}
+${box(806, 238, 312, 76, '#fbfcf8', C.line, 6)}
+${txt(818, 256, '2. 输入接口表', 10, C.accent, 700)}
+${['信号名称        信号值        数据类型', 'ICCQuickCoolSwt  0x1: ON      uint8', 'SC_AmbTemp_deg   -40~60 degC  sfloat'].map((s, i) => txt(818, 274 + i * 16, s, 8.5, i ? C.sub : C.muted, i ? 400 : 600)).join('')}
+${box(806, 322, 312, 60, '#fbfcf8', C.line, 6)}
+${txt(818, 340, '3. 输出接口表', 10, C.accent, 700)}
+${txt(818, 358, 'AcQuickCoolStsDisp   0x1: On   uint8', 8.5, C.sub)}
+${box(806, 390, 312, 76, '#fbfcf8', C.line, 6)}
+${txt(818, 408, '4. 标定量表', 10, C.accent, 700)}
+${txt(818, 426, 'CTC_QuickCoolAmbMin_c   -5 degC', 8.5, '#b45309', 700)}
+${txt(818, 444, 'CTC_QuickCoolSwtDly_c   200 ms', 8.5, '#b45309', 700)}
+${box(806, 474, 312, 76, '#f7faf5', C.line, 6)}
+${txt(818, 492, '5. 需求条目（EARS）', 10, C.accent, 700)}
+${txt(818, 510, 'REQ-QC-01  WHEN 开关=ON … 系统应 …', 8.5, C.sub)}
+${txt(818, 526, 'REQ-QC-02  IF 环温 ≥ -5 ℃ … 应 …', 8.5, C.sub)}
+
+${box(44, 588, 1112, 78, '#fbfcf8', C.line)}
+${txt(66, 614, '与工作项同构', 11, C.accent, 700)}
+${txt(66, 635, '模板是 Polarion 里的真实工作项：打开编辑即进入副文本编辑工作台，保存走工作项保存链路（服务端回读校验）。', 10.5, C.sub)}
+${txt(66, 653, '插入时实时读取模板当前正文：在设置里改完模板并保存，下一次插入立即生效；写入的是副本，模板原件不受影响。', 10.5, C.sub)}
+`);
+
+const assets = [['readme-quality.svg', quality], ['readme-trace.svg', trace], ['readme-workflow.svg', workflow], ['readme-cockpit.svg', cockpit], ['readme-templates.svg', templates]];
 (async () => {
   for (const [name, content] of assets) {
     const svgPath = path.join(outDir, name);

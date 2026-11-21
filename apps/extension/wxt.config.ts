@@ -8,7 +8,7 @@ export default defineConfig({
   // Chromium rejects unescaped Unicode noncharacters in content scripts (including KaTeX's lexer range).
   vite: () => ({ build: { rolldownOptions: { output: { charset: 'ascii' } } } }),
   manifest: {
-    name: 'Polarion 超级侧边栏 · 开发版', version: '0.13.1', key,
+    name: 'Polarion 超级侧边栏 · 开发版', version: '0.13.3', key,
     description: '与本地 Agent 及 Polarion 工作项共享上下文和草稿的工程工作台',
     permissions: ['storage', 'contextMenus', 'nativeMessaging', 'scripting', 'offscreen', 'clipboardWrite'],
     host_permissions: ['https://polarion.pufafen.com/*'],

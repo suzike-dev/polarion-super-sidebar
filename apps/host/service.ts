@@ -8,6 +8,7 @@ import {Variants} from './variants.ts';
 import {Changes} from './changes.ts';
 import {Credentials} from './credentials.ts';
 import {Workflows, localDay} from './workflows.ts';
+import {ReqTemplates} from './templates.ts';
 import {Model, scanModelRoot} from './model.ts';
 import {Coverage} from './coverage.ts';
 import {Rules} from './rules.ts';
@@ -46,15 +47,16 @@ export class Service {
   rules: Rules;
   proposals: Proposals;
   workflows: Workflows;
+  templates: ReqTemplates;
   credentials?: Credentials;
-  constructor(store: Store, drafts?: Drafts) { this.store = store; this.assets = new Assets(store); this.drafts = drafts ?? new Drafts(store, new Polarion(this.assets)); this.engines = new Engines(store, this.drafts, this.assets); this.capabilities = new Capabilities(store); this.variants = new Variants(store, this.drafts, this.assets); this.changes = new Changes(store, this.drafts, this.assets); this.rules = new Rules(store, this.drafts); this.model = new Model(store, this.drafts); this.coverage = new Coverage(store, this.drafts, this.model); this.events = new Events(store); this.gates = new Gates(store, this.rules); this.reviews = new Reviews(store); this.meetings = new Meetings(store); this.snapshots = new Snapshots(store, this.coverage, this.gates, this.reviews); this.worksets = new Worksets(store); this.macros = new Macros(store, this.engines); this.engines.reviews = this.reviews; this.engines.meetings = this.meetings; this.reviews.engines = this.engines; this.meetings.engines = this.engines; this.proposals = new Proposals(store, this.drafts, this.changes); this.engines.proposals = this.proposals; this.workflows = new Workflows(store); this.workflows.proposals = this.proposals; this.workflows.engines = this.engines; this.engines.workflows = this.workflows; }
+  constructor(store: Store, drafts?: Drafts) { this.store = store; this.assets = new Assets(store); this.drafts = drafts ?? new Drafts(store, new Polarion(this.assets)); this.engines = new Engines(store, this.drafts, this.assets); this.capabilities = new Capabilities(store); this.variants = new Variants(store, this.drafts, this.assets); this.changes = new Changes(store, this.drafts, this.assets); this.rules = new Rules(store, this.drafts); this.model = new Model(store, this.drafts); this.coverage = new Coverage(store, this.drafts, this.model); this.events = new Events(store); this.gates = new Gates(store, this.rules); this.reviews = new Reviews(store); this.meetings = new Meetings(store); this.snapshots = new Snapshots(store, this.coverage, this.gates, this.reviews); this.worksets = new Worksets(store); this.macros = new Macros(store, this.engines); this.engines.reviews = this.reviews; this.engines.meetings = this.meetings; this.reviews.engines = this.engines; this.meetings.engines = this.engines; this.proposals = new Proposals(store, this.drafts, this.changes); this.engines.proposals = this.proposals; this.workflows = new Workflows(store); this.workflows.proposals = this.proposals; this.workflows.engines = this.engines; this.engines.workflows = this.workflows; this.templates = new ReqTemplates(store); this.templates.drafts = this.drafts; this.engines.templates = this.templates; }
   async request(input: unknown): Promise<Reply> {
     // 解析失败也要带回请求 id，否则客户端只能等 100 秒超时，看不到具体校验错误。
     let id = input && typeof input === 'object' && typeof (input as { id?: unknown }).id === 'string' ? String((input as { id?: unknown }).id) : '';
     try {
       const request = RequestSchema.parse(input); id = request.id; const c = request.command; let value: unknown;
       switch (c.method) {
-        case 'health': value = { protocol: PROTOCOL, version: '0.13.1', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback', scopedQualityRewrite: true }; break;
+        case 'health': value = { protocol: PROTOCOL, version: '0.13.3', pid: process.pid, running: this.engines.active.size, codex: 'not-integrated', writeScope: 'explicit-user-save-with-readback', scopedQualityRewrite: true }; break;
         case 'engine.capabilities': {const s=c.sessionId?this.store.require<Session>('session',c.sessionId):undefined;if(s&&s.target.projectId!==c.target.projectId)throw Error('SESSION_PROJECT_MISMATCH');const runtime=c.sessionId?this.engines.runtimes.get(c.sessionId):undefined;const capabilities=runtime?await import('./capabilities.ts').then(m=>m.inspectRuntime(runtime)):await this.capabilities.read(c.target,c.refresh);value={...capabilities,connected:!!runtime};break;}
         case 'engine.manage': value=await this.engines.manage(c.sessionId,c.action,c.server);break;
         case 'engine.context': this.store.require<Session>('session',c.sessionId);value=await this.engines.contextUsage.read(c.sessionId,c.refresh);break;
@@ -191,11 +193,20 @@ export class Service {
         case 'workflows.seed': value = this.workflows.seedTemplates(c.projectId); break;
         case 'workflows.schedule': value = this.workflows.schedule(c.id, c.scheduleAt, c.target); break;
         case 'workflows.runBatch': value = this.workflows.runBatch(c.target, c.defId, c.workItemIds, c.permissionMode, c.note); break;
+        case 'templates.list': value = { items: await this.templates.list(c.target.origin), ensureErrors: this.templates.lastEnsureErrors }; break;
+        case 'templates.read': value = await this.templates.read(c.target.origin, c.templateId); break;
+        case 'templates.reset': value = await this.templates.reset(c.target.origin, c.templateId); break;
+        case 'templates.createCustom': value = await this.templates.createCustom(c.target.origin, c.title, c.category, c.html); break;
+        case 'templates.instantiate': value = await this.templates.instantiate(c.target, c.templateId, c.title, c.anchorWorkItemId); break;
+        case 'templates.apply': value = await this.templates.apply(c.target, c.workItemId, c.templateId); break;
         case 'model.roots': value = await this.model.roots(c.target); break;
         case 'model.roots.save': value = await this.model.rootsSave(c.target, c.roots, c.expectedUpdated); break;
         case 'model.roots.bind': value = this.model.bindLocal(c.target, c.rootId, c.path); break;
         case 'model.roots.scan': value = scanModelRoot(c.path); break;
         case 'model.note.read': value = await this.model.noteRead(c.target, c.workItemId); break;
+        case 'model.platform.get': value = this.model.platformCatalog(); break;
+        case 'model.platform.save': value = this.model.savePlatformCatalog(c.modules); break;
+        case 'model.roots.forNote': value = await this.model.viewRoots(c.target); break;
         case 'model.note.write': { const written = await this.model.noteWrite(c.target, c.workItemId, c.note); this.events.record(c.target.projectId, 'note', `${c.workItemId} 更新实现模块备注`, { workItemId: c.workItemId, detail: `${c.note.marks.reduce((count, mark) => count + mark.modules.length, 0)} 个模块` }); value = written; break; }
         case 'model.index.sync': value = await this.model.indexSync(c.target, c.query); break;
         case 'model.trace.view': value = await this.model.traceView(c.target); break;

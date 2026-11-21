@@ -1,21 +1,21 @@
-:host .rich-layer .single-line-toolbar{position:relative;flex-wrap:nowrap;gap:0;min-height:46px;height:46px;max-height:46px;overflow:visible;padding:7px 8px;background:var(--ui-canvas);border-bottom:1px solid #e6e8db;z-index:7}
-:host .rich-layer .ribbon-tabs{background:#f6f8f0;border-color:#e7e9de}
+:host .rich-layer .single-line-toolbar{position:relative;flex-wrap:nowrap;gap:0;min-height:46px;height:46px;max-height:46px;overflow:visible;padding:7px 8px;background:var(--ui-canvas);border-bottom:1px solid var(--ui-hover);z-index:7}
+:host .rich-layer .ribbon-tabs{background:var(--ui-subtle);border-color:var(--ui-hover)}
 :host .rich-layer .ribbon-tabs>button{color:#687766;font-weight:400}
-:host .rich-layer .ribbon-tabs>button.active{background:#fff;color:#1e573c;font-weight:600;box-shadow:0 1px 3px #283d2d08}
-:host .rich-layer .document-tools{background:#fbfcfa;border-color:#e7e9de;color:#687766}
-:host .rich-layer .single-line-toolbar .toolbar-section{display:flex;flex:0 0 auto;flex-wrap:nowrap;gap:2px;padding:0 7px;border-right:1px solid #e7e9dc;max-width:none}
+:host .rich-layer .ribbon-tabs>button.active{background:#fff;color:var(--ui-accent);font-weight:600;box-shadow:0 1px 3px #283d2d08}
+:host .rich-layer .document-tools{background:var(--ui-subtle);border-color:var(--ui-hover);color:#687766}
+:host .rich-layer .single-line-toolbar .toolbar-section{display:flex;flex:0 0 auto;flex-wrap:nowrap;gap:2px;padding:0 7px;border-right:1px solid var(--ui-hover);max-width:none}
 :host .rich-layer .single-line-toolbar .toolbar-section>small{display:none}
 :host .rich-layer .single-line-toolbar .rt-button{height:30px;min-height:30px;min-width:30px;padding:0 7px;border:0;border-radius:5px;color:#535f52;background:transparent;box-shadow:none;font-size:12px;gap:5px;white-space:nowrap}
-:host .rich-layer .single-line-toolbar .rt-button:hover:not(:disabled){background:#f0f2e8;color:#2b302a}
-:host .rich-layer .single-line-toolbar .rt-button.active{background:#e4efdc;color:#174630;box-shadow:inset 0 0 0 1px #cbdfc2}
+:host .rich-layer .single-line-toolbar .rt-button:hover:not(:disabled){background:var(--ui-hover);color:#2b302a}
+:host .rich-layer .single-line-toolbar .rt-button.active{background:var(--ui-hover);color:var(--ui-accent-ink);box-shadow:inset 0 0 0 1px #cbdfc2}
 :host .rich-layer .single-line-toolbar .rt-button:disabled{background:transparent;opacity:.36}
 :host .rich-layer .single-line-toolbar svg{flex-shrink:0;stroke-width:1.7}
 :host .rich-layer .single-line-toolbar select{appearance:auto;height:30px;min-height:30px;max-width:none;padding:0 5px;border:1px solid transparent;border-radius:5px;background:transparent;color:#414c42;font-size:12px;box-shadow:none}
-:host .rich-layer .single-line-toolbar select:hover{background:#f4f5ec;border-color:#e3e6d9}
+:host .rich-layer .single-line-toolbar select:hover{background:var(--ui-subtle);border-color:var(--ui-line)}
 :host .rich-layer .single-line-toolbar select[aria-label="段落样式"]{width:81px}
 :host .rich-layer .single-line-toolbar select[aria-label="字号"]{width:69px}
 :host .rich-layer .single-line-toolbar select[aria-label="字体"]{width:95px}
-:host .rich-layer .single-line-toolbar :is(button,select):focus-visible{outline:2px solid #1e573c;outline-offset:2px}
+:host .rich-layer .single-line-toolbar :is(button,select):focus-visible{outline:2px solid var(--ui-accent);outline-offset:2px}
 :host .rich-layer .toolbar-dropdown{position:relative;display:flex;flex-shrink:0}
 :host .rich-layer .toolbar-menu-panel{display:grid;gap:1px;min-width:215px}
 :host .rich-layer .toolbar-menu-panel{z-index:20;padding:6px;background:#fff;border:1px solid var(--ui-line);border-radius:8px;box-shadow:var(--ui-popover-shadow);overflow:auto;overscroll-behavior:contain}
@@ -23,7 +23,7 @@
 :host .rich-layer .toolbar-menu-panel .rt-button{justify-content:flex-start;min-height:32px;width:100%;padding:0 10px}
 :host .rich-layer .toolbar-menu-panel .rt-button[aria-label]:not(:has(span))::after{content:attr(aria-label)}
 :host .rich-layer .toolbar-menu-panel label{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 10px;color:#626d5c;font-size:12px}
-:host .rich-layer .toolbar-menu-panel hr{height:1px;border:0;background:#edf0e4;margin:4px 6px}
+:host .rich-layer .toolbar-menu-panel hr{height:1px;border:0;background:var(--ui-hover);margin:4px 6px}
 :host .rich-layer .toolbar-measure{position:absolute!important;visibility:hidden!important;inset:auto!important;left:0!important;width:max-content!important;max-width:none!important;pointer-events:none!important}
 :host .rich-layer .toolbar-measure .toolbar-dropdown{display:flex!important;flex-basis:auto!important}
 :host .rich-layer .toolbar-measure .toolbar-menu-trigger{display:flex!important}
@@ -34,7 +34,7 @@
 :host .rich-layer .single-line-toolbar :is(.rt-button,select){height:32px;min-height:32px;font-size:13px;border-radius:6px}
 :host .rich-layer .single-line-toolbar .rt-button{min-width:32px}
 :host .rich-layer .single-line-toolbar .rt-button:disabled{opacity:1;color:#747e6f}
-:host .rich-layer .single-line-toolbar .rt-button.active{background:#eaf0de;color:var(--ui-ink);box-shadow:none}
+:host .rich-layer .single-line-toolbar .rt-button.active{background:var(--ui-hover);color:var(--ui-ink);box-shadow:none}
 :host .rich-layer .ribbon-tabs>button.active{box-shadow:none;color:var(--ui-ink)}
 :host .rich-layer .toolbar-menu-panel .rt-button{min-height:34px}
 :host .rich-layer .toolbar-menu-panel label{font-size:13px}
@@ -46,8 +46,8 @@
   --header-ink: var(--ui-ink);
   --header-secondary: var(--ui-secondary);
   --header-line: var(--ui-line);
-  --header-active: #e1ead8;
-  --header-surface: #fcfcf6;
+  --header-active: var(--ui-hover);
+  --header-surface: var(--ui-subtle);
   position: relative;
   display: flex;
   align-items: center;
@@ -57,11 +57,12 @@
   color: var(--header-ink);
 }
 :host .workspace .assistant-header.brand {
-  --header-ink: #f1f6ec;
-  --header-secondary: #b8c9b5;
-  --header-line: #47604c;
-  --header-active: #304c37;
-  --header-surface: #182b20;
+  /* 品牌带跟随主题：深底浅字全部从主题 accent 派生（各主题 accent 均通过白字 4.5:1 对比度校验）。 */
+  --header-ink: color-mix(in srgb, #fff 94%, var(--ui-accent));
+  --header-secondary: color-mix(in srgb, #fff 66%, var(--ui-accent));
+  --header-line: color-mix(in srgb, #fff 22%, var(--ui-accent));
+  --header-active: color-mix(in srgb, #fff 14%, var(--ui-accent));
+  --header-surface: var(--ui-accent);
   border-color: var(--header-surface);
 }
 :host .workspace.floating-assistant .assistant-header { min-height: 39px; padding-inline: 10px; gap: 6px; }
@@ -74,7 +75,7 @@
 :host .workspace .assistant-header .brand-mark span { font-size: 11px; line-height: 1; top: 2px; right: 3px; color: #4b6b3d; }
 :host .workspace .assistant-logo .connection {
   position: absolute; right: -1px; bottom: -1px; width: 7px; height: 7px;
-  background: #83917d; box-shadow: 0 0 0 2px var(--header-surface);
+  background: color-mix(in srgb, #fff 45%, var(--ui-accent)); box-shadow: 0 0 0 2px var(--header-surface);
 }
 :host .workspace .assistant-logo .connection.online { background: #78ad6f; }
 :host .workspace .assistant-wordmark { min-width: 0; line-height: 1.2; }
@@ -106,7 +107,7 @@
 :host .rich-layer :is(.rich-tabs>span,.rich-statusbar,.document-shortcuts){font-size:11px}
 :host .rich-layer .single-line-toolbar .document-tools-inline{display:flex;align-items:center;gap:2px;flex-wrap:nowrap;min-height:32px;height:32px;padding:0;border:0;background:transparent;position:static}
 :host .rich-layer .single-line-toolbar .document-tools-inline>button{height:32px;min-height:32px;padding:0 7px;gap:5px;font-size:13px;color:var(--ui-secondary);white-space:nowrap;border-radius:6px}
-:host .rich-layer .single-line-toolbar .document-tools-inline>button:hover{background:#f0f2e8;color:var(--ui-ink)}
+:host .rich-layer .single-line-toolbar .document-tools-inline>button:hover{background:var(--ui-hover);color:var(--ui-ink)}
 :host .rich-layer .single-line-toolbar .document-tools-inline>button>small{font-size:11px;background:transparent;padding:0;margin-left:1px}
 :host .rich-layer .single-line-toolbar .document-tools-inline .document-tool-menu:not(.slash-insert-menu){left:auto;right:8px;top:calc(100% + 7px);max-height:min(430px,calc(100vh - 290px))}
 :host .rich-layer .single-line-toolbar .toolbar-group-trigger{display:none}
@@ -130,7 +131,7 @@
 :host .rich-layer .search-case-toggle{display:inline-flex;align-items:center;gap:7px;min-height:30px;padding:0 3px;border:0;background:transparent;color:var(--ui-secondary);font:inherit;cursor:pointer}
 :host .rich-layer .search-case-toggle>span{display:grid;place-items:center;width:14px;height:14px;border:1px solid #929c8d;border-radius:3px;background:#fff}
 :host .rich-layer .search-case-toggle[aria-checked=true]>span{color:#fff;background:var(--ui-accent);border-color:var(--ui-accent)}
-:host .rich-layer .search-case-toggle:focus-visible{outline:2px solid #1e573c;outline-offset:2px}
+:host .rich-layer .search-case-toggle:focus-visible{outline:2px solid var(--ui-accent);outline-offset:2px}
 
 /* 正文内 @ 引用候选：与聊天侧同语言，定位到光标下方。 */
 .workitem-ref-picker { z-index: 40; max-height: 340px; overflow: auto; min-width: 300px; max-width: 360px; padding: 0; background: var(--ui-surface); border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); box-shadow: var(--ui-popover-shadow); }
@@ -149,5 +150,5 @@
 
 /* 正文里的工作项引用 chip：可编辑文档中的原生引用显示为可识别的标记。 */
 .tiptap .polarion-rte-link { display: inline; padding: 0 4px; border: 1px solid #cbdcc4; border-radius: var(--ui-radius-xs); background: var(--ui-accent-soft); color: var(--ui-accent); font-family: var(--ui-mono); font-size: .92em; cursor: pointer; }
-.tiptap .polarion-rte-link:hover { border-color: var(--ui-accent); background: #e6f0d8; }
+.tiptap .polarion-rte-link:hover { border-color: var(--ui-accent); background: var(--ui-hover); }
 .tiptap .polarion-rte-link.ProseMirror-selectednode { border-color: var(--ui-accent); box-shadow: 0 0 0 2px #1e573c26; }

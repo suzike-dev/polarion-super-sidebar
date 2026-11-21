@@ -33,3 +33,7 @@ docs/assets/screenshots/
 .app-runtime-test-*/
 
 spikes/board-preview/
+
+# 本地工具与验收截图
+.zcode/
+spikes/*.png

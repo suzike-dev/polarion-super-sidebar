@@ -101,10 +101,10 @@
 .workflow-trace-head { display: flex; flex-wrap: wrap; align-items: start; gap: 5px 8px; }
 .workflow-trace-head strong { flex: 1 1 145px; }
 .workflow-trace-meta { display: flex; flex-wrap: wrap; gap: 4px 9px; font-variant-numeric: tabular-nums; }
-.wf-status { display: inline-block; flex: none; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; background: #eef2fb; color: #22577a; }
-.wf-status.done, .workflow-trace-step.done .workflow-step-index { background: #e7f3ec; color: #196453; }
+.wf-status { display: inline-block; flex: none; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; background: var(--ui-info-soft); color: var(--ui-info-ink); }
+.wf-status.done, .workflow-trace-step.done .workflow-step-index { background: var(--ui-hover); color: var(--ui-positive-ink); }
 .wf-status.failed, .workflow-trace-step.failed .workflow-step-index { background: var(--ui-danger-soft); color: var(--ui-danger); }
-.wf-status.paused, .workflow-trace-step.interrupted .workflow-step-index { background: #fdf1e3; color: #86501b; }
+.wf-status.paused, .workflow-trace-step.interrupted .workflow-step-index { background: var(--ui-warning-soft); color: var(--ui-warning-ink); }
 .wf-status.cancelled, .workflow-trace-step.cancelled .workflow-step-index { background: var(--ui-subtle); color: var(--ui-secondary); }
 @container workflow (min-width: 500px) {
   .workflow-viewport { padding: 14px 16px; }
@@ -115,7 +115,7 @@
 }
 
 /* 会话输入区的运行状态与斜杠菜单。 */
-.workflow-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; padding: 7px 10px; margin-bottom: 6px; background: var(--ui-accent-soft); border: 1px solid #cfe0cf; border-radius: 8px; font-size: 11px; color: var(--ui-secondary); overflow-wrap: anywhere; }
+.workflow-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; padding: 7px 10px; margin-bottom: 6px; background: var(--ui-accent-soft); border: 1px solid var(--ui-line); border-radius: 8px; font-size: 11px; color: var(--ui-secondary); overflow-wrap: anywhere; }
 .workflow-strip > svg { color: var(--ui-accent); flex-shrink: 0; }
 .workflow-strip-name { min-width: 0; max-width: 100%; font-weight: 600; color: var(--ui-accent-ink); }
 .workflow-strip-step { flex: 1 1 130px; min-width: 0; }
